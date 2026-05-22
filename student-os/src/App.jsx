@@ -4,6 +4,7 @@ import Layout from './components/Layout'
 import DomainsPage from './pages/DomainsPage'
 import DomainDetailPage from './pages/DomainDetailPage'
 import CalendarPage from './pages/CalendarPage'
+import NotesPage from './pages/NotesPage'
 import { initialDomains } from './data/domains'
 
 function ComingSoon({ label }) {
@@ -31,6 +32,7 @@ export default function App() {
   const [selectedDomain, setSelectedDomain] = useState(null)
   const [domains,        setDomains]        = useState(initialDomains)
   const [customCalendarEvents, setCustomCalendarEvents] = useState([])
+  const [eventNotes,    setEventNotes]    = useState({})
 
   const handleNavigate = (page) => {
     setPreviousPage(currentPage)
@@ -56,6 +58,10 @@ export default function App() {
 
   const handleAddCalendarEvent = (event) => {
     setCustomCalendarEvents(prev => [...prev, event])
+  }
+
+  const handleUpdateNote = (eventId, text) => {
+    setEventNotes(prev => ({ ...prev, [eventId]: text }))
   }
 
   // Called from CalendarPage → EventDetailModal "View in Domains"
@@ -87,6 +93,8 @@ export default function App() {
           domain={selectedDomain}
           linkedEvents={linkedEventsFor(selectedDomain.id)}
           onBack={handleBack}
+          eventNotes={eventNotes}
+          onUpdateNote={handleUpdateNote}
         />
       )}
       {currentPage === 'calendar' && (
@@ -95,10 +103,18 @@ export default function App() {
           customEvents={customCalendarEvents}
           onViewDomain={handleViewDomainById}
           onAddCalendarEvent={handleAddCalendarEvent}
+          eventNotes={eventNotes}
+          onUpdateNote={handleUpdateNote}
         />
       )}
       {currentPage === 'study' && <ComingSoon label="Study Session" />}
-      {currentPage === 'notes' && <ComingSoon label="Notes" />}
+      {currentPage === 'notes' && (
+        <NotesPage
+          eventNotes={eventNotes}
+          customCalendarEvents={customCalendarEvents}
+          domains={domains}
+        />
+      )}
       {currentPage === 'todos' && <ComingSoon label="To Do List" />}
     </Layout>
   )

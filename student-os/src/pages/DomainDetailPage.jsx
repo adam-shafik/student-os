@@ -6,7 +6,54 @@ import {
   AlertCircle, ExternalLink, Tag,
 } from 'lucide-react'
 import { DOMAIN_CATEGORIES } from '../data/domains'
-import { resolveTypeLabel, resolveTypeColor, EVENT_TYPES } from '../utils/calendarEvents'
+import { resolveTypeLabel, resolveTypeColor, parseSubjectDate } from '../utils/calendarEvents'
+import EventDetailModal from '../components/EventDetailModal'
+
+// ─── Convert domain items → event shape for the shared modal ──────────────────
+function lectureEvent(domain, lecture, idx) {
+  return {
+    id: `${domain.id}-lecture-w${lecture.week}-${idx}`,
+    type: 'lecture',
+    title: lecture.title,
+    date: parseSubjectDate(lecture.date),
+    domainId: domain.id, domainCode: domain.code,
+    domainName: domain.name, domainColor: domain.color,
+    details: { week: lecture.week, status: lecture.status, hasNotes: lecture.hasNotes },
+  }
+}
+function labEvent(domain, lab) {
+  return {
+    id: `${domain.id}-${lab.id}`,
+    type: 'lab',
+    title: lab.title,
+    date: parseSubjectDate(lab.date),
+    domainId: domain.id, domainCode: domain.code,
+    domainName: domain.name, domainColor: domain.color,
+    details: { week: lab.week, status: lab.status },
+  }
+}
+function assignmentEvent(domain, assignment) {
+  return {
+    id: `${domain.id}-${assignment.id}`,
+    type: 'assignment',
+    title: assignment.title,
+    date: parseSubjectDate(assignment.dueDate),
+    domainId: domain.id, domainCode: domain.code,
+    domainName: domain.name, domainColor: domain.color,
+    details: { weight: assignment.weight, status: assignment.status, grade: assignment.grade },
+  }
+}
+function examEvent(domain, exam) {
+  return {
+    id: `${domain.id}-${exam.id}`,
+    type: 'exam',
+    title: exam.title,
+    date: parseSubjectDate(exam.date),
+    domainId: domain.id, domainCode: domain.code,
+    domainName: domain.name, domainColor: domain.color,
+    details: { time: exam.time, location: exam.location, weight: exam.weight, status: exam.status },
+  }
+}
 
 // ─── Shared helpers ────────────────────────────────────────────────────────────
 const STATUS_CFG = {
@@ -23,14 +70,6 @@ function StatusBadge({ status }) {
 function SectionCard({ children, style }) {
   return <div style={{ background: '#14151e', border: '1px solid #1e2030', borderRadius: 12, overflow: 'hidden', ...style }}>{children}</div>
 }
-function Row({ label, value }) {
-  return (
-    <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-      <span style={{ fontSize: 12, color: '#4a4c60', width: 52, flexShrink: 0 }}>{label}</span>
-      <span style={{ fontSize: 13, color: '#e6e7f0' }}>{value}</span>
-    </div>
-  )
-}
 function Stat({ label, value, color }) {
   return (
     <div>
@@ -40,21 +79,41 @@ function Stat({ label, value, color }) {
   )
 }
 
-// ─── Academic tabs ─────────────────────────────────────────────────────────────
+// Reusable clickable row wrapper
+function ClickableRow({ onClick, children, style }) {
+  const [hovered, setHovered] = useState(false)
+  return (
+    <div
+      onClick={onClick}
+      onMouseEnter={() => setHovered(true)}
+      onMouseLeave={() => setHovered(false)}
+      style={{
+        cursor: 'pointer',
+        background: hovered ? 'rgba(91,140,255,0.04)' : 'transparent',
+        transition: 'background 0.12s',
+        ...style,
+      }}
+    >
+      {children}
+    </div>
+  )
+}
 
-function OverviewTab({ domain }) {
-  const completedLectures   = (domain.lectures  || []).filter(l => l.status === 'completed').length
-  const completedLabs       = (domain.labs  || []).filter(l => l.status === 'completed').length
-  const gradedAssignments   = (domain.assignments || []).filter(a => a.grade !== null)
+// ─── Academic tabs ─────────────────────────────────────────────────────────────
+function OverviewTab({ domain, onOpenEvent }) {
+  const completedLectures = (domain.lectures  || []).filter(l => l.status === 'completed').length
+  const completedLabs     = (domain.labs      || []).filter(l => l.status === 'completed').length
+  const gradedAssignments = (domain.assignments || []).filter(a => a.grade !== null)
   const avgGrade = gradedAssignments.length
     ? Math.round(gradedAssignments.reduce((s, a) => s + a.grade, 0) / gradedAssignments.length)
     : null
   const upcoming = [
-    ...(domain.assignments || []).filter(a => a.status === 'upcoming').map(a => ({ type: 'Assignment', title: a.title, date: a.dueDate, color: '#fbbf24' })),
-    ...(domain.exams || []).filter(e => e.status === 'upcoming').map(e => ({ type: 'Exam', title: e.title, date: e.date, color: '#fb7185' })),
-    ...(domain.labs || []).filter(l => l.status === 'upcoming').map(l => ({ type: 'Lab', title: l.title, date: l.date, color: '#a78bfa' })),
+    ...(domain.assignments || []).filter(a => a.status === 'upcoming').map(a => ({ type: 'Assignment', title: a.title, date: a.dueDate, color: '#fbbf24', ev: assignmentEvent(domain, a) })),
+    ...(domain.exams       || []).filter(e => e.status === 'upcoming').map(e => ({ type: 'Exam',       title: e.title, date: e.date,    color: '#fb7185', ev: examEvent(domain, e) })),
+    ...(domain.labs        || []).filter(l => l.status === 'upcoming').map(l => ({ type: 'Lab',        title: l.title, date: l.date,    color: '#a78bfa', ev: labEvent(domain, l) })),
   ].slice(0, 4)
   const nextLecture = (domain.lectures || []).find(l => l.status === 'in-progress' || l.status === 'upcoming')
+  const nextLectureIdx = nextLecture ? (domain.lectures || []).indexOf(nextLecture) : -1
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
@@ -89,13 +148,13 @@ function OverviewTab({ domain }) {
             {upcoming.length === 0
               ? <p style={{ padding: '12px 20px', color: '#4a4c60', fontSize: 13, margin: 0 }}>No upcoming deadlines</p>
               : upcoming.map((item, i) => (
-                <div key={i} style={{ display: 'flex', alignItems: 'center', gap: 12, padding: '10px 20px', borderBottom: i < upcoming.length - 1 ? '1px solid #1e2030' : 'none' }}>
+                <ClickableRow key={i} onClick={() => onOpenEvent(item.ev)} style={{ display: 'flex', alignItems: 'center', gap: 12, padding: '10px 20px', borderBottom: i < upcoming.length - 1 ? '1px solid #1e2030' : 'none' }}>
                   <div style={{ width: 6, height: 6, borderRadius: '50%', background: item.color, flexShrink: 0 }} />
                   <div style={{ flex: 1, minWidth: 0 }}>
                     <div style={{ fontSize: 13, color: '#e6e7f0', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{item.title}</div>
                     <div style={{ fontSize: 11, color: '#4a4c60', marginTop: 2 }}>{item.type} · {item.date}</div>
                   </div>
-                </div>
+                </ClickableRow>
               ))}
           </div>
         </SectionCard>
@@ -106,10 +165,10 @@ function OverviewTab({ domain }) {
               <div style={{ padding: '14px 20px', borderBottom: '1px solid #1e2030' }}>
                 <span style={{ fontSize: 13, fontWeight: 600, color: '#e6e7f0' }}>Next Lecture</span>
               </div>
-              <div style={{ padding: '14px 20px' }}>
+              <ClickableRow onClick={() => onOpenEvent(lectureEvent(domain, nextLecture, nextLectureIdx))} style={{ padding: '14px 20px' }}>
                 <div style={{ fontSize: 14, fontWeight: 500, color: '#e6e7f0', marginBottom: 4 }}>{nextLecture.title}</div>
                 <div style={{ fontSize: 12, color: '#4a4c60' }}>Week {nextLecture.week} · {nextLecture.date}</div>
-              </div>
+              </ClickableRow>
             </SectionCard>
           )}
           <SectionCard>
@@ -132,15 +191,15 @@ function OverviewTab({ domain }) {
   )
 }
 
-function LecturesTab({ domain }) {
+function LecturesTab({ domain, onOpenEvent, eventNotes }) {
   const [openWeeks, setOpenWeeks] = useState(() => {
     const o = {}
     ;(domain.lectures || []).forEach(l => { o[l.week] = true })
     return o
   })
-  const byWeek = (domain.lectures || []).reduce((acc, l) => {
+  const byWeek = (domain.lectures || []).reduce((acc, l, i) => {
     if (!acc[l.week]) acc[l.week] = []
-    acc[l.week].push(l)
+    acc[l.week].push({ ...l, _idx: i })
     return acc
   }, {})
 
@@ -159,25 +218,41 @@ function LecturesTab({ domain }) {
               </div>
               <div style={{ flex: 1 }}>
                 <span style={{ fontSize: 13, fontWeight: 500, color: '#e6e7f0' }}>Week {week}</span>
-                <span style={{ fontSize: 12, color: '#4a4c60', marginLeft: 8 }}>{lectures.length} lecture{lectures.length > 1 ? 's' : ''}{allDone ? <span style={{ color: '#34d399' }}> · Done</span> : hasActive ? <span style={{ color: '#5b8cff' }}> · In Progress</span> : ''}</span>
+                <span style={{ fontSize: 12, color: '#4a4c60', marginLeft: 8 }}>
+                  {lectures.length} lecture{lectures.length > 1 ? 's' : ''}
+                  {allDone ? <span style={{ color: '#34d399' }}> · Done</span> : hasActive ? <span style={{ color: '#5b8cff' }}> · In Progress</span> : ''}
+                </span>
               </div>
               {isOpen ? <ChevronDown size={15} color="#4a4c60" /> : <ChevronRight size={15} color="#4a4c60" />}
             </button>
             {isOpen && (
               <div style={{ borderTop: '1px solid #1e2030' }}>
-                {lectures.map((l, i) => (
-                  <div key={i} style={{ display: 'flex', alignItems: 'center', gap: 12, padding: '11px 20px', borderBottom: i < lectures.length - 1 ? '1px solid #1a1b28' : 'none', opacity: l.status === 'upcoming' ? 0.6 : 1 }}>
-                    {l.status === 'completed' ? <CheckCircle2 size={14} color="#34d399" /> : l.status === 'in-progress' ? <Clock size={14} color="#5b8cff" /> : <Circle size={14} color="#4a4c60" />}
-                    <div style={{ flex: 1 }}>
-                      <div style={{ fontSize: 13, color: '#e6e7f0', fontWeight: 500 }}>{l.title}</div>
-                      <div style={{ fontSize: 11, color: '#4a4c60', marginTop: 2 }}>{l.date}</div>
-                    </div>
-                    <div style={{ display: 'flex', gap: 8 }}>
-                      {l.hasNotes && <div style={{ fontSize: 11, color: '#7c7e96', background: '#1e2030', padding: '3px 7px', borderRadius: 5, display: 'flex', alignItems: 'center', gap: 4 }}><StickyNote size={10} />Notes</div>}
-                      <StatusBadge status={l.status} />
-                    </div>
-                  </div>
-                ))}
+                {lectures.map((l, i) => {
+                  const ev = lectureEvent(domain, l, l._idx)
+                  const hasNote = !!eventNotes?.[ev.id]?.trim()
+                  return (
+                    <ClickableRow key={i} onClick={() => onOpenEvent(ev)} style={{ display: 'flex', alignItems: 'center', gap: 12, padding: '11px 20px', borderBottom: i < lectures.length - 1 ? '1px solid #1a1b28' : 'none', opacity: l.status === 'upcoming' ? 0.6 : 1 }}>
+                      {l.status === 'completed' ? <CheckCircle2 size={14} color="#34d399" /> : l.status === 'in-progress' ? <Clock size={14} color="#5b8cff" /> : <Circle size={14} color="#4a4c60" />}
+                      <div style={{ flex: 1 }}>
+                        <div style={{ fontSize: 13, color: '#e6e7f0', fontWeight: 500 }}>{l.title}</div>
+                        <div style={{ fontSize: 11, color: '#4a4c60', marginTop: 2 }}>{l.date}</div>
+                      </div>
+                      <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
+                        {hasNote && (
+                          <span title="Has notes" style={{ fontSize: 10, color: '#a78bfa', background: 'rgba(167,139,250,0.12)', padding: '2px 7px', borderRadius: 4, display: 'flex', alignItems: 'center', gap: 3 }}>
+                            <StickyNote size={9} /> Notes
+                          </span>
+                        )}
+                        {l.hasNotes && !hasNote && (
+                          <div style={{ fontSize: 11, color: '#7c7e96', background: '#1e2030', padding: '3px 7px', borderRadius: 5, display: 'flex', alignItems: 'center', gap: 4 }}>
+                            <FileText size={10} /> Materials
+                          </div>
+                        )}
+                        <StatusBadge status={l.status} />
+                      </div>
+                    </ClickableRow>
+                  )
+                })}
               </div>
             )}
           </SectionCard>
@@ -187,97 +262,127 @@ function LecturesTab({ domain }) {
   )
 }
 
-function AssignmentsTab({ domain }) {
+function AssignmentsTab({ domain, onOpenEvent, eventNotes }) {
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
-      {(domain.assignments || []).map(a => (
-        <SectionCard key={a.id}>
-          <div style={{ padding: '18px 22px', display: 'flex', alignItems: 'center', gap: 16 }}>
-            <div style={{ width: 3, height: 44, borderRadius: 2, flexShrink: 0, background: a.status === 'graded' ? '#34d399' : a.status === 'submitted' ? '#fbbf24' : '#4a4c60' }} />
-            <div style={{ flex: 1 }}>
-              <div style={{ fontSize: 14, fontWeight: 500, color: '#e6e7f0', marginBottom: 4 }}>{a.title}</div>
-              <div style={{ display: 'flex', gap: 14, alignItems: 'center' }}>
-                <span style={{ fontSize: 12, color: '#4a4c60', display: 'flex', alignItems: 'center', gap: 4 }}><Calendar size={11} />Due {a.dueDate}</span>
-                <span style={{ fontSize: 12, color: '#4a4c60' }}>Weight: <span style={{ color: '#7c7e96', fontWeight: 500 }}>{a.weight}%</span></span>
-              </div>
-            </div>
-            <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
-              {a.grade !== null && (
-                <div style={{ background: a.grade >= 70 ? 'rgba(52,211,153,0.12)' : 'rgba(251,113,133,0.12)', color: a.grade >= 70 ? '#34d399' : '#fb7185', fontSize: 16, fontWeight: 700, padding: '6px 14px', borderRadius: 8 }}>
-                  {a.grade}%
+      {(domain.assignments || []).map(a => {
+        const ev = assignmentEvent(domain, a)
+        const hasNote = !!eventNotes?.[ev.id]?.trim()
+        const barColor = a.status === 'graded' ? '#34d399' : a.status === 'submitted' ? '#fbbf24' : '#4a4c60'
+        return (
+          <SectionCard key={a.id}>
+            <ClickableRow onClick={() => onOpenEvent(ev)} style={{ padding: '18px 22px', display: 'flex', alignItems: 'center', gap: 16 }}>
+              <div style={{ width: 3, height: 44, borderRadius: 2, flexShrink: 0, background: barColor }} />
+              <div style={{ flex: 1 }}>
+                <div style={{ fontSize: 14, fontWeight: 500, color: '#e6e7f0', marginBottom: 4 }}>{a.title}</div>
+                <div style={{ display: 'flex', gap: 14, alignItems: 'center' }}>
+                  <span style={{ fontSize: 12, color: '#4a4c60', display: 'flex', alignItems: 'center', gap: 4 }}><Calendar size={11} />Due {a.dueDate}</span>
+                  <span style={{ fontSize: 12, color: '#4a4c60' }}>Weight: <span style={{ color: '#7c7e96', fontWeight: 500 }}>{a.weight}%</span></span>
                 </div>
-              )}
-              <StatusBadge status={a.status} />
-            </div>
-          </div>
-        </SectionCard>
-      ))}
+              </div>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+                {hasNote && (
+                  <span title="Has notes" style={{ fontSize: 10, color: '#a78bfa', background: 'rgba(167,139,250,0.12)', padding: '3px 7px', borderRadius: 4, display: 'flex', alignItems: 'center', gap: 3 }}>
+                    <StickyNote size={9} /> Notes
+                  </span>
+                )}
+                {a.grade !== null && (
+                  <div style={{ background: a.grade >= 70 ? 'rgba(52,211,153,0.12)' : 'rgba(251,113,133,0.12)', color: a.grade >= 70 ? '#34d399' : '#fb7185', fontSize: 16, fontWeight: 700, padding: '6px 14px', borderRadius: 8 }}>
+                    {a.grade}%
+                  </div>
+                )}
+                <StatusBadge status={a.status} />
+              </div>
+            </ClickableRow>
+          </SectionCard>
+        )
+      })}
     </div>
   )
 }
 
-function LabsTab({ domain }) {
+function LabsTab({ domain, onOpenEvent, eventNotes }) {
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
-      {(domain.labs || []).map(lab => (
-        <SectionCard key={lab.id}>
-          <div style={{ padding: '16px 22px', display: 'flex', alignItems: 'center', gap: 14 }}>
-            <div style={{ width: 36, height: 36, borderRadius: 9, flexShrink: 0, background: lab.status === 'completed' ? 'rgba(52,211,153,0.1)' : lab.status === 'in-progress' ? 'rgba(91,140,255,0.1)' : '#1a1b28', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-              <FlaskConical size={16} color={lab.status === 'completed' ? '#34d399' : lab.status === 'in-progress' ? '#5b8cff' : '#4a4c60'} />
-            </div>
-            <div style={{ flex: 1 }}>
-              <div style={{ fontSize: 14, fontWeight: 500, color: '#e6e7f0', marginBottom: 3 }}>{lab.title}</div>
-              <div style={{ display: 'flex', gap: 10, alignItems: 'center' }}>
-                <span style={{ fontSize: 11, fontWeight: 600, color: domain.color, background: domain.colorMuted, padding: '2px 6px', borderRadius: 4 }}>Week {lab.week}</span>
-                <span style={{ fontSize: 12, color: '#4a4c60', display: 'flex', alignItems: 'center', gap: 4 }}><Calendar size={11} />{lab.date}</span>
+      {(domain.labs || []).map(lab => {
+        const ev = labEvent(domain, lab)
+        const hasNote = !!eventNotes?.[ev.id]?.trim()
+        return (
+          <SectionCard key={lab.id}>
+            <ClickableRow onClick={() => onOpenEvent(ev)} style={{ padding: '16px 22px', display: 'flex', alignItems: 'center', gap: 14 }}>
+              <div style={{ width: 36, height: 36, borderRadius: 9, flexShrink: 0, background: lab.status === 'completed' ? 'rgba(52,211,153,0.1)' : lab.status === 'in-progress' ? 'rgba(91,140,255,0.1)' : '#1a1b28', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                <FlaskConical size={16} color={lab.status === 'completed' ? '#34d399' : lab.status === 'in-progress' ? '#5b8cff' : '#4a4c60'} />
               </div>
-            </div>
-            <StatusBadge status={lab.status} />
-          </div>
-        </SectionCard>
-      ))}
+              <div style={{ flex: 1 }}>
+                <div style={{ fontSize: 14, fontWeight: 500, color: '#e6e7f0', marginBottom: 3 }}>{lab.title}</div>
+                <div style={{ display: 'flex', gap: 10, alignItems: 'center' }}>
+                  <span style={{ fontSize: 11, fontWeight: 600, color: domain.color, background: domain.colorMuted, padding: '2px 6px', borderRadius: 4 }}>Week {lab.week}</span>
+                  <span style={{ fontSize: 12, color: '#4a4c60', display: 'flex', alignItems: 'center', gap: 4 }}><Calendar size={11} />{lab.date}</span>
+                </div>
+              </div>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+                {hasNote && (
+                  <span title="Has notes" style={{ fontSize: 10, color: '#a78bfa', background: 'rgba(167,139,250,0.12)', padding: '3px 7px', borderRadius: 4, display: 'flex', alignItems: 'center', gap: 3 }}>
+                    <StickyNote size={9} /> Notes
+                  </span>
+                )}
+                <StatusBadge status={lab.status} />
+              </div>
+            </ClickableRow>
+          </SectionCard>
+        )
+      })}
     </div>
   )
 }
 
-function ExamsTab({ domain }) {
+function ExamsTab({ domain, onOpenEvent, eventNotes }) {
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
-      {(domain.exams || []).map(exam => (
-        <SectionCard key={exam.id}>
-          <div style={{ padding: '22px 24px' }}>
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 16 }}>
-              <div>
-                <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 6 }}>
-                  <GraduationCap size={16} color={domain.color} />
-                  <h3 style={{ margin: 0, fontSize: 16, fontWeight: 600, color: '#e6e7f0' }}>{exam.title}</h3>
+      {(domain.exams || []).map(exam => {
+        const ev = examEvent(domain, exam)
+        const hasNote = !!eventNotes?.[ev.id]?.trim()
+        return (
+          <SectionCard key={exam.id}>
+            <ClickableRow onClick={() => onOpenEvent(ev)} style={{ padding: '22px 24px' }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 16 }}>
+                <div>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 6 }}>
+                    <GraduationCap size={16} color={domain.color} />
+                    <h3 style={{ margin: 0, fontSize: 16, fontWeight: 600, color: '#e6e7f0' }}>{exam.title}</h3>
+                  </div>
+                  <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
+                    <StatusBadge status={exam.status} />
+                    {hasNote && (
+                      <span style={{ fontSize: 10, color: '#a78bfa', background: 'rgba(167,139,250,0.12)', padding: '3px 7px', borderRadius: 4, display: 'flex', alignItems: 'center', gap: 3 }}>
+                        <StickyNote size={9} /> Notes
+                      </span>
+                    )}
+                  </div>
                 </div>
-                <StatusBadge status={exam.status} />
+                <div style={{ background: `${domain.color}18`, color: domain.color, fontSize: 13, fontWeight: 700, padding: '6px 14px', borderRadius: 8 }}>{exam.weight}% of grade</div>
               </div>
-              <div style={{ background: `${domain.color}18`, color: domain.color, fontSize: 13, fontWeight: 700, padding: '6px 14px', borderRadius: 8 }}>{exam.weight}% of grade</div>
-            </div>
-            <div style={{ display: 'flex', gap: 22, paddingTop: 14, borderTop: '1px solid #1e2030' }}>
-              <div style={{ display: 'flex', alignItems: 'center', gap: 7 }}><Calendar size={13} color="#4a4c60" /><span style={{ fontSize: 13, color: '#7c7e96' }}>{exam.date}</span></div>
-              <div style={{ display: 'flex', alignItems: 'center', gap: 7 }}><Clock   size={13} color="#4a4c60" /><span style={{ fontSize: 13, color: '#7c7e96' }}>{exam.time}</span></div>
-              <div style={{ display: 'flex', alignItems: 'center', gap: 7 }}><MapPin  size={13} color="#4a4c60" /><span style={{ fontSize: 13, color: '#7c7e96' }}>{exam.location}</span></div>
-            </div>
-          </div>
-        </SectionCard>
-      ))}
+              <div style={{ display: 'flex', gap: 22, paddingTop: 14, borderTop: '1px solid #1e2030' }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 7 }}><Calendar size={13} color="#4a4c60" /><span style={{ fontSize: 13, color: '#7c7e96' }}>{exam.date}</span></div>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 7 }}><Clock   size={13} color="#4a4c60" /><span style={{ fontSize: 13, color: '#7c7e96' }}>{exam.time}</span></div>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 7 }}><MapPin  size={13} color="#4a4c60" /><span style={{ fontSize: 13, color: '#7c7e96' }}>{exam.location}</span></div>
+              </div>
+            </ClickableRow>
+          </SectionCard>
+        )
+      })}
     </div>
   )
 }
 
 // ─── General domain tabs ───────────────────────────────────────────────────────
-
-function GeneralOverviewTab({ domain, linkedEvents }) {
+function GeneralOverviewTab({ domain, linkedEvents, onOpenEvent }) {
   const upcoming = linkedEvents.filter(e => e.date >= new Date()).sort((a, b) => a.date - b.date)
   const past     = linkedEvents.filter(e => e.date  < new Date()).sort((a, b) => b.date - a.date)
   const catCfg   = DOMAIN_CATEGORIES[domain.category] || DOMAIN_CATEGORIES.other
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
-      {/* About card */}
       <SectionCard>
         <div style={{ padding: '16px 20px', borderBottom: '1px solid #1e2030' }}>
           <span style={{ fontSize: 13, fontWeight: 600, color: '#e6e7f0' }}>About</span>
@@ -305,7 +410,6 @@ function GeneralOverviewTab({ domain, linkedEvents }) {
         </div>
       </SectionCard>
 
-      {/* Linked events stats */}
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 12 }}>
         <div style={{ background: '#14151e', border: '1px solid #1e2030', borderRadius: 12, padding: '16px 18px' }}>
           <Stat label="Linked Events" value={linkedEvents.length} color={domain.color} />
@@ -318,14 +422,13 @@ function GeneralOverviewTab({ domain, linkedEvents }) {
         </div>
       </div>
 
-      {/* Upcoming events preview */}
       {upcoming.length > 0 && (
         <SectionCard>
           <div style={{ padding: '14px 20px', borderBottom: '1px solid #1e2030' }}>
             <span style={{ fontSize: 13, fontWeight: 600, color: '#e6e7f0' }}>Upcoming</span>
           </div>
           {upcoming.slice(0, 4).map((ev, i) => (
-            <EventRow key={ev.id} event={ev} isLast={i === Math.min(3, upcoming.length - 1)} />
+            <EventRow key={ev.id} event={ev} isLast={i === Math.min(3, upcoming.length - 1)} onClick={() => onOpenEvent(ev)} />
           ))}
         </SectionCard>
       )}
@@ -340,7 +443,7 @@ function GeneralOverviewTab({ domain, linkedEvents }) {
   )
 }
 
-function DomainEventsTab({ linkedEvents }) {
+function DomainEventsTab({ linkedEvents, onOpenEvent }) {
   const upcoming = linkedEvents.filter(e => e.date >= new Date()).sort((a, b) => a.date - b.date)
   const past     = linkedEvents.filter(e => e.date  < new Date()).sort((a, b) => b.date - a.date)
 
@@ -360,7 +463,7 @@ function DomainEventsTab({ linkedEvents }) {
         <div>
           <div style={{ fontSize: 11, color: '#4a4c60', textTransform: 'uppercase', letterSpacing: '0.5px', marginBottom: 10 }}>Upcoming</div>
           <SectionCard>
-            {upcoming.map((ev, i) => <EventRow key={ev.id} event={ev} isLast={i === upcoming.length - 1} />)}
+            {upcoming.map((ev, i) => <EventRow key={ev.id} event={ev} isLast={i === upcoming.length - 1} onClick={() => onOpenEvent(ev)} />)}
           </SectionCard>
         </div>
       )}
@@ -368,7 +471,7 @@ function DomainEventsTab({ linkedEvents }) {
         <div>
           <div style={{ fontSize: 11, color: '#4a4c60', textTransform: 'uppercase', letterSpacing: '0.5px', marginBottom: 10 }}>Past</div>
           <SectionCard style={{ opacity: 0.7 }}>
-            {past.map((ev, i) => <EventRow key={ev.id} event={ev} isLast={i === past.length - 1} />)}
+            {past.map((ev, i) => <EventRow key={ev.id} event={ev} isLast={i === past.length - 1} onClick={() => onOpenEvent(ev)} />)}
           </SectionCard>
         </div>
       )}
@@ -376,15 +479,24 @@ function DomainEventsTab({ linkedEvents }) {
   )
 }
 
-function EventRow({ event, isLast }) {
+function EventRow({ event, isLast, onClick }) {
+  const [hovered, setHovered] = useState(false)
   const typeColor = resolveTypeColor(event)
   const typeLabel = resolveTypeLabel(event)
   return (
-    <div style={{
-      display: 'flex', alignItems: 'center', gap: 14,
-      padding: '12px 20px',
-      borderBottom: isLast ? 'none' : '1px solid #1e2030',
-    }}>
+    <div
+      onClick={onClick}
+      onMouseEnter={() => setHovered(true)}
+      onMouseLeave={() => setHovered(false)}
+      style={{
+        display: 'flex', alignItems: 'center', gap: 14,
+        padding: '12px 20px',
+        borderBottom: isLast ? 'none' : '1px solid #1e2030',
+        cursor: 'pointer',
+        background: hovered ? 'rgba(91,140,255,0.04)' : 'transparent',
+        transition: 'background 0.12s',
+      }}
+    >
       <div style={{ width: 32, height: 32, borderRadius: 8, background: `${typeColor}15`, display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
         <div style={{ width: 8, height: 8, borderRadius: 2, background: typeColor }} />
       </div>
@@ -401,12 +513,13 @@ function EventRow({ event, isLast }) {
 }
 
 // ─── Main page ─────────────────────────────────────────────────────────────────
-export default function DomainDetailPage({ domain, linkedEvents, onBack }) {
+export default function DomainDetailPage({ domain, linkedEvents, onBack, eventNotes, onUpdateNote }) {
   const isAcademic = domain.category === 'academic'
   const TABS = isAcademic
     ? ['Overview', 'Lectures', 'Assignments', 'Labs', 'Exams']
     : ['Overview', 'Events']
   const [activeTab, setActiveTab] = useState('Overview')
+  const [openEvent, setOpenEvent] = useState(null)
 
   const catCfg = DOMAIN_CATEGORIES[domain.category] || DOMAIN_CATEGORIES.other
 
@@ -445,7 +558,6 @@ export default function DomainDetailPage({ domain, linkedEvents, onBack }) {
             </div>
           </div>
 
-          {/* Progress ring — academic or project */}
           {domain.progress != null && (
             <div style={{ textAlign: 'center', flexShrink: 0 }}>
               <div style={{ width: 72, height: 72, borderRadius: '50%', background: `conic-gradient(${domain.color} ${domain.progress * 3.6}deg, #1e2030 0deg)`, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
@@ -483,17 +595,27 @@ export default function DomainDetailPage({ domain, linkedEvents, onBack }) {
       {/* Tab content */}
       {isAcademic ? (
         <>
-          {activeTab === 'Overview'     && <OverviewTab     domain={domain} />}
-          {activeTab === 'Lectures'     && <LecturesTab     domain={domain} />}
-          {activeTab === 'Assignments'  && <AssignmentsTab  domain={domain} />}
-          {activeTab === 'Labs'         && <LabsTab         domain={domain} />}
-          {activeTab === 'Exams'        && <ExamsTab        domain={domain} />}
+          {activeTab === 'Overview'    && <OverviewTab    domain={domain} onOpenEvent={setOpenEvent} />}
+          {activeTab === 'Lectures'    && <LecturesTab    domain={domain} onOpenEvent={setOpenEvent} eventNotes={eventNotes} />}
+          {activeTab === 'Assignments' && <AssignmentsTab domain={domain} onOpenEvent={setOpenEvent} eventNotes={eventNotes} />}
+          {activeTab === 'Labs'        && <LabsTab        domain={domain} onOpenEvent={setOpenEvent} eventNotes={eventNotes} />}
+          {activeTab === 'Exams'       && <ExamsTab       domain={domain} onOpenEvent={setOpenEvent} eventNotes={eventNotes} />}
         </>
       ) : (
         <>
-          {activeTab === 'Overview' && <GeneralOverviewTab domain={domain} linkedEvents={linkedEvents} />}
-          {activeTab === 'Events'   && <DomainEventsTab linkedEvents={linkedEvents} />}
+          {activeTab === 'Overview' && <GeneralOverviewTab domain={domain} linkedEvents={linkedEvents} onOpenEvent={setOpenEvent} />}
+          {activeTab === 'Events'   && <DomainEventsTab linkedEvents={linkedEvents} onOpenEvent={setOpenEvent} />}
         </>
+      )}
+
+      {/* Shared event detail modal */}
+      {openEvent && (
+        <EventDetailModal
+          event={openEvent}
+          onClose={() => setOpenEvent(null)}
+          note={eventNotes?.[openEvent.id] || ''}
+          onUpdateNote={onUpdateNote}
+        />
       )}
     </div>
   )
