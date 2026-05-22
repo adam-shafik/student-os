@@ -97,7 +97,7 @@ function WeekLabelCell({ info }) {
 }
 
 // ─── Day cell ─────────────────────────────────────────────────────────────────
-function DayCell({ day, events, isToday, onEventClick, onAddClick, eventNotes, isBreak }) {
+function DayCell({ day, events, isToday, onEventClick, onAddClick, eventNotes, isBreak, isWeekend }) {
   const [hovered,  setHovered]  = useState(false)
   const [expanded, setExpanded] = useState(false)
 
@@ -116,6 +116,8 @@ function DayCell({ day, events, isToday, onEventClick, onAddClick, eventNotes, i
       style={{
         background: isBreak
         ? (hovered && day.isCurrentMonth ? 'rgba(251,191,36,0.07)' : 'rgba(251,191,36,0.04)')
+        : isWeekend
+        ? (hovered && day.isCurrentMonth ? '#13151f' : '#0f1019')
         : (hovered && day.isCurrentMonth ? '#111220' : '#0b0c13'),
         transition: 'background 0.12s',
         padding: '7px 7px 6px',
@@ -522,6 +524,7 @@ export default function CalendarPage({ domains = [], customEvents = [], onViewDo
                   onAddClick={setAddModalDate}
                   eventNotes={eventNotes}
                   isBreak={info.isBreak}
+                  isWeekend={day.date.getDay() === 0 || day.date.getDay() === 6}
                 />
               )
             }),
