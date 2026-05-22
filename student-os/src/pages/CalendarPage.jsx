@@ -48,7 +48,9 @@ function EventChip({ event, onClick }) {
         borderLeft: `2.5px solid ${typeColor}`,
         cursor: 'pointer', overflow: 'hidden',
         transition: 'filter 0.1s',
-        flexShrink: 0,
+        minWidth: 0,       // allow chip to shrink below content width
+        width: '100%',
+        boxSizing: 'border-box',
       }}
       onMouseEnter={e => e.currentTarget.style.filter = 'brightness(1.2)'}
       onMouseLeave={e => e.currentTarget.style.filter = 'brightness(1)'}
@@ -111,6 +113,8 @@ function DayCell({ day, events, isToday, onEventClick, onAddClick }) {
         transition: 'background 0.12s',
         padding: '7px 7px 6px',
         display: 'flex', flexDirection: 'column',
+        minWidth: 0,       // critical: lets grid column honour 1fr without expanding
+        overflow: 'hidden',
       }}
     >
       {/* Date number + hover add button */}
@@ -486,7 +490,7 @@ export default function CalendarPage({ onViewSubject }) {
       }}>
         {/* Weekday header cells */}
         {WEEKDAYS.map(day => (
-          <div key={day} style={{ background: '#0f1018', padding: '9px 0', textAlign: 'center', fontSize: 11, fontWeight: 600, color: '#4a4c60', letterSpacing: '0.5px', textTransform: 'uppercase' }}>
+          <div key={day} style={{ background: '#0f1018', padding: '9px 0', textAlign: 'center', fontSize: 11, fontWeight: 600, color: '#4a4c60', letterSpacing: '0.5px', textTransform: 'uppercase', minWidth: 0, overflow: 'hidden' }}>
             {day}
           </div>
         ))}
