@@ -100,7 +100,9 @@ export default function EventDetailModal({ event, onClose, onViewDomain, note, o
 
             {event.type === 'lecture' && (
               <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
-                <Row label="Week"   value={calcBreak ? calcBreak.name : `Week ${calcWeek ?? d.week}`} />
+                {(calcBreak || calcWeek != null) && (
+                  <Row label="Week" value={calcBreak ? calcBreak.name : `Week ${calcWeek}`} />
+                )}
                 <Row label="Status" value={<StatusBadge status={d.status} />} />
                 {d.hasNotes && (
                   <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
@@ -113,7 +115,9 @@ export default function EventDetailModal({ event, onClose, onViewDomain, note, o
 
             {event.type === 'lab' && (
               <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
-                <Row label="Week"   value={calcBreak ? calcBreak.name : `Week ${calcWeek ?? d.week}`} />
+                {(calcBreak || calcWeek != null) && (
+                  <Row label="Week" value={calcBreak ? calcBreak.name : `Week ${calcWeek}`} />
+                )}
                 <Row label="Status" value={<StatusBadge status={d.status} />} />
               </div>
             )}
