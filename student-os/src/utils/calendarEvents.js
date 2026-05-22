@@ -1,4 +1,4 @@
-import { subjects } from '../data/subjects'
+import { initialDomains } from '../data/domains'
 
 // ─── Date parsing ─────────────────────────────────────────────────────────────
 const MONTH_SHORT = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec']
@@ -38,24 +38,26 @@ export function resolveTypeColor(event) {
   return EVENT_TYPES[event.type]?.color || '#9ca3af'
 }
 
-// ─── Derive events from subjects data ─────────────────────────────────────────
-// GOOGLE CALENDAR HOOK: In the future, merge getSubjectEvents() output with
+// ─── Derive events from domains data ─────────────────────────────────────────
+// GOOGLE CALENDAR HOOK: In the future, merge getDomainEvents() output with
 // events fetched from the Google Calendar API (after OAuth2 auth). The event
-// shape below is designed to accommodate external events with subjectId: null.
-export function getSubjectEvents() {
+// shape below is designed to accommodate external events with domainId: null.
+export function getDomainEvents() {
   const events = []
 
-  subjects.forEach(subject => {
-    subject.lectures.forEach((lecture, i) => {
+  initialDomains.forEach(domain => {
+    if (!domain.lectures && !domain.labs && !domain.assignments && !domain.exams) return
+
+    ;(domain.lectures || []).forEach((lecture, i) => {
       events.push({
-        id: `${subject.id}-lecture-w${lecture.week}-${i}`,
+        id: `${domain.id}-lecture-w${lecture.week}-${i}`,
         type: 'lecture',
         title: lecture.title,
         date: parseSubjectDate(lecture.date),
-        subjectId: subject.id,
-        subjectCode: subject.code,
-        subjectName: subject.name,
-        subjectColor: subject.color,
+        domainId: domain.id,
+        domainCode: domain.code,
+        domainName: domain.name,
+        domainColor: domain.color,
         details: {
           week: lecture.week,
           status: lecture.status,
@@ -64,16 +66,16 @@ export function getSubjectEvents() {
       })
     })
 
-    subject.labs.forEach(lab => {
+    ;(domain.labs || []).forEach(lab => {
       events.push({
-        id: `${subject.id}-${lab.id}`,
+        id: `${domain.id}-${lab.id}`,
         type: 'lab',
         title: lab.title,
         date: parseSubjectDate(lab.date),
-        subjectId: subject.id,
-        subjectCode: subject.code,
-        subjectName: subject.name,
-        subjectColor: subject.color,
+        domainId: domain.id,
+        domainCode: domain.code,
+        domainName: domain.name,
+        domainColor: domain.color,
         details: {
           week: lab.week,
           status: lab.status,
@@ -81,16 +83,16 @@ export function getSubjectEvents() {
       })
     })
 
-    subject.assignments.forEach(assignment => {
+    ;(domain.assignments || []).forEach(assignment => {
       events.push({
-        id: `${subject.id}-${assignment.id}`,
+        id: `${domain.id}-${assignment.id}`,
         type: 'assignment',
         title: assignment.title,
         date: parseSubjectDate(assignment.dueDate),
-        subjectId: subject.id,
-        subjectCode: subject.code,
-        subjectName: subject.name,
-        subjectColor: subject.color,
+        domainId: domain.id,
+        domainCode: domain.code,
+        domainName: domain.name,
+        domainColor: domain.color,
         details: {
           weight: assignment.weight,
           status: assignment.status,
@@ -100,16 +102,16 @@ export function getSubjectEvents() {
       })
     })
 
-    subject.exams.forEach(exam => {
+    ;(domain.exams || []).forEach(exam => {
       events.push({
-        id: `${subject.id}-${exam.id}`,
+        id: `${domain.id}-${exam.id}`,
         type: 'exam',
         title: exam.title,
         date: parseSubjectDate(exam.date),
-        subjectId: subject.id,
-        subjectCode: subject.code,
-        subjectName: subject.name,
-        subjectColor: subject.color,
+        domainId: domain.id,
+        domainCode: domain.code,
+        domainName: domain.name,
+        domainColor: domain.color,
         details: {
           time: exam.time,
           location: exam.location,
@@ -122,6 +124,9 @@ export function getSubjectEvents() {
 
   return events
 }
+
+// Backward-compat alias
+export const getSubjectEvents = getDomainEvents
 
 // ─── Calendar grid helpers ────────────────────────────────────────────────────
 export function getCalendarDays(year, month) {

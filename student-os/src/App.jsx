@@ -1,10 +1,10 @@
 import { useState } from 'react'
 import './App.css'
 import Layout from './components/Layout'
-import SubjectsPage from './pages/SubjectsPage'
-import SubjectDetailPage from './pages/SubjectDetailPage'
+import DomainsPage from './pages/DomainsPage'
+import DomainDetailPage from './pages/DomainDetailPage'
 import CalendarPage from './pages/CalendarPage'
-import { subjects } from './data/subjects'
+import { initialDomains } from './data/domains'
 
 function ComingSoon({ label }) {
   return (
@@ -26,43 +26,76 @@ function ComingSoon({ label }) {
 }
 
 export default function App() {
-  const [currentPage, setCurrentPage] = useState('subjects')
-  const [selectedSubject, setSelectedSubject] = useState(null)
+  const [currentPage,    setCurrentPage]    = useState('domains')
+  const [previousPage,   setPreviousPage]   = useState(null)
+  const [selectedDomain, setSelectedDomain] = useState(null)
+  const [domains,        setDomains]        = useState(initialDomains)
+  const [customCalendarEvents, setCustomCalendarEvents] = useState([])
 
   const handleNavigate = (page) => {
+    setPreviousPage(currentPage)
     setCurrentPage(page)
-    if (page !== 'subjects' && page !== 'subject-detail') setSelectedSubject(null)
+    if (page !== 'domain-detail') setSelectedDomain(null)
   }
 
-  const handleOpenSubject = (subject) => {
-    setSelectedSubject(subject)
-    setCurrentPage('subject-detail')
+  const handleOpenDomain = (domain) => {
+    setPreviousPage(currentPage)
+    setSelectedDomain(domain)
+    setCurrentPage('domain-detail')
   }
 
   const handleBack = () => {
-    setSelectedSubject(null)
-    setCurrentPage('subjects')
+    setSelectedDomain(null)
+    setCurrentPage(previousPage || 'domains')
+    setPreviousPage(null)
   }
 
-  // Called from CalendarPage when user clicks "View in Subjects" on an event
-  const handleViewSubjectById = (subjectId) => {
-    const subject = subjects.find(s => s.id === subjectId)
-    if (subject) {
-      setSelectedSubject(subject)
-      setCurrentPage('subject-detail')
+  const handleCreateDomain = (domain) => {
+    setDomains(prev => [...prev, domain])
+  }
+
+  const handleAddCalendarEvent = (event) => {
+    setCustomCalendarEvents(prev => [...prev, event])
+  }
+
+  // Called from CalendarPage → EventDetailModal "View in Domains"
+  const handleViewDomainById = (domainId) => {
+    const domain = domains.find(d => d.id === domainId)
+    if (domain) {
+      setPreviousPage('calendar')
+      setSelectedDomain(domain)
+      setCurrentPage('domain-detail')
     }
   }
 
+  // Linked custom events for a domain (from calendar)
+  const linkedEventsFor = (domainId) =>
+    customCalendarEvents.filter(ev => ev.domainId === domainId)
+
   return (
     <Layout currentPage={currentPage} onNavigate={handleNavigate}>
-      {currentPage === 'subjects' && (
-        <SubjectsPage onOpenSubject={handleOpenSubject} />
+      {currentPage === 'domains' && (
+        <DomainsPage
+          domains={domains}
+          customCalendarEvents={customCalendarEvents}
+          onOpenDomain={handleOpenDomain}
+          onCreateDomain={handleCreateDomain}
+        />
       )}
-      {currentPage === 'subject-detail' && selectedSubject && (
-        <SubjectDetailPage subject={selectedSubject} onBack={handleBack} />
+      {currentPage === 'domain-detail' && selectedDomain && (
+        <DomainDetailPage
+          domain={selectedDomain}
+          linkedEvents={linkedEventsFor(selectedDomain.id)}
+          onBack={handleBack}
+        />
       )}
       {currentPage === 'calendar' && (
-        <CalendarPage onViewSubject={handleViewSubjectById} />
+        <CalendarPage
+          domains={domains}
+          customEvents={customCalendarEvents}
+          onViewDomain={handleViewDomainById}
+          onAddCalendarEvent={handleAddCalendarEvent}
+        />
       )}
       {currentPage === 'study' && <ComingSoon label="Study Session" />}
       {currentPage === 'notes' && <ComingSoon label="Notes" />}

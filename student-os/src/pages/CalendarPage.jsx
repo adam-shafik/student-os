@@ -2,11 +2,11 @@ import { useState, useMemo } from 'react'
 import {
   ChevronLeft, ChevronRight, Plus, X, Calendar, Clock,
   MapPin, BookOpen, FlaskConical, FileCheck, GraduationCap,
-  StickyNote, ExternalLink, Tag, AlignLeft, ChevronUp,
+  StickyNote, ExternalLink, Tag, AlignLeft, ChevronUp, ChevronDown,
 } from 'lucide-react'
 import {
   EVENT_TYPES, TYPE_PRIORITY, MONTHS, WEEKDAYS,
-  getSubjectEvents, getCalendarDays, dateKey,
+  getDomainEvents, getCalendarDays, dateKey,
   resolveTypeLabel, resolveTypeColor,
 } from '../utils/calendarEvents'
 
@@ -30,16 +30,16 @@ function StatusBadge({ status }) {
 }
 
 // ─── Event chip ───────────────────────────────────────────────────────────────
-// Background = event TYPE colour   |   bottom badge = SUBJECT colour
+// Background = event TYPE colour   |   bottom badge = DOMAIN colour
 function EventChip({ event, onClick }) {
-  const typeColor    = resolveTypeColor(event)
-  const typeLabel    = resolveTypeLabel(event)
-  const subjectColor = event.subjectColor || null
+  const typeColor   = resolveTypeColor(event)
+  const typeLabel   = resolveTypeLabel(event)
+  const domainColor = event.domainColor || null
 
   return (
     <div
       onClick={e => { e.stopPropagation(); onClick(event) }}
-      title={`${typeLabel}${event.subjectCode ? ' · ' + event.subjectCode : ''}: ${event.title}`}
+      title={`${typeLabel}${event.domainCode ? ' · ' + event.domainCode : ''}: ${event.title}`}
       style={{
         display: 'flex', flexDirection: 'column', gap: 1,
         padding: '4px 7px 4px 6px',
@@ -48,14 +48,13 @@ function EventChip({ event, onClick }) {
         borderLeft: `2.5px solid ${typeColor}`,
         cursor: 'pointer', overflow: 'hidden',
         transition: 'filter 0.1s',
-        minWidth: 0,       // allow chip to shrink below content width
+        minWidth: 0,
         width: '100%',
         boxSizing: 'border-box',
       }}
       onMouseEnter={e => e.currentTarget.style.filter = 'brightness(1.2)'}
       onMouseLeave={e => e.currentTarget.style.filter = 'brightness(1)'}
     >
-      {/* Type label — coloured by event type */}
       <span style={{
         fontSize: 9, fontWeight: 700, color: typeColor,
         textTransform: 'uppercase', letterSpacing: '0.3px',
@@ -64,7 +63,6 @@ function EventChip({ event, onClick }) {
         {typeLabel}
       </span>
 
-      {/* Event title */}
       <span style={{
         fontSize: 10.5, color: '#c4c5d4', lineHeight: 1.3,
         whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis',
@@ -72,18 +70,17 @@ function EventChip({ event, onClick }) {
         {event.title}
       </span>
 
-      {/* Subject pill — coloured by subject, not type */}
-      {event.subjectCode && subjectColor && (
+      {event.domainCode && domainColor && (
         <span style={{
           marginTop: 2,
           fontSize: 9, fontWeight: 700,
-          color: subjectColor,
-          background: `${subjectColor}22`,
+          color: domainColor,
+          background: `${domainColor}22`,
           padding: '1px 5px', borderRadius: 3,
           display: 'inline-block', alignSelf: 'flex-start',
           whiteSpace: 'nowrap',
         }}>
-          {event.subjectCode}
+          {event.domainCode}
         </span>
       )}
     </div>
@@ -101,7 +98,6 @@ function DayCell({ day, events, isToday, onEventClick, onAddClick }) {
   )
 
   const overflow = Math.max(0, sorted.length - MAX_VISIBLE)
-  // When expanded (or no overflow), show everything; otherwise clip to MAX_VISIBLE
   const visible  = expanded || overflow === 0 ? sorted : sorted.slice(0, MAX_VISIBLE)
 
   return (
@@ -113,11 +109,10 @@ function DayCell({ day, events, isToday, onEventClick, onAddClick }) {
         transition: 'background 0.12s',
         padding: '7px 7px 6px',
         display: 'flex', flexDirection: 'column',
-        minWidth: 0,       // critical: lets grid column honour 1fr without expanding
+        minWidth: 0,
         overflow: 'hidden',
       }}
     >
-      {/* Date number + hover add button */}
       <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 5, flexShrink: 0 }}>
         <span style={{
           fontSize: 12, fontWeight: isToday ? 700 : 400,
@@ -144,12 +139,10 @@ function DayCell({ day, events, isToday, onEventClick, onAddClick }) {
         )}
       </div>
 
-      {/* Event chips — all stacked vertically, no height clipping */}
       {day.isCurrentMonth && visible.map(ev => (
         <EventChip key={ev.id} event={ev} onClick={onEventClick} />
       ))}
 
-      {/* Expand / collapse toggle */}
       {day.isCurrentMonth && overflow > 0 && (
         <button
           onClick={e => { e.stopPropagation(); setExpanded(v => !v) }}
@@ -175,7 +168,7 @@ function DayCell({ day, events, isToday, onEventClick, onAddClick }) {
 }
 
 // ─── Event detail modal ───────────────────────────────────────────────────────
-function EventDetailModal({ event, onClose, onViewSubject }) {
+function EventDetailModal({ event, onClose, onViewDomain }) {
   if (!event) return null
   const typeColor = resolveTypeColor(event)
   const typeLabel = resolveTypeLabel(event)
@@ -207,14 +200,14 @@ function EventDetailModal({ event, onClose, onViewSubject }) {
               <span style={{ fontSize: 11, fontWeight: 700, color: typeColor, background: `${typeColor}18`, padding: '3px 8px', borderRadius: 5, letterSpacing: '0.4px' }}>
                 {typeLabel.toUpperCase()}
               </span>
-              {event.subjectCode && event.subjectColor && (
-                <span style={{ fontSize: 11, fontWeight: 600, color: event.subjectColor, background: `${event.subjectColor}18`, padding: '3px 8px', borderRadius: 5 }}>
-                  {event.subjectCode}
+              {event.domainCode && event.domainColor && (
+                <span style={{ fontSize: 11, fontWeight: 600, color: event.domainColor, background: `${event.domainColor}18`, padding: '3px 8px', borderRadius: 5 }}>
+                  {event.domainCode}
                 </span>
               )}
             </div>
             <h2 style={{ margin: 0, fontSize: 16, fontWeight: 600, color: '#e6e7f0', lineHeight: 1.4 }}>{event.title}</h2>
-            {event.subjectName && <p style={{ margin: '4px 0 0', fontSize: 12, color: '#7c7e96' }}>{event.subjectName}</p>}
+            {event.domainName && <p style={{ margin: '4px 0 0', fontSize: 12, color: '#7c7e96' }}>{event.domainName}</p>}
           </div>
           <button onClick={onClose} style={{ width: 28, height: 28, borderRadius: 7, border: 'none', background: '#1e2030', color: '#7c7e96', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
             <X size={14} />
@@ -277,15 +270,15 @@ function EventDetailModal({ event, onClose, onViewSubject }) {
           )}
         </div>
 
-        {event.subjectId && (
+        {event.domainId && (
           <div style={{ padding: '12px 22px', borderTop: '1px solid #1e2030' }}>
             <button
-              onClick={() => { onViewSubject(event.subjectId); onClose() }}
+              onClick={() => { onViewDomain(event.domainId); onClose() }}
               style={{ display: 'flex', alignItems: 'center', gap: 7, background: 'none', border: '1px solid #2a2c40', borderRadius: 8, padding: '8px 14px', cursor: 'pointer', color: '#7c7e96', fontSize: 13, transition: 'all 0.15s' }}
               onMouseEnter={e => { e.currentTarget.style.borderColor = '#5b8cff'; e.currentTarget.style.color = '#5b8cff' }}
               onMouseLeave={e => { e.currentTarget.style.borderColor = '#2a2c40'; e.currentTarget.style.color = '#7c7e96' }}
             >
-              <ExternalLink size={13} /> View in Subjects
+              <ExternalLink size={13} /> View in Domains
             </button>
           </div>
         )}
@@ -330,33 +323,58 @@ function toInputDate(date) {
   return `${y}-${m}-${d}`
 }
 
-function AddEventModal({ initialDate, onClose, onSave }) {
+// Groups domains into Academic / Other for the picker
+function groupDomains(domains) {
+  const academic = domains.filter(d => d.category === 'academic')
+  const other    = domains.filter(d => d.category !== 'academic')
+  return { academic, other }
+}
+
+function AddEventModal({ initialDate, domains, onClose, onSave }) {
   const [form, setForm] = useState({
     title: '', date: toInputDate(initialDate || new Date()),
     time: '', type: 'social', customTypeName: '', notes: '',
+    domainId: null,
   })
+  const [domainPickerOpen, setDomainPickerOpen] = useState(false)
   const set = (k, v) => setForm(prev => ({ ...prev, [k]: v }))
-  const activeColor = PRESET_TYPES.find(t => t.id === form.type)?.color || '#9ca3af'
-  const canSave = form.title.trim() && (form.type !== 'other' || form.customTypeName.trim())
+
+  const activeColor  = PRESET_TYPES.find(t => t.id === form.type)?.color || '#9ca3af'
+  const canSave      = form.title.trim() && (form.type !== 'other' || form.customTypeName.trim())
+  const linkedDomain = domains.find(d => d.id === form.domainId) || null
+  const { academic, other: otherDomains } = groupDomains(domains)
 
   const handleSave = () => {
     if (!canSave) return
     const [y, m, d] = form.date.split('-').map(Number)
+    const domain = linkedDomain
     onSave({
       id: `custom-${Date.now()}`, type: form.type,
       title: form.title.trim(), date: new Date(y, m - 1, d),
-      subjectId: null, subjectCode: null, subjectName: null, subjectColor: null,
-      details: { time: form.time, notes: form.notes, customTypeName: form.type === 'other' ? form.customTypeName.trim() : undefined },
+      domainId:    domain?.id   || null,
+      domainCode:  domain?.code || null,
+      domainName:  domain?.name || null,
+      domainColor: domain?.color || null,
+      details: {
+        time: form.time, notes: form.notes,
+        customTypeName: form.type === 'other' ? form.customTypeName.trim() : undefined,
+      },
     })
     onClose()
   }
 
-  const inputStyle = { width: '100%', padding: '9px 12px', borderRadius: 8, border: '1px solid #2a2c40', background: '#0f1018', color: '#e6e7f0', fontSize: 13, outline: 'none', boxSizing: 'border-box' }
+  const inputStyle = {
+    width: '100%', padding: '9px 12px', borderRadius: 8,
+    border: '1px solid #2a2c40', background: '#0f1018',
+    color: '#e6e7f0', fontSize: 13, outline: 'none', boxSizing: 'border-box',
+  }
 
   return (
     <div onClick={onClose} style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.6)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1000 }}>
-      <div onClick={e => e.stopPropagation()} style={{ background: '#14151e', border: '1px solid #2a2c40', borderRadius: 16, width: 420, maxWidth: '90vw', boxShadow: '0 24px 60px rgba(0,0,0,0.5)', overflow: 'hidden' }}>
-        <div style={{ padding: '18px 22px', borderBottom: '1px solid #1e2030', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+      <div onClick={e => e.stopPropagation()} style={{ background: '#14151e', border: '1px solid #2a2c40', borderRadius: 16, width: 440, maxWidth: '90vw', maxHeight: '90vh', overflowY: 'auto', boxShadow: '0 24px 60px rgba(0,0,0,0.5)', overflow: 'hidden', display: 'flex', flexDirection: 'column' }}>
+
+        {/* Modal header */}
+        <div style={{ padding: '18px 22px', borderBottom: '1px solid #1e2030', display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexShrink: 0 }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
             <Plus size={16} color={activeColor} />
             <span style={{ fontSize: 15, fontWeight: 600, color: '#e6e7f0' }}>Add Event</span>
@@ -365,17 +383,29 @@ function AddEventModal({ initialDate, onClose, onSave }) {
             <X size={14} />
           </button>
         </div>
-        <div style={{ padding: '18px 22px', display: 'flex', flexDirection: 'column', gap: 16 }}>
-          <div><Label>Title</Label><input style={inputStyle} placeholder="Event title" value={form.title} onChange={e => set('title', e.target.value)} onKeyDown={e => e.key === 'Enter' && handleSave()} autoFocus /></div>
+
+        {/* Modal body */}
+        <div style={{ padding: '18px 22px', display: 'flex', flexDirection: 'column', gap: 16, overflowY: 'auto' }}>
+
+          {/* Title */}
+          <div>
+            <Label>Title</Label>
+            <input style={inputStyle} placeholder="Event title" value={form.title} onChange={e => set('title', e.target.value)} onKeyDown={e => e.key === 'Enter' && handleSave()} autoFocus />
+          </div>
+
+          {/* Date + Time */}
           <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 }}>
             <div><Label>Date</Label><input type="date" style={{ ...inputStyle, colorScheme: 'dark' }} value={form.date} onChange={e => set('date', e.target.value)} /></div>
             <div><Label>Time (optional)</Label><input type="time" style={{ ...inputStyle, colorScheme: 'dark' }} value={form.time} onChange={e => set('time', e.target.value)} /></div>
           </div>
+
+          {/* Event type */}
           <div>
             <Label>Event Type</Label>
             <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 6 }}>
               {PRESET_TYPES.map(t => (
-                <button key={t.id} onClick={() => set('type', t.id)} style={{ padding: '7px 4px', borderRadius: 7, border: 'none', cursor: 'pointer', fontSize: 11, fontWeight: 600, background: form.type === t.id ? `${t.color}22` : '#1a1b28', color: form.type === t.id ? t.color : '#7c7e96', outline: form.type === t.id ? `1.5px solid ${t.color}55` : '1.5px solid transparent', transition: 'all 0.12s' }}
+                <button key={t.id} onClick={() => set('type', t.id)}
+                  style={{ padding: '7px 4px', borderRadius: 7, border: 'none', cursor: 'pointer', fontSize: 11, fontWeight: 600, background: form.type === t.id ? `${t.color}22` : '#1a1b28', color: form.type === t.id ? t.color : '#7c7e96', outline: form.type === t.id ? `1.5px solid ${t.color}55` : '1.5px solid transparent', transition: 'all 0.12s' }}
                   onMouseEnter={e => { if (form.type !== t.id) e.currentTarget.style.background = '#252738' }}
                   onMouseLeave={e => { if (form.type !== t.id) e.currentTarget.style.background = '#1a1b28' }}
                 >
@@ -385,18 +415,106 @@ function AddEventModal({ initialDate, onClose, onSave }) {
             </div>
             {form.type === 'other' && (
               <div style={{ marginTop: 8 }}>
-                <input style={{ ...inputStyle, borderColor: form.customTypeName.trim() ? '#9ca3af55' : '#2a2c40' }} placeholder="e.g. Tutorial, Workshop, Revision session…" value={form.customTypeName} onChange={e => set('customTypeName', e.target.value)} autoFocus />
+                <input style={{ ...inputStyle, borderColor: form.customTypeName.trim() ? '#9ca3af55' : '#2a2c40' }} placeholder="e.g. Tutorial, Workshop, Revision session…" value={form.customTypeName} onChange={e => set('customTypeName', e.target.value)} />
                 <div style={{ fontSize: 11, color: '#4a4c60', marginTop: 5 }}>This label will appear on the calendar chip.</div>
               </div>
             )}
           </div>
-          <div><Label>Notes (optional)</Label><textarea style={{ ...inputStyle, resize: 'vertical', minHeight: 60, fontFamily: 'inherit', lineHeight: 1.5 }} placeholder="Add notes…" value={form.notes} onChange={e => set('notes', e.target.value)} /></div>
+
+          {/* Domain picker */}
+          <div>
+            <Label>Link to Domain (optional)</Label>
+            <button
+              onClick={() => setDomainPickerOpen(v => !v)}
+              style={{
+                width: '100%', padding: '9px 12px', borderRadius: 8,
+                border: `1px solid ${linkedDomain ? linkedDomain.color + '55' : '#2a2c40'}`,
+                background: '#0f1018', color: linkedDomain ? '#e6e7f0' : '#4a4c60',
+                fontSize: 13, cursor: 'pointer', textAlign: 'left',
+                display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 8,
+                boxSizing: 'border-box',
+              }}
+            >
+              <div style={{ display: 'flex', alignItems: 'center', gap: 8, minWidth: 0 }}>
+                {linkedDomain ? (
+                  <>
+                    <span style={{ fontSize: 15 }}>{linkedDomain.icon}</span>
+                    <span style={{ fontWeight: 600, color: linkedDomain.color, fontSize: 11 }}>{linkedDomain.code}</span>
+                    <span style={{ color: '#c4c5d4', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{linkedDomain.name}</span>
+                  </>
+                ) : (
+                  <span>No domain linked</span>
+                )}
+              </div>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 4, flexShrink: 0 }}>
+                {linkedDomain && (
+                  <span
+                    onClick={e => { e.stopPropagation(); set('domainId', null); setDomainPickerOpen(false) }}
+                    style={{ fontSize: 11, color: '#4a4c60', padding: '2px 6px', borderRadius: 4, cursor: 'pointer' }}
+                    onMouseEnter={e => e.currentTarget.style.color = '#fb7185'}
+                    onMouseLeave={e => e.currentTarget.style.color = '#4a4c60'}
+                  >✕</span>
+                )}
+                {domainPickerOpen ? <ChevronUp size={13} color="#4a4c60" /> : <ChevronDown size={13} color="#4a4c60" />}
+              </div>
+            </button>
+
+            {domainPickerOpen && (
+              <div style={{ marginTop: 4, border: '1px solid #2a2c40', borderRadius: 10, background: '#0f1018', overflow: 'hidden', maxHeight: 220, overflowY: 'auto' }}>
+                {academic.length > 0 && (
+                  <>
+                    <div style={{ padding: '7px 12px 4px', fontSize: 10, fontWeight: 700, color: '#4a4c60', textTransform: 'uppercase', letterSpacing: '0.5px' }}>Academic</div>
+                    {academic.map(d => <DomainOption key={d.id} domain={d} selected={form.domainId === d.id} onSelect={() => { set('domainId', d.id); setDomainPickerOpen(false) }} />)}
+                  </>
+                )}
+                {otherDomains.length > 0 && (
+                  <>
+                    <div style={{ padding: '7px 12px 4px', fontSize: 10, fontWeight: 700, color: '#4a4c60', textTransform: 'uppercase', letterSpacing: '0.5px', borderTop: academic.length > 0 ? '1px solid #1e2030' : 'none' }}>Other</div>
+                    {otherDomains.map(d => <DomainOption key={d.id} domain={d} selected={form.domainId === d.id} onSelect={() => { set('domainId', d.id); setDomainPickerOpen(false) }} />)}
+                  </>
+                )}
+                {domains.length === 0 && (
+                  <div style={{ padding: '14px 12px', fontSize: 13, color: '#4a4c60', textAlign: 'center' }}>No domains yet</div>
+                )}
+              </div>
+            )}
+          </div>
+
+          {/* Notes */}
+          <div>
+            <Label>Notes (optional)</Label>
+            <textarea style={{ ...inputStyle, resize: 'vertical', minHeight: 60, fontFamily: 'inherit', lineHeight: 1.5 }} placeholder="Add notes…" value={form.notes} onChange={e => set('notes', e.target.value)} />
+          </div>
         </div>
-        <div style={{ padding: '14px 22px', borderTop: '1px solid #1e2030', display: 'flex', justifyContent: 'flex-end', gap: 8 }}>
+
+        {/* Footer */}
+        <div style={{ padding: '14px 22px', borderTop: '1px solid #1e2030', display: 'flex', justifyContent: 'flex-end', gap: 8, flexShrink: 0 }}>
           <button onClick={onClose} style={{ padding: '8px 16px', borderRadius: 8, border: '1px solid #2a2c40', background: 'none', color: '#7c7e96', cursor: 'pointer', fontSize: 13 }}>Cancel</button>
           <button onClick={handleSave} disabled={!canSave} style={{ padding: '8px 18px', borderRadius: 8, border: 'none', fontSize: 13, fontWeight: 600, background: canSave ? activeColor : '#1e2030', color: canSave ? '#0b0c13' : '#4a4c60', cursor: canSave ? 'pointer' : 'default', transition: 'all 0.15s' }}>Add Event</button>
         </div>
       </div>
+    </div>
+  )
+}
+
+function DomainOption({ domain, selected, onSelect }) {
+  const [hovered, setHovered] = useState(false)
+  return (
+    <div
+      onClick={onSelect}
+      onMouseEnter={() => setHovered(true)}
+      onMouseLeave={() => setHovered(false)}
+      style={{
+        display: 'flex', alignItems: 'center', gap: 10,
+        padding: '8px 12px', cursor: 'pointer',
+        background: selected ? `${domain.color}12` : hovered ? '#151621' : 'transparent',
+        transition: 'background 0.1s',
+      }}
+    >
+      <span style={{ fontSize: 16, flexShrink: 0 }}>{domain.icon}</span>
+      <span style={{ fontSize: 11, fontWeight: 700, color: domain.color, background: `${domain.color}20`, padding: '2px 6px', borderRadius: 4, flexShrink: 0 }}>{domain.code}</span>
+      <span style={{ fontSize: 13, color: selected ? '#e6e7f0' : '#c4c5d4', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{domain.name}</span>
+      {selected && <span style={{ marginLeft: 'auto', fontSize: 12, color: domain.color, flexShrink: 0 }}>✓</span>}
     </div>
   )
 }
@@ -406,12 +524,11 @@ function Label({ children }) {
 }
 
 // ─── Calendar page ────────────────────────────────────────────────────────────
-export default function CalendarPage({ onViewSubject }) {
+export default function CalendarPage({ domains = [], customEvents = [], onViewDomain, onAddCalendarEvent }) {
   const today = new Date()
   const [viewDate,      setViewDate]      = useState(new Date(today.getFullYear(), today.getMonth(), 1))
   const [selectedEvent, setSelectedEvent] = useState(null)
   const [addModalDate,  setAddModalDate]  = useState(null)
-  const [customEvents,  setCustomEvents]  = useState([])
 
   const year  = viewDate.getFullYear()
   const month = viewDate.getMonth()
@@ -420,8 +537,8 @@ export default function CalendarPage({ onViewSubject }) {
   const nextMonth = () => setViewDate(new Date(year, month + 1, 1))
   const goToday   = () => setViewDate(new Date(today.getFullYear(), today.getMonth(), 1))
 
-  const subjectEvents = useMemo(() => getSubjectEvents(), [])
-  const allEvents     = useMemo(() => [...subjectEvents, ...customEvents], [subjectEvents, customEvents])
+  const domainEvents = useMemo(() => getDomainEvents(), [])
+  const allEvents    = useMemo(() => [...domainEvents, ...customEvents], [domainEvents, customEvents])
 
   const eventsMap = useMemo(() => {
     const map = {}
@@ -437,8 +554,6 @@ export default function CalendarPage({ onViewSubject }) {
   const todayKey = dateKey(today)
 
   return (
-    // No height:'100%' — let content flow naturally so the grid rows can expand
-    // freely; the Layout scroll container handles overflow
     <div style={{ padding: '28px 32px 32px', display: 'flex', flexDirection: 'column' }}>
 
       {/* Page header */}
@@ -473,11 +588,7 @@ export default function CalendarPage({ onViewSubject }) {
         ))}
       </div>
 
-      {/* ── UNIFIED CALENDAR GRID ─────────────────────────────────────────────
-          Single CSS grid: 7 header cells + 42 day cells share the same columns.
-          Rows use minmax(110px, auto) so they are at least 110px tall but expand
-          freely when a cell's content grows (e.g. when the user clicks "+N more").
-          overflow:hidden is needed for border-radius clipping only.           */}
+      {/* Unified calendar grid */}
       <div style={{
         display: 'grid',
         gridTemplateColumns: 'repeat(7, 1fr)',
@@ -488,14 +599,12 @@ export default function CalendarPage({ onViewSubject }) {
         borderRadius: 12,
         overflow: 'hidden',
       }}>
-        {/* Weekday header cells */}
         {WEEKDAYS.map(day => (
           <div key={day} style={{ background: '#0f1018', padding: '9px 0', textAlign: 'center', fontSize: 11, fontWeight: 600, color: '#4a4c60', letterSpacing: '0.5px', textTransform: 'uppercase', minWidth: 0, overflow: 'hidden' }}>
             {day}
           </div>
         ))}
 
-        {/* 42 day cells */}
         {days.map((day, i) => {
           const k = dateKey(day.date)
           return (
@@ -516,14 +625,15 @@ export default function CalendarPage({ onViewSubject }) {
         <EventDetailModal
           event={selectedEvent}
           onClose={() => setSelectedEvent(null)}
-          onViewSubject={onViewSubject}
+          onViewDomain={onViewDomain}
         />
       )}
       {addModalDate && (
         <AddEventModal
           initialDate={addModalDate}
+          domains={domains}
           onClose={() => setAddModalDate(null)}
-          onSave={ev => setCustomEvents(prev => [...prev, ev])}
+          onSave={ev => { onAddCalendarEvent?.(ev); setAddModalDate(null) }}
         />
       )}
     </div>

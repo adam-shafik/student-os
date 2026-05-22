@@ -1,7 +1,7 @@
 import { BookOpen, Calendar, Timer, FileText, CheckSquare, Settings, GraduationCap } from 'lucide-react'
 
 const navItems = [
-  { id: 'subjects', label: 'Subjects', icon: BookOpen },
+  { id: 'domains', label: 'Domains', icon: BookOpen },
   { id: 'calendar', label: 'Calendar', icon: Calendar },
   { id: 'study', label: 'Study Session', icon: Timer },
   { id: 'notes', label: 'Notes', icon: FileText },
@@ -45,7 +45,7 @@ export default function Layout({ currentPage, onNavigate, children }) {
         <nav style={{ flex: 1, display: 'flex', flexDirection: 'column', gap: 2 }}>
           {navItems.map(item => {
             const Icon = item.icon
-            const isActive = currentPage === item.id || (currentPage === 'subject-detail' && item.id === 'subjects')
+            const isActive = currentPage === item.id || (currentPage === 'domain-detail' && item.id === 'domains')
             return (
               <button
                 key={item.id}
