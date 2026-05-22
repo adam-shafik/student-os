@@ -5,6 +5,7 @@ import {
   getDomainEvents, getCalendarDays, dateKey,
   resolveTypeLabel, resolveTypeColor,
 } from '../utils/calendarEvents'
+import { getWeekRowInfo, getAcademicWeek, getBreakForDate } from '../utils/semester'
 import EventDetailModal from '../components/EventDetailModal'
 
 const MAX_VISIBLE = 3
@@ -72,8 +73,31 @@ function EventChip({ event, onClick, hasNote }) {
   )
 }
 
+// ─── Week label cell (left-side column in calendar grid) ─────────────────────
+function WeekLabelCell({ info }) {
+  return (
+    <div style={{
+      background: info.isBreak ? `${info.breakColor}0f` : '#0b0c13',
+      display: 'flex', alignItems: 'center', justifyContent: 'center',
+      overflow: 'hidden', padding: '2px 0',
+    }}>
+      {info.label && (
+        <span style={{
+          fontSize: 8.5, fontWeight: 700,
+          color: info.isBreak ? info.breakColor : '#2a2c40',
+          writingMode: 'vertical-rl', transform: 'rotate(180deg)',
+          letterSpacing: '0.4px', textTransform: 'uppercase',
+          lineHeight: 1, userSelect: 'none',
+        }}>
+          {info.label}
+        </span>
+      )}
+    </div>
+  )
+}
+
 // ─── Day cell ─────────────────────────────────────────────────────────────────
-function DayCell({ day, events, isToday, onEventClick, onAddClick, eventNotes }) {
+function DayCell({ day, events, isToday, onEventClick, onAddClick, eventNotes, isBreak }) {
   const [hovered,  setHovered]  = useState(false)
   const [expanded, setExpanded] = useState(false)
 
@@ -90,7 +114,9 @@ function DayCell({ day, events, isToday, onEventClick, onAddClick, eventNotes })
       onMouseEnter={() => setHovered(true)}
       onMouseLeave={() => setHovered(false)}
       style={{
-        background: hovered && day.isCurrentMonth ? '#111220' : '#0b0c13',
+        background: isBreak
+        ? (hovered && day.isCurrentMonth ? 'rgba(251,191,36,0.07)' : 'rgba(251,191,36,0.04)')
+        : (hovered && day.isCurrentMonth ? '#111220' : '#0b0c13'),
         transition: 'background 0.12s',
         padding: '7px 7px 6px',
         display: 'flex', flexDirection: 'column',
@@ -192,6 +218,12 @@ function AddEventModal({ initialDate, domains, onClose, onSave }) {
   const linkedDomain = domains.find(d => d.id === form.domainId) || null
   const { academic, other: otherDomains } = groupDomains(domains)
 
+  // Academic week detection — only for events linked to an academic domain
+  const isAcademicLink = linkedDomain?.category === 'academic'
+  const formDateObj    = form.date ? (() => { const [y, m, d] = form.date.split('-').map(Number); return new Date(y, m - 1, d) })() : null
+  const eventWeek  = isAcademicLink && formDateObj ? getAcademicWeek(formDateObj) : null
+  const eventBreak = isAcademicLink && formDateObj ? getBreakForDate(formDateObj) : null
+
   const handleSave = () => {
     if (!canSave) return
     const [y, m, d] = form.date.split('-').map(Number)
@@ -242,9 +274,22 @@ function AddEventModal({ initialDate, domains, onClose, onSave }) {
           </div>
 
           {/* Date + Time */}
-          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 }}>
-            <div><Label>Date</Label><input type="date" style={{ ...inputStyle, colorScheme: 'dark' }} value={form.date} onChange={e => set('date', e.target.value)} /></div>
-            <div><Label>Time (optional)</Label><input type="time" style={{ ...inputStyle, colorScheme: 'dark' }} value={form.time} onChange={e => set('time', e.target.value)} /></div>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 }}>
+              <div><Label>Date</Label><input type="date" style={{ ...inputStyle, colorScheme: 'dark' }} value={form.date} onChange={e => set('date', e.target.value)} /></div>
+              <div><Label>Time (optional)</Label><input type="time" style={{ ...inputStyle, colorScheme: 'dark' }} value={form.time} onChange={e => set('time', e.target.value)} /></div>
+            </div>
+            {isAcademicLink && (eventWeek || eventBreak) && (
+              <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                <span style={{
+                  fontSize: 11, fontWeight: 600, padding: '3px 9px', borderRadius: 5,
+                  background: eventBreak ? 'rgba(251,191,36,0.12)' : 'rgba(91,140,255,0.12)',
+                  color: eventBreak ? '#fbbf24' : '#5b8cff',
+                }}>
+                  {eventWeek ? `Academic Week ${eventWeek}` : eventBreak.name}
+                </span>
+              </div>
+            )}
           </div>
 
           {/* Event type */}
@@ -399,6 +444,11 @@ export default function CalendarPage({ domains = [], customEvents = [], onViewDo
   }, [allEvents])
 
   const days     = useMemo(() => getCalendarDays(year, month), [year, month])
+  const weekRows = useMemo(() => {
+    const rows = []
+    for (let i = 0; i < days.length; i += 7) rows.push(days.slice(i, i + 7))
+    return rows
+  }, [days])
   const todayKey = dateKey(today)
 
   return (
@@ -439,7 +489,7 @@ export default function CalendarPage({ domains = [], customEvents = [], onViewDo
       {/* Unified calendar grid */}
       <div style={{
         display: 'grid',
-        gridTemplateColumns: 'repeat(7, 1fr)',
+        gridTemplateColumns: '28px repeat(7, 1fr)',
         gridTemplateRows: `auto repeat(6, minmax(110px, auto))`,
         gap: '1px',
         background: '#1e2030',
@@ -447,25 +497,35 @@ export default function CalendarPage({ domains = [], customEvents = [], onViewDo
         borderRadius: 12,
         overflow: 'hidden',
       }}>
+        {/* Header row: week-label slot + 7 weekday names */}
+        <div style={{ background: '#0f1018' }} />
         {WEEKDAYS.map(day => (
           <div key={day} style={{ background: '#0f1018', padding: '9px 0', textAlign: 'center', fontSize: 11, fontWeight: 600, color: '#4a4c60', letterSpacing: '0.5px', textTransform: 'uppercase', minWidth: 0, overflow: 'hidden' }}>
             {day}
           </div>
         ))}
 
-        {days.map((day, i) => {
-          const k = dateKey(day.date)
-          return (
-            <DayCell
-              key={i}
-              day={day}
-              events={eventsMap[k] || []}
-              isToday={k === todayKey}
-              onEventClick={setSelectedEvent}
-              onAddClick={setAddModalDate}
-              eventNotes={eventNotes}
-            />
-          )
+        {/* 6 data rows: [WeekLabel, day×7] */}
+        {weekRows.flatMap((week, wi) => {
+          const info = getWeekRowInfo(week)
+          return [
+            <WeekLabelCell key={`wl-${wi}`} info={info} />,
+            ...week.map((day, di) => {
+              const k = dateKey(day.date)
+              return (
+                <DayCell
+                  key={`${wi}-${di}`}
+                  day={day}
+                  events={eventsMap[k] || []}
+                  isToday={k === todayKey}
+                  onEventClick={setSelectedEvent}
+                  onAddClick={setAddModalDate}
+                  eventNotes={eventNotes}
+                  isBreak={info.isBreak}
+                />
+              )
+            }),
+          ]
         })}
       </div>
 

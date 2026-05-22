@@ -3,6 +3,7 @@ import {
   GraduationCap, Tag, AlignLeft, ExternalLink, StickyNote,
 } from 'lucide-react'
 import { resolveTypeLabel, resolveTypeColor } from '../utils/calendarEvents'
+import { getAcademicWeek, getBreakForDate } from '../utils/semester'
 
 const STATUS_CFG = {
   completed:     { label: 'Completed',   color: '#34d399', bg: 'rgba(52,211,153,0.12)'  },
@@ -41,6 +42,10 @@ export default function EventDetailModal({ event, onClose, onViewDomain, note, o
   const typeColor = resolveTypeColor(event)
   const typeLabel = resolveTypeLabel(event)
   const d = event.details || {}
+
+  // Auto-calculate academic week from date (only for domain-linked events)
+  const calcWeek  = event.domainId ? getAcademicWeek(event.date) : null
+  const calcBreak = event.domainId ? getBreakForDate(event.date)  : null
 
   const typeIcons = { lecture: BookOpen, lab: FlaskConical, assignment: FileCheck, exam: GraduationCap }
   const TypeIcon  = typeIcons[event.type] || Tag
@@ -95,7 +100,7 @@ export default function EventDetailModal({ event, onClose, onViewDomain, note, o
 
             {event.type === 'lecture' && (
               <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
-                <Row label="Week"   value={`Week ${d.week}`} />
+                <Row label="Week"   value={calcBreak ? calcBreak.name : `Week ${calcWeek ?? d.week}`} />
                 <Row label="Status" value={<StatusBadge status={d.status} />} />
                 {d.hasNotes && (
                   <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
@@ -108,7 +113,7 @@ export default function EventDetailModal({ event, onClose, onViewDomain, note, o
 
             {event.type === 'lab' && (
               <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
-                <Row label="Week"   value={`Week ${d.week}`} />
+                <Row label="Week"   value={calcBreak ? calcBreak.name : `Week ${calcWeek ?? d.week}`} />
                 <Row label="Status" value={<StatusBadge status={d.status} />} />
               </div>
             )}
