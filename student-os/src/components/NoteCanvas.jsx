@@ -1,13 +1,13 @@
 import { useRef, useState, useEffect } from 'react'
 import { getStroke } from 'perfect-freehand'
 import {
-  Undo2, Trash2, PenLine, Highlighter, Shapes, MousePointer2,
-  Square, Circle, Minus, Triangle, SlidersHorizontal, Plus,
+  Undo2, Trash2, PenLine, Highlighter, Shapes, MousePointer2, Eraser,
+  Square, Circle, Minus, Triangle, SlidersHorizontal, Plus, Maximize2, Minimize2,
 } from 'lucide-react'
 
 // ─── Constants ─────────────────────────────────────────────────────────────────
-const PAGE_HEIGHTS    = { portrait: 1200, landscape: 700 }
-const PAGE_MAX_WIDTHS = { portrait: 900,  landscape: 1000 }
+const PAGE_HEIGHTS    = { portrait: 1200, landscape: 520 }
+const PAGE_MAX_WIDTHS = { portrait: 900,  landscape: 1200 }
 const PRESETS         = ['#111827', '#5b8cff', '#a78bfa', '#f59e0b', '#34d399', '#fb7185']
 const SIZES           = [2, 5, 10, 18]
 const TOOLS           = [
@@ -15,11 +15,13 @@ const TOOLS           = [
   ['highlighter', Highlighter,   'Highlighter'],
   ['shape',       Shapes,        'Shapes'],
   ['select',      MousePointer2, 'Select · drag to move · Delete to remove'],
+  ['eraser',      Eraser,        'Eraser'],
 ]
-const SHAPE_TYPES = [['rect', Square, 'Rectangle'], ['ellipse', Circle, 'Ellipse'], ['line', Minus, 'Line'], ['triangle', Triangle, 'Triangle']]
-const TEMPLATES   = ['blank', 'lined', 'dotted', 'grid']
-const BG_COLORS   = ['#f8f7f2', '#0d0d14', '#0a0a0a', '#0a100d', '#100a14', '#0f0d09']
-const SPACINGS    = [[20, 'Narrow'], [28, 'Normal'], [36, 'Wide'], [48, 'Extra']]
+const SHAPE_TYPES  = [['rect', Square, 'Rectangle'], ['ellipse', Circle, 'Ellipse'], ['line', Minus, 'Line'], ['triangle', Triangle, 'Triangle']]
+const ERASER_MODES = [['standard', 'Standard'], ['stroke', 'Stroke']]
+const TEMPLATES    = ['blank', 'lined', 'dotted', 'grid']
+const BG_COLORS    = ['#f8f7f2', '#0d0d14', '#0a0a0a', '#0a100d', '#100a14', '#0f0d09']
+const SPACINGS     = [[20, 'Narrow'], [28, 'Normal'], [36, 'Wide'], [48, 'Extra']]
 
 // ─── Drawing utils ─────────────────────────────────────────────────────────────
 function strokeOpts(size, last) {
@@ -53,7 +55,6 @@ function hexLuminance(hex) {
   return 0.2126 * lin(r) + 0.7152 * lin(g) + 0.0722 * lin(b)
 }
 
-// Preserves hue, shifts lightness so the stroke stays legible against bg.
 function adaptColor(color, bg) {
   if (!color?.startsWith('#') || !bg?.startsWith('#')) return color
   const lc = hexLuminance(color), lb = hexLuminance(bg)
@@ -85,6 +86,50 @@ function adaptColor(color, bg) {
   const ng = Math.round(hue(h) * 255)
   const nb = Math.round(hue(h - 1 / 3) * 255)
   return `#${nr.toString(16).padStart(2, '0')}${ng.toString(16).padStart(2, '0')}${nb.toString(16).padStart(2, '0')}`
+}
+
+// ─── Eraser logic ──────────────────────────────────────────────────────────────
+function shapeNearPoint(s, cx, cy, r2) {
+  const bx1 = Math.min(s.x1, s.x2), by1 = Math.min(s.y1, s.y2)
+  const bx2 = Math.max(s.x1, s.x2), by2 = Math.max(s.y1, s.y2)
+  const nx = Math.max(bx1, Math.min(cx, bx2))
+  const ny = Math.max(by1, Math.min(cy, by2))
+  const dx = cx - nx, dy = cy - ny
+  return dx * dx + dy * dy <= r2
+}
+
+function applyStandardErase(strokes, cx, cy, radius) {
+  const r2 = radius * radius
+  const result = []
+  for (const s of strokes) {
+    if (s.shape) {
+      if (!shapeNearPoint(s, cx, cy, r2)) result.push(s)
+    } else {
+      let current = []
+      for (const p of s.points) {
+        const dx = p[0] - cx, dy = p[1] - cy
+        if (dx * dx + dy * dy <= r2) {
+          if (current.length > 1) result.push({ ...s, points: current })
+          current = []
+        } else {
+          current.push(p)
+        }
+      }
+      if (current.length > 1) result.push({ ...s, points: current })
+    }
+  }
+  return result
+}
+
+function applyStrokeErase(strokes, cx, cy, radius) {
+  const r2 = radius * radius
+  return strokes.filter(s => {
+    if (s.shape) return !shapeNearPoint(s, cx, cy, r2)
+    return !s.points.some(p => {
+      const dx = p[0] - cx, dy = p[1] - cy
+      return dx * dx + dy * dy <= r2
+    })
+  })
 }
 
 // ─── Shape rendering ───────────────────────────────────────────────────────────
@@ -126,7 +171,7 @@ function rectsIntersect(a, b) {
   return ax1 < bx2 && ax2 > bx1 && ay1 < by2 && ay2 > by1
 }
 
-// ─── Page template (SVG background pattern) ────────────────────────────────────
+// ─── Page template ─────────────────────────────────────────────────────────────
 function PageTemplate({ pageId, template, bgColor, lineSpacing }) {
   const bgLum = hexLuminance(bgColor)
   const lc    = bgLum > 0.5 ? 'rgba(0,0,0,0.12)' : 'rgba(255,255,255,0.07)'
@@ -156,8 +201,8 @@ function PageTemplate({ pageId, template, bgColor, lineSpacing }) {
   )
 }
 
-// ─── Single page canvas ─────────────────────────────────────────────────────────
-function PageCanvas({ page, pageH, onStrokesChange, penColor, penSize, tool, shapeType, opacity, template, bgColor, lineSpacing, readonly }) {
+// ─── Single page canvas ────────────────────────────────────────────────────────
+function PageCanvas({ page, pageH, onStrokesChange, penColor, penSize, tool, shapeType, opacity, template, bgColor, lineSpacing, eraserMode, eraserRadius, readonly }) {
   const svgRef        = useRef()
   const livePathRef   = useRef(null)
   const liveShapeRef  = useRef(null)
@@ -166,6 +211,9 @@ function PageCanvas({ page, pageH, onStrokesChange, penColor, penSize, tool, sha
   const shapeModeRef  = useRef(false)
   const shapeStartRef = useRef(null)
   const lastPtRef     = useRef(null)
+  const isErasingRef  = useRef(false)
+  // Keeps the progressively-erased strokes so pointer move never reads stale props
+  const erasingRef    = useRef(null)
 
   const [shapeHeld,       setShapeHeld]       = useState(false)
   const [selRect,         setSelRect]         = useState(null)
@@ -173,16 +221,19 @@ function PageCanvas({ page, pageH, onStrokesChange, penColor, penSize, tool, sha
   const [moveStart,       setMoveStart]       = useState(null)
   const [moveOff,         setMoveOff]         = useState({ dx: 0, dy: 0 })
   const [isMoving,        setIsMoving]        = useState(false)
+  const [eraserPos,       setEraserPos]       = useState(null)
+  // Snapshot of strokes being actively erased (shown in place of page.strokes during drag)
+  const [erasingStrokes,  setErasingStrokes]  = useState(null)
 
   useEffect(() => {
-    setSelectedIndices(new Set())
-    setSelRect(null)
-    setIsMoving(false)
-    setMoveStart(null)
-    setMoveOff({ dx: 0, dy: 0 })
+    setSelectedIndices(new Set()); setSelRect(null)
+    setIsMoving(false); setMoveStart(null); setMoveOff({ dx: 0, dy: 0 })
+    setEraserPos(null); setErasingStrokes(null)
+    isErasingRef.current = false; erasingRef.current = null
   }, [tool])
 
-  const strokes = page.strokes
+  const strokes        = page.strokes
+  const displayStrokes = erasingStrokes ?? strokes
 
   function getPoint(e) {
     const r = svgRef.current.getBoundingClientRect()
@@ -225,20 +276,32 @@ function PageCanvas({ page, pageH, onStrokesChange, penColor, penSize, tool, sha
     }
   }
 
+  function doErase(cx, cy) {
+    const fn   = eraserMode === 'stroke' ? applyStrokeErase : applyStandardErase
+    const next = fn(erasingRef.current, cx, cy, eraserRadius)
+    erasingRef.current = next
+    setErasingStrokes([...next])
+  }
+
   function onPointerDown(e) {
     if (e.pointerType === 'mouse' && e.button !== 0) return
     e.currentTarget.setPointerCapture(e.pointerId)
     const pt = getPoint(e)
     lastPtRef.current = pt
 
+    if (tool === 'eraser') {
+      isErasingRef.current = true
+      erasingRef.current   = strokes
+      setEraserPos({ x: pt[0], y: pt[1] })
+      doErase(pt[0], pt[1])
+      return
+    }
+
     if (tool === 'select') {
       if (selectedIndices.size > 0) {
         const sb = getSelBounds()
         if (sb && pt[0] >= sb.x1 && pt[0] <= sb.x2 && pt[1] >= sb.y1 && pt[1] <= sb.y2) {
-          setIsMoving(true)
-          setMoveStart({ x: pt[0], y: pt[1] })
-          setMoveOff({ dx: 0, dy: 0 })
-          return
+          setIsMoving(true); setMoveStart({ x: pt[0], y: pt[1] }); setMoveOff({ dx: 0, dy: 0 }); return
         }
       }
       setSelectedIndices(new Set())
@@ -248,9 +311,7 @@ function PageCanvas({ page, pageH, onStrokesChange, penColor, penSize, tool, sha
     }
 
     if (tool === 'shape') {
-      shapeStartRef.current = pt
-      shapeModeRef.current  = false
-      setShapeHeld(false)
+      shapeStartRef.current = pt; shapeModeRef.current = false; setShapeHeld(false)
       holdTimer.current = setTimeout(() => { shapeModeRef.current = true; setShapeHeld(true) }, 450)
     } else {
       activeStroke.current = { points: [pt], color: penColor, size: penSize, opacity }
@@ -267,12 +328,15 @@ function PageCanvas({ page, pageH, onStrokesChange, penColor, penSize, tool, sha
     const pt = getPoint(e)
     lastPtRef.current = pt
 
+    if (tool === 'eraser') {
+      setEraserPos({ x: pt[0], y: pt[1] })
+      if (isErasingRef.current) doErase(pt[0], pt[1])
+      return
+    }
+
     if (tool === 'select') {
-      if (isMoving && moveStart) {
-        setMoveOff({ dx: pt[0] - moveStart.x, dy: pt[1] - moveStart.y })
-      } else if (selRect) {
-        setSelRect(prev => ({ ...prev, x2: pt[0], y2: pt[1] }))
-      }
+      if (isMoving && moveStart) setMoveOff({ dx: pt[0] - moveStart.x, dy: pt[1] - moveStart.y })
+      else if (selRect) setSelRect(prev => ({ ...prev, x2: pt[0], y2: pt[1] }))
       return
     }
 
@@ -290,6 +354,15 @@ function PageCanvas({ page, pageH, onStrokesChange, penColor, penSize, tool, sha
   function onPointerUp() {
     clearTimeout(holdTimer.current)
 
+    if (tool === 'eraser') {
+      isErasingRef.current = false
+      const final = erasingRef.current
+      erasingRef.current = null
+      setErasingStrokes(null)
+      if (final !== null) onStrokesChange(final)
+      return
+    }
+
     if (tool === 'select') {
       if (isMoving) {
         const { dx, dy } = moveOff
@@ -299,14 +372,11 @@ function PageCanvas({ page, pageH, onStrokesChange, penColor, penSize, tool, sha
           return { ...s, points: s.points.map(p => [p[0] + dx, p[1] + dy, p[2]]) }
         })
         onStrokesChange(newStrokes)
-        setIsMoving(false)
-        setMoveStart(null)
-        setMoveOff({ dx: 0, dy: 0 })
+        setIsMoving(false); setMoveStart(null); setMoveOff({ dx: 0, dy: 0 })
       } else if (selRect) {
         const hits = new Set()
         strokes.forEach((s, i) => { if (rectsIntersect(selRect, strokeBounds(s))) hits.add(i) })
-        setSelectedIndices(hits)
-        setSelRect(null)
+        setSelectedIndices(hits); setSelRect(null)
       }
       return
     }
@@ -338,7 +408,7 @@ function PageCanvas({ page, pageH, onStrokesChange, penColor, penSize, tool, sha
   }
 
   const selBounds = tool === 'select' ? getSelBounds(isMoving ? moveOff.dx : 0, isMoving ? moveOff.dy : 0) : null
-  const cursor    = readonly ? 'default' : isMoving ? 'grabbing' : 'crosshair'
+  const cursor    = readonly ? 'default' : tool === 'eraser' ? 'none' : isMoving ? 'grabbing' : 'crosshair'
 
   return (
     <div style={{ position: 'relative', width: '100%' }}>
@@ -347,7 +417,7 @@ function PageCanvas({ page, pageH, onStrokesChange, penColor, penSize, tool, sha
           position: 'absolute', top: 12, left: '50%', transform: 'translateX(-50%)',
           background: 'rgba(0,0,0,0.7)', border: `1px solid ${penColor}66`,
           borderRadius: 20, padding: '4px 14px', fontSize: 11, color: penColor,
-          pointerEvents: 'none', zIndex: 10, letterSpacing: '0.2px',
+          pointerEvents: 'none', zIndex: 10,
         }}>
           Shape mode · drag to draw
         </div>
@@ -358,13 +428,13 @@ function PageCanvas({ page, pageH, onStrokesChange, penColor, penSize, tool, sha
         style={{ width: '100%', height: pageH, display: 'block', touchAction: 'none', cursor, outline: 'none' }}
         onPointerDown={readonly ? undefined : onPointerDown}
         onPointerMove={readonly ? undefined : onPointerMove}
-        onPointerUp={readonly   ? undefined : onPointerUp}
-        onPointerLeave={readonly ? undefined : onPointerUp}
+        onPointerUp={readonly ? undefined : onPointerUp}
+        onPointerLeave={readonly ? undefined : () => { onPointerUp(); setEraserPos(null) }}
         onKeyDown={readonly ? undefined : onKeyDown}
       >
         <PageTemplate pageId={page.id} template={template} bgColor={bgColor} lineSpacing={lineSpacing} />
 
-        {strokes.map((s, i) => {
+        {displayStrokes.map((s, i) => {
           const sel = selectedIndices.has(i)
           const dx  = sel && isMoving ? moveOff.dx : 0
           const dy  = sel && isMoving ? moveOff.dy : 0
@@ -385,7 +455,6 @@ function PageCanvas({ page, pageH, onStrokesChange, penColor, penSize, tool, sha
             fill="rgba(91,140,255,0.08)" stroke="#5b8cff" strokeWidth={1.5} strokeDasharray="6 4"
           />
         )}
-
         {selBounds && !selRect && (
           <rect
             x={selBounds.x1} y={selBounds.y1}
@@ -393,32 +462,42 @@ function PageCanvas({ page, pageH, onStrokesChange, penColor, penSize, tool, sha
             fill="rgba(91,140,255,0.06)" stroke="#5b8cff" strokeWidth={1.5} strokeDasharray="6 4"
           />
         )}
+        {tool === 'eraser' && eraserPos && (
+          <circle
+            cx={eraserPos.x} cy={eraserPos.y} r={eraserRadius}
+            fill="none" stroke="rgba(128,128,128,0.55)" strokeWidth={1.5} strokeDasharray="4 3"
+            pointerEvents="none"
+          />
+        )}
       </svg>
     </div>
   )
 }
 
-// ─── Main multi-page canvas ─────────────────────────────────────────────────────
+// ─── Main multi-page canvas ────────────────────────────────────────────────────
 export default function NoteCanvas({
   pages, onPagesChange,
   template = 'blank', bgColor = '#f8f7f2', lineSpacing = 32,
   orientation = 'portrait', onSettingsChange,
   readonly = false,
 }) {
-  const scrollRef      = useRef()
-  const addingPageRef  = useRef(false)
+  const scrollRef     = useRef()
+  const addingPageRef = useRef(false)
 
   const [penColor,     setPenColor]     = useState('#111827')
   const [penSize,      setPenSize]      = useState(5)
   const [tool,         setTool]         = useState('pen')
   const [shapeType,    setShapeType]    = useState('rect')
+  const [eraserMode,   setEraserMode]   = useState('standard')
   const [customColor,  setCustomColor]  = useState('#111827')
   const [customBg,     setCustomBg]     = useState(bgColor)
   const [showSettings, setShowSettings] = useState(false)
+  const [isFullscreen, setIsFullscreen] = useState(false)
 
   const pageH        = PAGE_HEIGHTS[orientation]    ?? 1200
   const maxW         = PAGE_MAX_WIDTHS[orientation] ?? 900
   const opacity      = tool === 'highlighter' ? 0.35 : 1
+  const eraserRadius = penSize * 4
   const totalStrokes = pages.reduce((s, p) => s + p.strokes.length, 0)
 
   function addPage() {
@@ -458,18 +537,20 @@ export default function NoteCanvas({
 
   const sep = <div style={{ width: 1, height: 18, background: 'var(--border)', flexShrink: 0 }} />
 
-  return (
-    <div style={{ display: 'flex', flexDirection: 'column', height: '100%', userSelect: 'none' }}>
+  const outerStyle = isFullscreen
+    ? { position: 'fixed', inset: 0, zIndex: 1000, display: 'flex', flexDirection: 'column', userSelect: 'none', background: 'var(--bg-elevated)' }
+    : { display: 'flex', flexDirection: 'column', height: '100%', userSelect: 'none' }
 
+  return (
+    <div style={outerStyle}>
       {!readonly && (
         <>
-          {/* ── Main toolbar ── */}
+          {/* ── Toolbar ── */}
           <div style={{
             display: 'flex', alignItems: 'center', gap: 10, padding: '8px 14px',
             borderBottom: showSettings ? 'none' : '1px solid var(--border)',
             flexShrink: 0, background: 'var(--bg-elevated)', flexWrap: 'wrap',
           }}>
-
             <div style={{ display: 'flex', gap: 3 }}>
               {TOOLS.map(([t, Icon, label]) => (
                 <button key={t} title={label} onClick={() => setTool(t)} style={tbtn(tool === t)}>
@@ -487,6 +568,23 @@ export default function NoteCanvas({
                     <button key={t} title={label} onClick={() => setShapeType(t)} style={tbtn(shapeType === t)}>
                       <Icon size={13} />
                     </button>
+                  ))}
+                </div>
+                {sep}
+              </>
+            )}
+
+            {tool === 'eraser' && (
+              <>
+                <div style={{ display: 'flex', gap: 3 }}>
+                  {ERASER_MODES.map(([m, label]) => (
+                    <button key={m} onClick={() => setEraserMode(m)} style={{
+                      padding: '4px 9px', borderRadius: 6, border: '1px solid transparent',
+                      cursor: 'pointer', fontSize: 11,
+                      background: eraserMode === m ? penColor + '22' : 'none',
+                      color: eraserMode === m ? penColor : 'var(--text-muted)',
+                      borderColor: eraserMode === m ? penColor + '55' : 'transparent',
+                    }}>{label}</button>
                   ))}
                 </div>
                 {sep}
@@ -535,6 +633,10 @@ export default function NoteCanvas({
 
             <div style={{ flex: 1 }} />
 
+            <button title={isFullscreen ? 'Exit fullscreen' : 'Fullscreen'} onClick={() => setIsFullscreen(v => !v)} style={tbtn(isFullscreen)}>
+              {isFullscreen ? <Minimize2 size={13} /> : <Maximize2 size={13} />}
+            </button>
+
             <button title="Page settings" onClick={() => setShowSettings(v => !v)} style={tbtn(showSettings)}>
               <SlidersHorizontal size={13} />
             </button>
@@ -565,7 +667,6 @@ export default function NoteCanvas({
               borderBottom: '1px solid var(--border)', flexShrink: 0,
               background: 'var(--bg-elevated)', flexWrap: 'wrap',
             }}>
-
               <div style={{ display: 'flex', alignItems: 'center', gap: 7 }}>
                 <span style={{ fontSize: 10, fontWeight: 700, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.5px' }}>Orientation</span>
                 {['portrait', 'landscape'].map(o => (
@@ -639,11 +740,7 @@ export default function NoteCanvas({
       )}
 
       {/* ── Scroll container ── */}
-      <div
-        ref={scrollRef}
-        onScroll={onScroll}
-        style={{ flex: 1, overflowY: 'auto', background: 'var(--canvas-outer, #14141e)' }}
-      >
+      <div ref={scrollRef} onScroll={onScroll} style={{ flex: 1, overflowY: 'auto', background: 'var(--canvas-outer, #14141e)' }}>
         <div style={{ padding: 24, display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 16 }}>
           {pages.map((page, pageIdx) => (
             <div key={page.id} style={{ width: '100%', maxWidth: maxW, flexShrink: 0 }}>
@@ -661,6 +758,8 @@ export default function NoteCanvas({
                 template={template}
                 bgColor={bgColor}
                 lineSpacing={lineSpacing}
+                eraserMode={eraserMode}
+                eraserRadius={eraserRadius}
                 readonly={readonly}
               />
               <div style={{ textAlign: 'center', marginTop: 8, fontSize: 10, color: 'rgba(255,255,255,0.15)', letterSpacing: '0.5px' }}>
