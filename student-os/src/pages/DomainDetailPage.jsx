@@ -6,6 +6,20 @@ import {
   AlertCircle, ExternalLink, Tag,
 } from 'lucide-react'
 import { DOMAIN_CATEGORIES } from '../data/domains'
+import {
+  GitBranch, Database, Code2, Globe, Server, Brain, Monitor, Zap, Users as UsersIcon, FileText as FileTextIcon,
+  Cpu, Network, Layers, Shield, Terminal, BarChart2, Wrench, Microscope, Rocket, Star, Building2, Briefcase,
+} from 'lucide-react'
+
+const ICON_COMPONENT_MAP = {
+  GitBranch, Database, Code2, Globe, Server, Brain, Monitor, Zap, Users: UsersIcon, FileText: FileTextIcon,
+  Cpu, Network, Layers, Shield, Terminal, BarChart2, BookOpen, Wrench, Microscope, FlaskConical, Rocket, Star, Building2, Briefcase,
+}
+function DomainIcon({ name, size = 16, color }) {
+  const Icon = ICON_COMPONENT_MAP[name]
+  if (!Icon) return null
+  return <Icon size={size} color={color} />
+}
 import { resolveTypeLabel, resolveTypeColor, parseSubjectDate } from '../utils/calendarEvents'
 import EventDetailModal from '../components/EventDetailModal'
 
@@ -545,7 +559,7 @@ export default function DomainDetailPage({ domain, linkedEvents, onBack, eventNo
             <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 10 }}>
               <span style={{ fontSize: 12, fontWeight: 700, letterSpacing: '0.5px', color: domain.color, background: domain.colorMuted, padding: '4px 10px', borderRadius: 6 }}>{domain.code}</span>
               <span style={{ fontSize: 12, fontWeight: 600, color: catCfg.color, background: `${catCfg.color}18`, padding: '4px 10px', borderRadius: 6 }}>{catCfg.label}</span>
-              {domain.icon && <span style={{ fontSize: 16 }}>{domain.icon}</span>}
+              {domain.icon && <DomainIcon name={domain.icon} size={16} color={domain.color} />}
             </div>
             <h1 style={{ margin: '0 0 8px', fontSize: 22, fontWeight: 700, color: '#e6e7f0', letterSpacing: '-0.4px' }}>{domain.name}</h1>
             <p style={{ margin: '0 0 14px', fontSize: 13, color: '#7c7e96', lineHeight: 1.5, maxWidth: 520 }}>{domain.description}</p>

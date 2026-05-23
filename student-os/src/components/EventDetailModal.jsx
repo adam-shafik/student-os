@@ -1,6 +1,6 @@
 import {
   X, Calendar, Clock, MapPin, BookOpen, FlaskConical, FileCheck,
-  GraduationCap, Tag, AlignLeft, ExternalLink, StickyNote,
+  GraduationCap, Tag, AlignLeft, ExternalLink, StickyNote, AlertTriangle,
 } from 'lucide-react'
 import { resolveTypeLabel, resolveTypeColor } from '../utils/calendarEvents'
 import { getAcademicWeek, getBreakForDate } from '../utils/semester'
@@ -131,7 +131,7 @@ export default function EventDetailModal({ event, onClose, onViewDomain, note, o
                 </div>
                 {(d.status === 'upcoming' || d.status === 'submitted') && (
                   <div style={{ fontSize: 12, color: '#7c7e96', background: 'rgba(251,191,36,0.06)', border: '1px solid rgba(251,191,36,0.15)', borderRadius: 8, padding: '8px 12px' }}>
-                    ⚠ Due {event.date.toLocaleDateString('en-GB', { day: 'numeric', month: 'short' })}
+                    <AlertTriangle size={11} style={{ display: 'inline', marginRight: 4 }} />Due {event.date.toLocaleDateString('en-GB', { day: 'numeric', month: 'short' })}
                     {d.status === 'upcoming' ? ' — not yet submitted' : ' — awaiting mark'}
                   </div>
                 )}

@@ -1,10 +1,13 @@
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
+import { Construction } from 'lucide-react'
+import { getStoredTheme, applyTheme } from './theme'
 import './App.css'
 import Layout from './components/Layout'
 import DomainsPage from './pages/DomainsPage'
 import DomainDetailPage from './pages/DomainDetailPage'
 import CalendarPage from './pages/CalendarPage'
 import NotesPage from './pages/NotesPage'
+import TodosPage from './pages/TodosPage'
 import { initialDomains } from './data/domains'
 
 function ComingSoon({ label }) {
@@ -18,7 +21,7 @@ function ComingSoon({ label }) {
         width: 72, height: 72, borderRadius: 18,
         display: 'flex', alignItems: 'center', justifyContent: 'center',
       }}>
-        🚧
+        <Construction size={28} color="#4a4c60" />
       </div>
       <h2 style={{ margin: 0, fontSize: 18, fontWeight: 600, color: '#7c7e96' }}>{label}</h2>
       <p style={{ margin: 0, fontSize: 13, color: '#4a4c60' }}>Coming soon — this section is in development</p>
@@ -27,12 +30,30 @@ function ComingSoon({ label }) {
 }
 
 export default function App() {
+  const [theme, setTheme] = useState(getStoredTheme)
+  useEffect(() => { applyTheme(theme) }, [])
+
+  const handleThemeChange = (id) => {
+    setTheme(id)
+    applyTheme(id)
+  }
+
   const [currentPage,    setCurrentPage]    = useState('domains')
   const [previousPage,   setPreviousPage]   = useState(null)
   const [selectedDomain, setSelectedDomain] = useState(null)
   const [domains,        setDomains]        = useState(initialDomains)
   const [customCalendarEvents, setCustomCalendarEvents] = useState([])
   const [eventNotes,    setEventNotes]    = useState({})
+  const [todos,         setTodos]         = useState([
+    { id: 'todo-1', title: 'Review Week 6 lecture slides', domainId: 'cs301', dueDate: '2026-03-10', priority: 'high',   done: false, createdAt: '2026-03-05T10:00:00Z' },
+    { id: 'todo-2', title: 'Finish Graph Algorithm Coursework', domainId: 'cs301', dueDate: '2026-03-10', priority: 'high',   done: false, createdAt: '2026-03-05T10:01:00Z' },
+    { id: 'todo-3', title: 'Redo Transaction Management notes', domainId: 'cs302', dueDate: '2026-03-20', priority: 'medium', done: false, createdAt: '2026-03-05T10:02:00Z' },
+    { id: 'todo-4', title: 'Read Chapter 4 of the textbook',   domainId: 'cs303', dueDate: null,         priority: 'low',    done: false, createdAt: '2026-03-05T10:03:00Z' },
+    { id: 'todo-5', title: 'Practice past exam papers',        domainId: 'cs301', dueDate: '2026-05-10', priority: 'medium', done: false, createdAt: '2026-03-05T10:04:00Z' },
+    { id: 'todo-6', title: 'Email Dr. Smith about coursework', domainId: null,    dueDate: '2026-03-08', priority: 'medium', done: false, createdAt: '2026-03-05T10:05:00Z' },
+    { id: 'todo-7', title: 'Buy revision stationery',          domainId: null,    dueDate: null,         priority: 'low',    done: true,  createdAt: '2026-03-04T09:00:00Z' },
+    { id: 'todo-8', title: 'Submit SQL assignment',            domainId: 'cs302', dueDate: '2026-03-01', priority: 'high',   done: true,  createdAt: '2026-03-01T08:00:00Z' },
+  ])
 
   const handleNavigate = (page) => {
     setPreviousPage(currentPage)
@@ -64,6 +85,10 @@ export default function App() {
     setEventNotes(prev => ({ ...prev, [eventId]: text }))
   }
 
+  const handleAddTodo    = (todo) => setTodos(prev => [...prev, todo])
+  const handleToggleTodo = (id)   => setTodos(prev => prev.map(t => t.id === id ? { ...t, done: !t.done } : t))
+  const handleDeleteTodo = (id)   => setTodos(prev => prev.filter(t => t.id !== id))
+
   // Called from CalendarPage → EventDetailModal "View in Domains"
   const handleViewDomainById = (domainId) => {
     const domain = domains.find(d => d.id === domainId)
@@ -79,11 +104,12 @@ export default function App() {
     customCalendarEvents.filter(ev => ev.domainId === domainId)
 
   return (
-    <Layout currentPage={currentPage} onNavigate={handleNavigate}>
+    <Layout currentPage={currentPage} onNavigate={handleNavigate} theme={theme} onThemeChange={handleThemeChange}>
       {currentPage === 'domains' && (
         <DomainsPage
           domains={domains}
           customCalendarEvents={customCalendarEvents}
+          todos={todos}
           onOpenDomain={handleOpenDomain}
           onCreateDomain={handleCreateDomain}
         />
@@ -115,7 +141,15 @@ export default function App() {
           domains={domains}
         />
       )}
-      {currentPage === 'todos' && <ComingSoon label="To Do List" />}
+      {currentPage === 'todos' && (
+        <TodosPage
+          todos={todos}
+          domains={domains}
+          onAddTodo={handleAddTodo}
+          onToggleTodo={handleToggleTodo}
+          onDeleteTodo={handleDeleteTodo}
+        />
+      )}
     </Layout>
   )
 }

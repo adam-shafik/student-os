@@ -1,6 +1,21 @@
 import { useState } from 'react'
-import { Plus, X, BookOpen, User, Award, ChevronRight, FileCheck, FlaskConical, ChevronDown } from 'lucide-react'
-import { DOMAIN_CATEGORIES, DOMAIN_COLORS } from '../data/domains'
+import {
+  Plus, X, BookOpen, User, Award, ChevronRight, FileCheck, FlaskConical, ChevronDown, CheckSquare,
+  GitBranch, Database, Code2, Globe, Server, Brain, Monitor, Zap, Users, FileText, Cpu, Network,
+  Layers, Shield, Terminal, BarChart2, Wrench, Microscope, Rocket, Star, Building2, Briefcase, FolderOpen,
+} from 'lucide-react'
+import { DOMAIN_CATEGORIES, DOMAIN_COLORS, DOMAIN_ICON_OPTIONS } from '../data/domains'
+
+const ICON_COMPONENT_MAP = {
+  GitBranch, Database, Code2, Globe, Server, Brain, Monitor, Zap, Users, FileText, Cpu, Network,
+  Layers, Shield, Terminal, BarChart2, BookOpen, Wrench, Microscope, FlaskConical, Rocket, Star, Building2, Briefcase,
+}
+
+function DomainIcon({ name, size = 14, color }) {
+  const Icon = ICON_COMPONENT_MAP[name]
+  if (!Icon) return null
+  return <Icon size={size} color={color} />
+}
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 function ProgressBar({ progress, color }) {
@@ -25,7 +40,7 @@ function CategoryBadge({ category }) {
 }
 
 // ─── Academic domain card ─────────────────────────────────────────────────────
-function AcademicCard({ domain, onClick }) {
+function AcademicCard({ domain, pendingTasks, onClick }) {
   const [hovered, setHovered] = useState(false)
   const completedLectures  = (domain.lectures  || []).filter(l => l.status === 'completed').length
   const pendingAssignments = (domain.assignments || []).filter(a => a.status === 'upcoming' || a.status === 'submitted').length
@@ -52,7 +67,7 @@ function AcademicCard({ domain, onClick }) {
         <div>
           <div style={{ display: 'flex', alignItems: 'center', gap: 7, marginBottom: 8 }}>
             <span style={{ fontSize: 11, fontWeight: 700, color: domain.color, background: domain.colorMuted, padding: '3px 8px', borderRadius: 5 }}>{domain.code}</span>
-            <span style={{ fontSize: 13 }}>{domain.icon}</span>
+            <DomainIcon name={domain.icon} size={14} color={domain.color} />
           </div>
           <h3 style={{ margin: 0, fontSize: 15, fontWeight: 600, color: '#e6e7f0', lineHeight: 1.35, letterSpacing: '-0.2px' }}>{domain.name}</h3>
         </div>
@@ -76,6 +91,7 @@ function AcademicCard({ domain, onClick }) {
         {[
           { icon: <BookOpen size={11} />, val: `${completedLectures}/${(domain.lectures||[]).length}`, label: 'Lectures' },
           { icon: <FileCheck size={11} />, val: pendingAssignments, label: 'Pending', warn: pendingAssignments > 0 },
+          { icon: <CheckSquare size={11} />, val: pendingTasks || 0, label: 'Tasks', warn: pendingTasks > 0 },
           { icon: <FlaskConical size={11} />, val: `${completedLabs}/${(domain.labs||[]).length}`, label: 'Labs' },
         ].map(s => (
           <div key={s.label} style={{ flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 3 }}>
@@ -117,7 +133,7 @@ function GeneralCard({ domain, linkedEventCount, onClick }) {
         <div>
           <div style={{ display: 'flex', alignItems: 'center', gap: 7, marginBottom: 8 }}>
             <CategoryBadge category={domain.category} />
-            <span style={{ fontSize: 14 }}>{domain.icon}</span>
+            <DomainIcon name={domain.icon} size={14} color={domain.color} />
           </div>
           <h3 style={{ margin: 0, fontSize: 15, fontWeight: 600, color: '#e6e7f0', lineHeight: 1.3 }}>{domain.name}</h3>
         </div>
@@ -175,7 +191,7 @@ function autoCode(name) {
 function CreateDomainModal({ onClose, onSave }) {
   const [form, setForm] = useState({
     name: '', category: 'society', code: '',
-    color: DOMAIN_COLORS[5], icon: '', description: '',
+    color: DOMAIN_COLORS[5], icon: 'BookOpen', description: '',
     professor: '', credits: '', semester: '', role: '',
   })
   const set = (k, v) => setForm(prev => ({ ...prev, [k]: v }))
@@ -198,7 +214,7 @@ function CreateDomainModal({ onClose, onSave }) {
       category: form.category,
       color: form.color,
       colorMuted: `${form.color}18`,
-      icon: form.icon.trim() || (form.category === 'academic' ? '📚' : '📌'),
+      icon: form.icon || 'BookOpen',
       description: form.description.trim(),
       ...(form.category === 'academic' ? {
         professor: form.professor.trim(),
@@ -224,8 +240,8 @@ function CreateDomainModal({ onClose, onSave }) {
         {/* Header */}
         <div style={{ padding: '18px 22px', borderBottom: '1px solid #1e2030', display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexShrink: 0 }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-            <div style={{ width: 28, height: 28, borderRadius: 7, background: `${form.color}20`, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 14 }}>
-              {form.icon || '📌'}
+            <div style={{ width: 28, height: 28, borderRadius: 7, background: `${form.color}20`, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+              <DomainIcon name={form.icon || 'BookOpen'} size={14} color={form.color} />
             </div>
             <span style={{ fontSize: 15, fontWeight: 600, color: '#e6e7f0' }}>New Domain</span>
           </div>
@@ -237,8 +253,8 @@ function CreateDomainModal({ onClose, onSave }) {
         {/* Body — scrollable */}
         <div style={{ padding: '20px 22px', display: 'flex', flexDirection: 'column', gap: 16, overflowY: 'auto' }}>
 
-          {/* Name + Code + Icon row */}
-          <div style={{ display: 'grid', gridTemplateColumns: '1fr 90px 70px', gap: 10 }}>
+          {/* Name + Code row */}
+          <div style={{ display: 'grid', gridTemplateColumns: '1fr 90px', gap: 10 }}>
             <div>
               <FieldLabel>Name</FieldLabel>
               <input style={inputStyle} placeholder="Domain name" value={form.name} onChange={e => handleNameChange(e.target.value)} autoFocus />
@@ -247,9 +263,30 @@ function CreateDomainModal({ onClose, onSave }) {
               <FieldLabel>Code</FieldLabel>
               <input style={{ ...inputStyle, textTransform: 'uppercase', fontWeight: 600 }} placeholder="CODE" maxLength={5} value={form.code} onChange={e => set('code', e.target.value)} />
             </div>
-            <div>
-              <FieldLabel>Icon</FieldLabel>
-              <input style={{ ...inputStyle, textAlign: 'center', fontSize: 18 }} placeholder="📌" value={form.icon} onChange={e => set('icon', e.target.value)} />
+          </div>
+
+          {/* Icon picker */}
+          <div>
+            <FieldLabel>Icon</FieldLabel>
+            <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}>
+              {DOMAIN_ICON_OPTIONS.map(name => (
+                <button
+                  key={name}
+                  onClick={() => set('icon', name)}
+                  title={name}
+                  style={{
+                    width: 34, height: 34, borderRadius: 7, border: 'none', cursor: 'pointer',
+                    display: 'flex', alignItems: 'center', justifyContent: 'center',
+                    background: form.icon === name ? `${form.color}22` : '#1a1b28',
+                    outline: form.icon === name ? `1.5px solid ${form.color}66` : '1.5px solid transparent',
+                    transition: 'all 0.12s',
+                  }}
+                  onMouseEnter={e => { if (form.icon !== name) e.currentTarget.style.background = '#252738' }}
+                  onMouseLeave={e => { if (form.icon !== name) e.currentTarget.style.background = '#1a1b28' }}
+                >
+                  <DomainIcon name={name} size={14} color={form.icon === name ? form.color : '#7c7e96'} />
+                </button>
+              ))}
             </div>
           </div>
 
@@ -352,7 +389,7 @@ function FieldLabel({ children }) {
 }
 
 // ─── Main page ─────────────────────────────────────────────────────────────────
-export default function DomainsPage({ domains, customCalendarEvents, onOpenDomain, onCreateDomain }) {
+export default function DomainsPage({ domains, customCalendarEvents, todos, onOpenDomain, onCreateDomain }) {
   const [showCreate, setShowCreate]       = useState(false)
   const [academicOpen, setAcademicOpen]   = useState(true)
   const [otherOpen, setOtherOpen]         = useState(true)
@@ -360,8 +397,8 @@ export default function DomainsPage({ domains, customCalendarEvents, onOpenDomai
   const academic = domains.filter(d => d.category === 'academic')
   const other    = domains.filter(d => d.category !== 'academic')
 
-  const linkedCount = (domainId) =>
-    customCalendarEvents.filter(e => e.domainId === domainId).length
+  const linkedCount    = (domainId) => customCalendarEvents.filter(e => e.domainId === domainId).length
+  const pendingTasks   = (domainId) => (todos || []).filter(t => t.domainId === domainId && !t.done).length
 
   const totalCredits  = academic.reduce((s, d) => s + (d.credits || 0), 0)
   const avgProgress   = academic.length
@@ -412,7 +449,7 @@ export default function DomainsPage({ domains, customCalendarEvents, onOpenDomai
           <SectionHeader label="Academic" count={academic.length} collapsed={!academicOpen} onToggle={() => setAcademicOpen(v => !v)} />
           {academicOpen && (
             <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(300px, 1fr))', gap: 14 }}>
-              {academic.map(d => <AcademicCard key={d.id} domain={d} onClick={() => onOpenDomain(d)} />)}
+              {academic.map(d => <AcademicCard key={d.id} domain={d} pendingTasks={pendingTasks(d.id)} onClick={() => onOpenDomain(d)} />)}
             </div>
           )}
         </div>
@@ -432,7 +469,7 @@ export default function DomainsPage({ domains, customCalendarEvents, onOpenDomai
 
       {domains.length === 0 && (
         <div style={{ textAlign: 'center', padding: '80px 0', color: '#4a4c60' }}>
-          <div style={{ fontSize: 32, marginBottom: 12 }}>📂</div>
+          <div style={{ marginBottom: 12, color: '#2a2c40' }}><FolderOpen size={36} /></div>
           <p style={{ fontSize: 14, margin: 0 }}>No domains yet — click <strong style={{ color: '#5b8cff' }}>New Domain</strong> to create one.</p>
         </div>
       )}
