@@ -3,7 +3,7 @@ import {
   ArrowLeft, User, Award, BookOpen, FileText, FlaskConical,
   GraduationCap, CheckCircle2, Clock, Circle, ChevronDown,
   ChevronRight, StickyNote, Calendar, MapPin, TrendingUp,
-  AlertCircle, ExternalLink, Tag,
+  AlertCircle, ExternalLink, Tag, PenLine,
 } from 'lucide-react'
 import { DOMAIN_CATEGORIES } from '../data/domains'
 import {
@@ -197,7 +197,7 @@ function OverviewTab({ domain, onOpenEvent }) {
   )
 }
 
-function LecturesTab({ domain, onOpenEvent, eventNotes }) {
+function LecturesTab({ domain, onOpenEvent, eventNotes, onNewNote }) {
   const [openWeeks, setOpenWeeks] = useState(() => {
     const o = {}
     ;(domain.lectures || []).forEach(l => { o[l.week] = true })
@@ -219,19 +219,32 @@ function LecturesTab({ domain, onOpenEvent, eventNotes }) {
         const wColorHex = allDone ? '#34d399' : hasActive ? '#5b8cff' : '#4a4c60'
         return (
           <SectionCard key={week}>
-            <button onClick={() => setOpenWeeks(prev => ({ ...prev, [week]: !prev[week] }))} style={{ width: '100%', display: 'flex', alignItems: 'center', gap: 12, padding: '14px 20px', background: 'none', border: 'none', cursor: 'pointer', textAlign: 'left' }}>
-              <div style={{ width: 28, height: 28, borderRadius: 7, background: `${wColorHex}18`, display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
-                <span style={{ fontSize: 11, fontWeight: 700, color: wColor }}>W{week}</span>
-              </div>
-              <div style={{ flex: 1 }}>
-                <span style={{ fontSize: 13, fontWeight: 500, color: 'var(--text-primary)' }}>Week {week}</span>
-                <span style={{ fontSize: 12, color: 'var(--text-muted)', marginLeft: 8 }}>
-                  {lectures.length} lecture{lectures.length > 1 ? 's' : ''}
-                  {allDone ? <span style={{ color: 'var(--accent-green)' }}> · Done</span> : hasActive ? <span style={{ color: 'var(--accent-blue)' }}> · In Progress</span> : ''}
-                </span>
-              </div>
-              {isOpen ? <ChevronDown size={15} color="var(--text-muted)" /> : <ChevronRight size={15} color="var(--text-muted)" />}
-            </button>
+            <div style={{ display: 'flex', alignItems: 'center' }}>
+              <button onClick={() => setOpenWeeks(prev => ({ ...prev, [week]: !prev[week] }))} style={{ flex: 1, display: 'flex', alignItems: 'center', gap: 12, padding: '14px 20px', background: 'none', border: 'none', cursor: 'pointer', textAlign: 'left' }}>
+                <div style={{ width: 28, height: 28, borderRadius: 7, background: `${wColorHex}18`, display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+                  <span style={{ fontSize: 11, fontWeight: 700, color: wColor }}>W{week}</span>
+                </div>
+                <div style={{ flex: 1 }}>
+                  <span style={{ fontSize: 13, fontWeight: 500, color: 'var(--text-primary)' }}>Week {week}</span>
+                  <span style={{ fontSize: 12, color: 'var(--text-muted)', marginLeft: 8 }}>
+                    {lectures.length} lecture{lectures.length > 1 ? 's' : ''}
+                    {allDone ? <span style={{ color: 'var(--accent-green)' }}> · Done</span> : hasActive ? <span style={{ color: 'var(--accent-blue)' }}> · In Progress</span> : ''}
+                  </span>
+                </div>
+                {isOpen ? <ChevronDown size={15} color="var(--text-muted)" /> : <ChevronRight size={15} color="var(--text-muted)" />}
+              </button>
+              {onNewNote && (
+                <button
+                  onClick={e => { e.stopPropagation(); onNewNote({ domainId: domain.id, academicWeek: Number(week) }) }}
+                  title="New handwritten note for this week"
+                  style={{ display: 'flex', alignItems: 'center', gap: 5, margin: '0 14px', padding: '5px 10px', borderRadius: 7, border: '1px solid var(--border)', background: 'none', color: 'var(--text-muted)', cursor: 'pointer', fontSize: 11, whiteSpace: 'nowrap', flexShrink: 0 }}
+                  onMouseEnter={e => { e.currentTarget.style.color = 'var(--accent-purple)'; e.currentTarget.style.borderColor = 'var(--accent-purple)' }}
+                  onMouseLeave={e => { e.currentTarget.style.color = 'var(--text-muted)'; e.currentTarget.style.borderColor = 'var(--border)' }}
+                >
+                  <PenLine size={12} /> Note
+                </button>
+              )}
+            </div>
             {isOpen && (
               <div style={{ borderTop: '1px solid var(--border)' }}>
                 {lectures.map((l, i) => {
@@ -523,7 +536,7 @@ function EventRow({ event, isLast, onClick }) {
 }
 
 // ─── Main page ─────────────────────────────────────────────────────────────────
-export default function DomainDetailPage({ domain, linkedEvents, onBack, eventNotes, onUpdateNote }) {
+export default function DomainDetailPage({ domain, linkedEvents, onBack, eventNotes, onUpdateNote, onNewNote }) {
   const isAcademic = domain.category === 'academic'
   const TABS = isAcademic
     ? ['Overview', 'Lectures', 'Assignments', 'Labs', 'Exams']
@@ -604,7 +617,7 @@ export default function DomainDetailPage({ domain, linkedEvents, onBack, eventNo
       {isAcademic ? (
         <>
           {activeTab === 'Overview'    && <OverviewTab    domain={domain} onOpenEvent={setOpenEvent} />}
-          {activeTab === 'Lectures'    && <LecturesTab    domain={domain} onOpenEvent={setOpenEvent} eventNotes={eventNotes} />}
+          {activeTab === 'Lectures'    && <LecturesTab    domain={domain} onOpenEvent={setOpenEvent} eventNotes={eventNotes} onNewNote={onNewNote} />}
           {activeTab === 'Assignments' && <AssignmentsTab domain={domain} onOpenEvent={setOpenEvent} eventNotes={eventNotes} />}
           {activeTab === 'Labs'        && <LabsTab        domain={domain} onOpenEvent={setOpenEvent} eventNotes={eventNotes} />}
           {activeTab === 'Exams'       && <ExamsTab       domain={domain} onOpenEvent={setOpenEvent} eventNotes={eventNotes} />}

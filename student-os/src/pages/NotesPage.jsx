@@ -1,198 +1,550 @@
-import { useState, useMemo } from 'react'
-import { StickyNote, Search, Calendar, X } from 'lucide-react'
-import { getDomainEvents, resolveTypeLabel, resolveTypeColor } from '../utils/calendarEvents'
+import { useState, useMemo, useEffect, useRef } from 'react'
+import {
+  PenLine, Plus, Trash2, ChevronRight, ChevronDown,
+  BookOpen, FolderOpen, Folder, Pencil, Check, X, MapPin,
+} from 'lucide-react'
+import NoteCanvas from '../components/NoteCanvas'
+import { totalTeachingWeeks } from '../utils/semester'
 
-export default function NotesPage({ eventNotes, customCalendarEvents, domains, onOpenEvent }) {
-  const [search, setSearch] = useState('')
-  const [filterDomain, setFilterDomain] = useState('all')
+const TOTAL_WEEKS = totalTeachingWeeks()
 
-  const allEvents = useMemo(
-    () => [...getDomainEvents(), ...(customCalendarEvents || [])],
-    [customCalendarEvents],
-  )
+function noteId() { return `note-${Date.now()}-${Math.random().toString(36).slice(2, 7)}` }
+function fmt(iso) {
+  return new Date(iso).toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' })
+}
 
-  const notedEvents = useMemo(() => {
-    return allEvents
-      .filter(ev => eventNotes?.[ev.id]?.trim())
-      .filter(ev => {
-        if (filterDomain !== 'all' && ev.domainId !== filterDomain) return false
-        const q = search.toLowerCase()
-        if (!q) return true
-        return (
-          ev.title.toLowerCase().includes(q) ||
-          (ev.domainName || '').toLowerCase().includes(q) ||
-          (eventNotes[ev.id] || '').toLowerCase().includes(q)
-        )
-      })
-      .sort((a, b) => b.date - a.date)
-  }, [allEvents, eventNotes, search, filterDomain])
-
-  const domainsWithNotes = useMemo(() => {
-    const ids = new Set(allEvents.filter(ev => eventNotes?.[ev.id]?.trim()).map(ev => ev.domainId).filter(Boolean))
-    return (domains || []).filter(d => ids.has(d.id))
-  }, [allEvents, eventNotes, domains])
+// ─── Folder tree ───────────────────────────────────────────────────────────────
+function FolderItem({ label, count, active, depth = 0, onClick, children, defaultOpen = false }) {
+  const [open, setOpen] = useState(defaultOpen)
+  const hasChildren = !!children
 
   return (
-    <div style={{ padding: '28px 32px 40px', display: 'flex', flexDirection: 'column', gap: 24, maxWidth: 860 }}>
+    <div>
+      <button
+        onClick={() => { onClick?.(); if (hasChildren) setOpen(v => !v) }}
+        style={{
+          width: '100%', display: 'flex', alignItems: 'center', gap: 6,
+          padding: `7px ${10 + depth * 14}px`, border: 'none', background: active ? 'var(--nav-active)' : 'transparent',
+          color: active ? 'var(--accent-blue)' : 'var(--text-secondary)',
+          cursor: 'pointer', textAlign: 'left', borderRadius: 7, fontSize: 13,
+          fontWeight: active ? 600 : 400, transition: 'background 0.1s',
+        }}
+        onMouseEnter={e => { if (!active) e.currentTarget.style.background = 'var(--nav-hover)' }}
+        onMouseLeave={e => { if (!active) e.currentTarget.style.background = 'transparent' }}
+      >
+        {hasChildren
+          ? (open ? <ChevronDown size={13} style={{ flexShrink: 0 }} /> : <ChevronRight size={13} style={{ flexShrink: 0 }} />)
+          : <div style={{ width: 13, flexShrink: 0 }} />}
+        <span style={{ flex: 1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{label}</span>
+        {count > 0 && (
+          <span style={{ fontSize: 10, color: 'var(--text-muted)', background: 'var(--bg-overlay)', padding: '1px 6px', borderRadius: 10, flexShrink: 0 }}>
+            {count}
+          </span>
+        )}
+      </button>
+      {open && children && <div>{children}</div>}
+    </div>
+  )
+}
 
-      <div>
-        <h1 style={{ margin: 0, fontSize: 24, fontWeight: 700, color: 'var(--text-primary)', letterSpacing: '-0.4px' }}>Notes</h1>
-        <p style={{ margin: '4px 0 0', fontSize: 13, color: 'var(--text-muted)' }}>
-          {notedEvents.length > 0
-            ? `${Object.keys(eventNotes || {}).filter(id => eventNotes[id]?.trim()).length} note${Object.keys(eventNotes || {}).filter(id => eventNotes[id]?.trim()).length === 1 ? '' : 's'} across your events`
-            : 'Open any event in the Calendar to start taking notes'}
-        </p>
+// ─── Note card in grid ─────────────────────────────────────────────────────────
+function NoteCard({ note, domain, onClick, onDelete }) {
+  const [hovered, setHovered] = useState(false)
+  return (
+    <div
+      onClick={onClick}
+      onMouseEnter={() => setHovered(true)}
+      onMouseLeave={() => setHovered(false)}
+      style={{
+        background: 'var(--bg-surface)', border: '1px solid var(--border)',
+        borderRadius: 12, padding: '16px 18px', cursor: 'pointer',
+        transition: 'border-color 0.12s, box-shadow 0.12s',
+        borderColor: hovered ? 'var(--border-strong)' : 'var(--border)',
+        boxShadow: hovered ? 'var(--shadow-card, 0 4px 20px rgba(0,0,0,0.3))' : 'none',
+        position: 'relative',
+      }}
+    >
+      <button
+        onClick={e => { e.stopPropagation(); onDelete() }}
+        style={{
+          position: 'absolute', top: 10, right: 10, background: 'none', border: 'none',
+          cursor: 'pointer', color: 'var(--text-muted)', display: 'flex', padding: 4,
+          borderRadius: 5, opacity: hovered ? 1 : 0, transition: 'opacity 0.12s',
+        }}
+        onMouseEnter={e => e.currentTarget.style.color = 'var(--accent-red)'}
+        onMouseLeave={e => e.currentTarget.style.color = 'var(--text-muted)'}
+      >
+        <Trash2 size={13} />
+      </button>
+
+      <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 8 }}>
+        <div style={{ width: 30, height: 30, borderRadius: 8, background: 'var(--bg-overlay)', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+          <PenLine size={14} color="var(--accent-purple)" />
+        </div>
+        <div style={{ flex: 1, minWidth: 0 }}>
+          <div style={{ fontSize: 13, fontWeight: 600, color: 'var(--text-primary)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+            {note.title || 'Untitled Note'}
+          </div>
+        </div>
       </div>
 
-      {notedEvents.length === 0 && !search && filterDomain === 'all' ? (
-        <EmptyState />
-      ) : (
+      <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap', marginBottom: 8 }}>
+        {domain && (
+          <span style={{ fontSize: 10, fontWeight: 700, color: domain.color, background: `${domain.color}18`, padding: '2px 6px', borderRadius: 4 }}>
+            {domain.code}
+          </span>
+        )}
+        {note.academicWeek && (
+          <span style={{ fontSize: 10, fontWeight: 600, color: 'var(--accent-purple)', background: 'rgba(167,139,250,0.12)', padding: '2px 6px', borderRadius: 4 }}>
+            W{note.academicWeek}
+          </span>
+        )}
+      </div>
+
+      <div style={{ fontSize: 11, color: 'var(--text-muted)' }}>
+        {fmt(note.updatedAt)} · {note.strokes.length} stroke{note.strokes.length !== 1 ? 's' : ''}
+      </div>
+    </div>
+  )
+}
+
+// ─── Inline title editor ───────────────────────────────────────────────────────
+function NoteTitle({ value, onChange }) {
+  const [editing, setEditing] = useState(false)
+  const [draft, setDraft] = useState(value)
+  const inputRef = useRef()
+
+  useEffect(() => { setDraft(value) }, [value])
+  useEffect(() => { if (editing) inputRef.current?.focus() }, [editing])
+
+  function commit() {
+    setEditing(false)
+    if (draft.trim()) onChange(draft.trim())
+    else setDraft(value)
+  }
+
+  if (editing) {
+    return (
+      <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+        <input
+          ref={inputRef}
+          value={draft}
+          onChange={e => setDraft(e.target.value)}
+          onKeyDown={e => { if (e.key === 'Enter') commit(); if (e.key === 'Escape') { setEditing(false); setDraft(value) } }}
+          style={{
+            fontSize: 18, fontWeight: 700, color: 'var(--text-primary)',
+            background: 'var(--bg-input)', border: '1px solid var(--accent-blue)',
+            borderRadius: 7, padding: '4px 10px', outline: 'none', width: 280,
+          }}
+        />
+        <button onClick={commit} style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--accent-green)', display: 'flex' }}>
+          <Check size={15} />
+        </button>
+        <button onClick={() => { setEditing(false); setDraft(value) }} style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--text-muted)', display: 'flex' }}>
+          <X size={15} />
+        </button>
+      </div>
+    )
+  }
+
+  return (
+    <div style={{ display: 'flex', alignItems: 'center', gap: 8, cursor: 'text' }} onClick={() => setEditing(true)}>
+      <span style={{ fontSize: 18, fontWeight: 700, color: 'var(--text-primary)' }}>{value || 'Untitled Note'}</span>
+      <Pencil size={13} color="var(--text-muted)" />
+    </div>
+  )
+}
+
+// ─── Location picker ──────────────────────────────────────────────────────────
+function NoteLocationPicker({ note, domains, onSave }) {
+  const [open, setOpen] = useState(false)
+  const [domainId, setDomainId] = useState(note.domainId || '')
+  const [week, setWeek] = useState(note.academicWeek ? String(note.academicWeek) : '')
+  const ref = useRef()
+
+  // Sync when note changes (e.g. navigating between notes)
+  useEffect(() => {
+    setDomainId(note.domainId || '')
+    setWeek(note.academicWeek ? String(note.academicWeek) : '')
+  }, [note.id])
+
+  const allDomains = domains || []
+  const pickedDomain = allDomains.find(d => d.id === domainId)
+  const isAcademic = pickedDomain?.category === 'academic'
+
+  function apply() {
+    onSave({
+      domainId: domainId || null,
+      academicWeek: (isAcademic && week) ? Number(week) : null,
+    })
+    setOpen(false)
+  }
+
+  // Label shown on the trigger button
+  const label = note.domainId
+    ? `${allDomains.find(d => d.id === note.domainId)?.code || note.domainId}${note.academicWeek ? ` · W${note.academicWeek}` : ''}`
+    : 'General'
+
+  const triggerColor = note.domainId
+    ? (allDomains.find(d => d.id === note.domainId)?.color || 'var(--text-secondary)')
+    : 'var(--text-muted)'
+
+  return (
+    <div ref={ref} style={{ position: 'relative' }}>
+      <button
+        onClick={() => setOpen(v => !v)}
+        style={{
+          display: 'flex', alignItems: 'center', gap: 5, padding: '5px 10px',
+          borderRadius: 7, border: '1px solid var(--border-strong)', background: 'none',
+          color: triggerColor, cursor: 'pointer', fontSize: 11, fontWeight: 600,
+          transition: 'border-color 0.12s',
+        }}
+        onMouseEnter={e => e.currentTarget.style.borderColor = triggerColor}
+        onMouseLeave={e => e.currentTarget.style.borderColor = 'var(--border-strong)'}
+      >
+        <MapPin size={11} /> {label} <ChevronDown size={11} />
+      </button>
+
+      {open && (
         <>
-          <div style={{ display: 'flex', gap: 10, alignItems: 'center' }}>
-            <div style={{ position: 'relative', flex: 1, maxWidth: 320 }}>
-              <Search size={13} color="var(--text-muted)" style={{ position: 'absolute', left: 11, top: '50%', transform: 'translateY(-50%)', pointerEvents: 'none' }} />
-              <input
-                value={search}
-                onChange={e => setSearch(e.target.value)}
-                placeholder="Search notes…"
-                style={{
-                  width: '100%', padding: '8px 12px 8px 32px',
-                  borderRadius: 8, border: '1px solid var(--border-strong)',
-                  background: 'var(--bg-input)', color: 'var(--text-primary)', fontSize: 13,
-                  outline: 'none', boxSizing: 'border-box',
-                }}
-                onFocus={e => e.target.style.borderColor = 'var(--border-focus)'}
-                onBlur={e => e.target.style.borderColor = 'var(--border-strong)'}
-              />
-              {search && (
-                <button onClick={() => setSearch('')} style={{ position: 'absolute', right: 8, top: '50%', transform: 'translateY(-50%)', background: 'none', border: 'none', cursor: 'pointer', color: 'var(--text-muted)', display: 'flex', padding: 2 }}>
-                  <X size={12} />
-                </button>
-              )}
+          {/* Backdrop */}
+          <div onClick={() => setOpen(false)} style={{ position: 'fixed', inset: 0, zIndex: 900 }} />
+
+          {/* Popover */}
+          <div style={{
+            position: 'absolute', top: 'calc(100% + 6px)', right: 0, zIndex: 901,
+            background: 'var(--bg-surface)', border: '1px solid var(--border-strong)',
+            borderRadius: 12, padding: '14px 16px', width: 260,
+            boxShadow: 'var(--shadow-modal)',
+            display: 'flex', flexDirection: 'column', gap: 12,
+          }}>
+            <div style={{ fontSize: 11, fontWeight: 700, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.5px' }}>
+              Move note to…
             </div>
 
-            {domainsWithNotes.length > 0 && (
-              <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
-                <FilterChip label="All" active={filterDomain === 'all'} color="var(--accent-blue)" onClick={() => setFilterDomain('all')} />
-                {domainsWithNotes.map(d => (
-                  <FilterChip key={d.id} label={d.code} active={filterDomain === d.id} color={d.color} onClick={() => setFilterDomain(filterDomain === d.id ? 'all' : d.id)} />
+            {/* Domain selector */}
+            <div>
+              <label style={{ fontSize: 11, color: 'var(--text-muted)', display: 'block', marginBottom: 5 }}>Domain</label>
+              <select
+                value={domainId}
+                onChange={e => { setDomainId(e.target.value); setWeek('') }}
+                style={{
+                  width: '100%', padding: '7px 10px', borderRadius: 7,
+                  border: '1px solid var(--border-strong)', background: 'var(--bg-input)',
+                  color: 'var(--text-primary)', fontSize: 12, outline: 'none',
+                }}
+              >
+                <option value="">— General (no domain) —</option>
+                {allDomains.map(d => (
+                  <option key={d.id} value={d.id}>{d.code} — {d.name}</option>
                 ))}
+              </select>
+            </div>
+
+            {/* Week selector — only for academic domains */}
+            {isAcademic && (
+              <div>
+                <label style={{ fontSize: 11, color: 'var(--text-muted)', display: 'block', marginBottom: 5 }}>Academic Week (optional)</label>
+                <select
+                  value={week}
+                  onChange={e => setWeek(e.target.value)}
+                  style={{
+                    width: '100%', padding: '7px 10px', borderRadius: 7,
+                    border: '1px solid var(--border-strong)', background: 'var(--bg-input)',
+                    color: 'var(--text-primary)', fontSize: 12, outline: 'none',
+                  }}
+                >
+                  <option value="">— No specific week —</option>
+                  {Array.from({ length: TOTAL_WEEKS }, (_, i) => i + 1).map(w => (
+                    <option key={w} value={w}>Week {w}</option>
+                  ))}
+                </select>
               </div>
             )}
-          </div>
 
-          {notedEvents.length === 0 ? (
-            <div style={{ color: 'var(--text-muted)', fontSize: 14, textAlign: 'center', padding: '40px 0' }}>No notes match your search.</div>
-          ) : (
-            <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
-              {notedEvents.map(ev => (
-                <NoteCard key={ev.id} event={ev} note={eventNotes[ev.id]} onOpenEvent={onOpenEvent} />
-              ))}
+            <div style={{ display: 'flex', gap: 8, justifyContent: 'flex-end' }}>
+              <button
+                onClick={() => setOpen(false)}
+                style={{ padding: '6px 12px', borderRadius: 7, border: '1px solid var(--border)', background: 'none', color: 'var(--text-secondary)', cursor: 'pointer', fontSize: 12 }}
+              >
+                Cancel
+              </button>
+              <button
+                onClick={apply}
+                style={{ padding: '6px 14px', borderRadius: 7, border: 'none', background: 'var(--accent-blue)', color: '#fff', cursor: 'pointer', fontSize: 12, fontWeight: 600 }}
+              >
+                Move
+              </button>
             </div>
-          )}
+          </div>
         </>
       )}
     </div>
   )
 }
 
-function NoteCard({ event, note, onOpenEvent }) {
-  const [expanded, setExpanded] = useState(false)
-  const typeColor  = resolveTypeColor(event)
-  const typeLabel  = resolveTypeLabel(event)
-  const preview    = note.trim().slice(0, 200)
-  const isLong     = note.trim().length > 200
+// ─── Main page ─────────────────────────────────────────────────────────────────
+export default function NotesPage({ notes, domains, noteToOpen, onClearNoteToOpen, onAddNote, onUpdateNote, onDeleteNote }) {
+  const [selectedFolder, setSelectedFolder] = useState({ type: 'all' })
+  const [openNoteId, setOpenNoteId] = useState(null)
+
+  useEffect(() => {
+    if (noteToOpen) {
+      setOpenNoteId(noteToOpen)
+      onClearNoteToOpen?.()
+    }
+  }, [noteToOpen])
+
+  const openNote = (notes || []).find(n => n.id === openNoteId)
+
+  const academicDomains = useMemo(
+    () => (domains || []).filter(d => d.category === 'academic'),
+    [domains]
+  )
+
+  const domainMap = useMemo(() => {
+    const m = {}
+    ;(domains || []).forEach(d => { m[d.id] = d })
+    return m
+  }, [domains])
+
+  function countFor(predicate) { return (notes || []).filter(predicate).length }
+
+  const folderNotes = useMemo(() => {
+    const f = selectedFolder
+    return (notes || []).filter(n => {
+      if (f.type === 'all')     return true
+      if (f.type === 'general') return !n.domainId
+      if (f.type === 'domain')       return n.domainId === f.domainId
+      if (f.type === 'domain-unweek') return n.domainId === f.domainId && !n.academicWeek
+      if (f.type === 'week')         return n.domainId === f.domainId && n.academicWeek === f.week
+      return true
+    }).sort((a, b) => (b.updatedAt > a.updatedAt ? 1 : -1))
+  }, [notes, selectedFolder])
+
+  function selectFolder(f) {
+    setSelectedFolder(f)
+    setOpenNoteId(null)
+  }
+
+  function createNote(meta = {}) {
+    const id = noteId()
+    onAddNote({
+      id, title: 'Untitled Note', strokes: [],
+      createdAt: new Date().toISOString(),
+      updatedAt: new Date().toISOString(),
+      domainId: meta.domainId || null,
+      academicWeek: meta.academicWeek || null,
+      eventId: null, studySessionId: null,
+    })
+    setOpenNoteId(id)
+  }
+
+  function handleNewNote() {
+    const f = selectedFolder
+    const meta =
+      f.type === 'general' ? {} :
+      f.type === 'domain'  ? { domainId: f.domainId } :
+      f.type === 'week'    ? { domainId: f.domainId, academicWeek: f.week } : {}
+    createNote(meta)
+  }
+
+  // Weeks that have notes, per domain
+  function weeksForDomain(domainId) {
+    const weeks = new Set(
+      (notes || []).filter(n => n.domainId === domainId && n.academicWeek).map(n => n.academicWeek)
+    )
+    return [...weeks].sort((a, b) => a - b)
+  }
 
   return (
-    <div style={{
-      background: 'var(--bg-surface)',
-      border: '1px solid var(--border)',
-      borderRadius: 12, overflow: 'hidden',
-      borderLeft: `3px solid ${typeColor}`,
-    }}>
-      <div style={{ padding: '14px 18px', display: 'flex', alignItems: 'flex-start', gap: 12 }}>
-        <div style={{ flex: 1, minWidth: 0 }}>
-          <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 6, flexWrap: 'wrap' }}>
-            <span style={{ fontSize: 10, fontWeight: 700, color: typeColor, background: `${typeColor}18`, padding: '2px 7px', borderRadius: 4, letterSpacing: '0.4px', textTransform: 'uppercase' }}>
-              {typeLabel}
-            </span>
-            {event.domainCode && event.domainColor && (
-              <span style={{ fontSize: 10, fontWeight: 700, color: event.domainColor, background: `${event.domainColor}18`, padding: '2px 7px', borderRadius: 4 }}>
-                {event.domainCode}
-              </span>
-            )}
-            <span style={{ fontSize: 11, color: 'var(--text-muted)', display: 'flex', alignItems: 'center', gap: 4 }}>
-              <Calendar size={10} />
-              {event.date.toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' })}
-            </span>
-          </div>
-          <h3 style={{ margin: 0, fontSize: 14, fontWeight: 600, color: 'var(--text-primary)', lineHeight: 1.4 }}>{event.title}</h3>
-          {event.domainName && <p style={{ margin: '2px 0 0', fontSize: 12, color: 'var(--text-secondary)' }}>{event.domainName}</p>}
-        </div>
+    <div style={{ display: 'flex', height: '100%', overflow: 'hidden' }}>
 
-        {onOpenEvent && (
+      {/* Sidebar */}
+      <aside style={{
+        width: 220, flexShrink: 0, borderRight: '1px solid var(--border)',
+        background: 'var(--bg-elevated)', display: 'flex', flexDirection: 'column',
+        overflow: 'hidden',
+      }}>
+        <div style={{ padding: '16px 10px 10px' }}>
           <button
-            onClick={() => onOpenEvent(event)}
-            style={{ flexShrink: 0, padding: '5px 10px', borderRadius: 7, border: '1px solid var(--border-strong)', background: 'none', color: 'var(--text-secondary)', fontSize: 11, cursor: 'pointer', whiteSpace: 'nowrap' }}
-            onMouseEnter={e => { e.currentTarget.style.borderColor = 'var(--accent-blue)'; e.currentTarget.style.color = 'var(--accent-blue)' }}
-            onMouseLeave={e => { e.currentTarget.style.borderColor = 'var(--border-strong)'; e.currentTarget.style.color = 'var(--text-secondary)' }}
+            onClick={handleNewNote}
+            style={{
+              width: '100%', display: 'flex', alignItems: 'center', gap: 8,
+              padding: '9px 12px', borderRadius: 8, border: 'none',
+              background: 'var(--accent-blue)', color: '#fff',
+              cursor: 'pointer', fontSize: 13, fontWeight: 600,
+              transition: 'opacity 0.12s',
+            }}
+            onMouseEnter={e => e.currentTarget.style.opacity = '0.88'}
+            onMouseLeave={e => e.currentTarget.style.opacity = '1'}
           >
-            Open event
+            <Plus size={15} /> New Note
           </button>
-        )}
-      </div>
-
-      <div style={{ padding: '0 18px 14px', borderTop: '1px solid var(--border)' }}>
-        <div style={{ marginTop: 12 }}>
-          <pre style={{
-            margin: 0, fontFamily: 'inherit', fontSize: 13,
-            color: 'var(--text-bright)', lineHeight: 1.7,
-            whiteSpace: 'pre-wrap', wordBreak: 'break-word',
-          }}>
-            {expanded ? note.trim() : preview}{isLong && !expanded ? '…' : ''}
-          </pre>
-          {isLong && (
-            <button
-              onClick={() => setExpanded(v => !v)}
-              style={{ marginTop: 8, background: 'none', border: 'none', cursor: 'pointer', color: 'var(--accent-blue)', fontSize: 12, padding: 0 }}
-            >
-              {expanded ? 'Show less' : 'Show more'}
-            </button>
-          )}
         </div>
-      </div>
-    </div>
-  )
-}
 
-function FilterChip({ label, active, color, onClick }) {
-  return (
-    <button
-      onClick={onClick}
-      style={{
-        padding: '5px 12px', borderRadius: 6, border: 'none', cursor: 'pointer', fontSize: 11, fontWeight: 600,
-        background: active ? `${color}22` : 'var(--bg-overlay)',
-        color: active ? color : 'var(--text-secondary)',
-        outline: active ? `1.5px solid ${color}44` : '1.5px solid transparent',
-        transition: 'all 0.12s',
-      }}
-    >
-      {label}
-    </button>
-  )
-}
+        <div style={{ flex: 1, overflowY: 'auto', padding: '4px 8px 16px' }}>
+          <FolderItem
+            label="All Notes"
+            count={(notes || []).length}
+            active={selectedFolder.type === 'all'}
+            onClick={() => selectFolder({ type: 'all' })}
+          />
 
-function EmptyState() {
-  return (
-    <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 14, padding: '60px 0', color: 'var(--text-muted)', textAlign: 'center' }}>
-      <div style={{ width: 64, height: 64, borderRadius: 16, background: 'var(--bg-surface)', border: '1px solid var(--border)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-        <StickyNote size={28} color="var(--border-strong)" />
-      </div>
-      <div>
-        <p style={{ margin: 0, fontSize: 15, fontWeight: 600, color: 'var(--text-secondary)' }}>No notes yet</p>
-        <p style={{ margin: '6px 0 0', fontSize: 13, color: 'var(--text-muted)', maxWidth: 300, lineHeight: 1.6 }}>
-          Open any event in the Calendar and write notes directly inside the event panel.
-        </p>
+          <div style={{ margin: '12px 2px 4px', fontSize: 10, fontWeight: 700, color: 'var(--text-muted)', letterSpacing: '0.7px', textTransform: 'uppercase' }}>
+            Academic
+          </div>
+
+          {academicDomains.map(d => {
+            const domainCount = countFor(n => n.domainId === d.id)
+            const weeks = weeksForDomain(d.id)
+            return (
+              <FolderItem
+                key={d.id}
+                label={d.code}
+                count={domainCount}
+                active={selectedFolder.type === 'domain' && selectedFolder.domainId === d.id}
+                onClick={() => selectFolder({ type: 'domain', domainId: d.id })}
+                defaultOpen={false}
+              >
+                {weeks.map(w => (
+                  <FolderItem
+                    key={w}
+                    label={`Week ${w}`}
+                    count={countFor(n => n.domainId === d.id && n.academicWeek === w)}
+                    active={selectedFolder.type === 'week' && selectedFolder.domainId === d.id && selectedFolder.week === w}
+                    onClick={() => selectFolder({ type: 'week', domainId: d.id, week: w })}
+                    depth={1}
+                  />
+                ))}
+                <FolderItem
+                  label="No week"
+                  count={countFor(n => n.domainId === d.id && !n.academicWeek)}
+                  active={selectedFolder.type === 'domain-unweek' && selectedFolder.domainId === d.id}
+                  onClick={() => selectFolder({ type: 'domain-unweek', domainId: d.id })}
+                  depth={1}
+                />
+              </FolderItem>
+            )
+          })}
+
+          <div style={{ margin: '12px 2px 4px', fontSize: 10, fontWeight: 700, color: 'var(--text-muted)', letterSpacing: '0.7px', textTransform: 'uppercase' }}>
+            General
+          </div>
+
+          <FolderItem
+            label="General Notes"
+            count={countFor(n => !n.domainId)}
+            active={selectedFolder.type === 'general'}
+            onClick={() => selectFolder({ type: 'general' })}
+          />
+        </div>
+      </aside>
+
+      {/* Main area */}
+      <div style={{ flex: 1, display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
+        {openNote ? (
+          // ── Note editor ──
+          <div style={{ display: 'flex', flexDirection: 'column', height: '100%' }}>
+            <div style={{
+              display: 'flex', alignItems: 'center', gap: 12, padding: '14px 24px',
+              borderBottom: '1px solid var(--border)', flexShrink: 0,
+              background: 'var(--bg-surface)',
+            }}>
+              <button
+                onClick={() => setOpenNoteId(null)}
+                style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--text-secondary)', display: 'flex', padding: 4, borderRadius: 6 }}
+                onMouseEnter={e => e.currentTarget.style.color = 'var(--text-primary)'}
+                onMouseLeave={e => e.currentTarget.style.color = 'var(--text-secondary)'}
+              >
+                <X size={16} />
+              </button>
+
+              <NoteTitle
+                value={openNote.title}
+                onChange={title => onUpdateNote(openNote.id, { title })}
+              />
+
+              <div style={{ flex: 1 }} />
+
+              <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
+                <NoteLocationPicker
+                  note={openNote}
+                  domains={domains}
+                  onSave={updates => onUpdateNote(openNote.id, updates)}
+                />
+                <span style={{ fontSize: 11, color: 'var(--text-muted)' }}>
+                  {fmt(openNote.updatedAt)}
+                </span>
+                <button
+                  onClick={() => { onDeleteNote(openNote.id); setOpenNoteId(null) }}
+                  style={{ display: 'flex', alignItems: 'center', gap: 5, padding: '5px 10px', borderRadius: 7, border: '1px solid var(--border)', background: 'none', color: 'var(--accent-red)', cursor: 'pointer', fontSize: 12 }}
+                >
+                  <Trash2 size={12} /> Delete
+                </button>
+              </div>
+            </div>
+
+            <div style={{ flex: 1, overflow: 'hidden' }}>
+              <NoteCanvas
+                strokes={openNote.strokes}
+                onStrokesChange={strokes => onUpdateNote(openNote.id, { strokes })}
+              />
+            </div>
+          </div>
+        ) : (
+          // ── Note grid ──
+          <div style={{ flex: 1, overflowY: 'auto', padding: '24px 28px' }}>
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 20 }}>
+              <div>
+                <h2 style={{ margin: 0, fontSize: 18, fontWeight: 700, color: 'var(--text-primary)' }}>
+                  {selectedFolder.type === 'all'     ? 'All Notes'
+                  : selectedFolder.type === 'general' ? 'General Notes'
+                  : selectedFolder.type === 'week'    ? `${domainMap[selectedFolder.domainId]?.code} — Week ${selectedFolder.week}`
+                  : selectedFolder.type === 'domain'  ? domainMap[selectedFolder.domainId]?.name
+                  : 'Notes'}
+                </h2>
+                <p style={{ margin: '3px 0 0', fontSize: 12, color: 'var(--text-muted)' }}>
+                  {folderNotes.length} note{folderNotes.length !== 1 ? 's' : ''}
+                </p>
+              </div>
+              <button
+                onClick={handleNewNote}
+                style={{
+                  display: 'flex', alignItems: 'center', gap: 6, padding: '8px 14px',
+                  borderRadius: 8, border: 'none', background: 'var(--accent-blue)',
+                  color: '#fff', cursor: 'pointer', fontSize: 13, fontWeight: 600,
+                }}
+              >
+                <Plus size={14} /> New Note
+              </button>
+            </div>
+
+            {folderNotes.length === 0 ? (
+              <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 14, padding: '80px 0', color: 'var(--text-muted)', textAlign: 'center' }}>
+                <div style={{ width: 64, height: 64, borderRadius: 16, background: 'var(--bg-surface)', border: '1px solid var(--border)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                  <PenLine size={28} color="var(--border-strong)" />
+                </div>
+                <div>
+                  <p style={{ margin: 0, fontSize: 15, fontWeight: 600, color: 'var(--text-secondary)' }}>No notes here yet</p>
+                  <p style={{ margin: '6px 0 0', fontSize: 13, color: 'var(--text-muted)' }}>Click New Note to start writing</p>
+                </div>
+              </div>
+            ) : (
+              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(220px, 1fr))', gap: 14 }}>
+                {folderNotes.map(note => (
+                  <NoteCard
+                    key={note.id}
+                    note={note}
+                    domain={note.domainId ? domainMap[note.domainId] : null}
+                    onClick={() => setOpenNoteId(note.id)}
+                    onDelete={() => onDeleteNote(note.id)}
+                  />
+                ))}
+              </div>
+            )}
+          </div>
+        )}
       </div>
     </div>
   )

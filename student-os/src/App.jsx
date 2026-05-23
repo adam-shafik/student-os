@@ -44,6 +44,8 @@ export default function App() {
   const [domains,        setDomains]        = useState(initialDomains)
   const [customCalendarEvents, setCustomCalendarEvents] = useState([])
   const [eventNotes,    setEventNotes]    = useState({})
+  const [notes,         setNotes]         = useState([])
+  const [noteToOpen,    setNoteToOpen]    = useState(null)
   const [todos,         setTodos]         = useState([
     { id: 'todo-1', title: 'Review Week 6 lecture slides', domainId: 'cs301', dueDate: '2026-03-10', priority: 'high',   done: false, createdAt: '2026-03-05T10:00:00Z' },
     { id: 'todo-2', title: 'Finish Graph Algorithm Coursework', domainId: 'cs301', dueDate: '2026-03-10', priority: 'high',   done: false, createdAt: '2026-03-05T10:01:00Z' },
@@ -89,6 +91,26 @@ export default function App() {
   const handleToggleTodo = (id)   => setTodos(prev => prev.map(t => t.id === id ? { ...t, done: !t.done } : t))
   const handleDeleteTodo = (id)   => setTodos(prev => prev.filter(t => t.id !== id))
 
+  const handleAddNote = (note) => setNotes(prev => [...prev, note])
+  const handleUpdateNoteData = (id, updates) =>
+    setNotes(prev => prev.map(n => n.id === id ? { ...n, ...updates, updatedAt: new Date().toISOString() } : n))
+  const handleDeleteNote = (id) => setNotes(prev => prev.filter(n => n.id !== id))
+
+  // Called from DomainDetailPage — creates note, navigates, signals NotesPage to auto-open it
+  const handleNewNoteForContext = (meta = {}) => {
+    const id = `note-${Date.now()}`
+    setNotes(prev => [...prev, {
+      id, title: 'Untitled Note', strokes: [],
+      createdAt: new Date().toISOString(), updatedAt: new Date().toISOString(),
+      domainId: meta.domainId || null,
+      academicWeek: meta.academicWeek || null,
+      eventId: meta.eventId || null,
+      studySessionId: null,
+    }])
+    setNoteToOpen(id)
+    handleNavigate('notes')
+  }
+
   // Called from CalendarPage → EventDetailModal "View in Domains"
   const handleViewDomainById = (domainId) => {
     const domain = domains.find(d => d.id === domainId)
@@ -121,6 +143,7 @@ export default function App() {
           onBack={handleBack}
           eventNotes={eventNotes}
           onUpdateNote={handleUpdateNote}
+          onNewNote={handleNewNoteForContext}
         />
       )}
       {currentPage === 'calendar' && (
@@ -136,9 +159,13 @@ export default function App() {
       {currentPage === 'study' && <ComingSoon label="Study Session" />}
       {currentPage === 'notes' && (
         <NotesPage
-          eventNotes={eventNotes}
-          customCalendarEvents={customCalendarEvents}
+          notes={notes}
           domains={domains}
+          noteToOpen={noteToOpen}
+          onClearNoteToOpen={() => setNoteToOpen(null)}
+          onAddNote={handleAddNote}
+          onUpdateNote={handleUpdateNoteData}
+          onDeleteNote={handleDeleteNote}
         />
       )}
       {currentPage === 'todos' && (
