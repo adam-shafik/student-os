@@ -102,7 +102,7 @@ function NoteCard({ note, domain, onClick, onDelete }) {
       </div>
 
       <div style={{ fontSize: 11, color: 'var(--text-muted)' }}>
-        {fmt(note.updatedAt)} · {note.strokes.length} stroke{note.strokes.length !== 1 ? 's' : ''}
+        {fmt(note.updatedAt)} · {(note.pages || []).length} page{(note.pages || []).length !== 1 ? 's' : ''}
       </div>
     </div>
   )
@@ -330,7 +330,9 @@ export default function NotesPage({ notes, domains, noteToOpen, onClearNoteToOpe
   function createNote(meta = {}) {
     const id = noteId()
     onAddNote({
-      id, title: 'Untitled Note', strokes: [],
+      id, title: 'Untitled Note',
+      pages: [{ id: `page-${Date.now()}`, strokes: [] }],
+      template: 'blank', bgColor: '#f8f7f2', lineSpacing: 32, orientation: 'portrait',
       createdAt: new Date().toISOString(),
       updatedAt: new Date().toISOString(),
       domainId: meta.domainId || null,
@@ -487,8 +489,13 @@ export default function NotesPage({ notes, domains, noteToOpen, onClearNoteToOpe
 
             <div style={{ flex: 1, overflow: 'hidden' }}>
               <NoteCanvas
-                strokes={openNote.strokes}
-                onStrokesChange={strokes => onUpdateNote(openNote.id, { strokes })}
+                pages={openNote.pages || [{ id: 'page-legacy', strokes: [] }]}
+                onPagesChange={pages => onUpdateNote(openNote.id, { pages })}
+                template={openNote.template || 'blank'}
+                bgColor={openNote.bgColor || '#f8f7f2'}
+                lineSpacing={openNote.lineSpacing || 32}
+                orientation={openNote.orientation || 'portrait'}
+                onSettingsChange={s => onUpdateNote(openNote.id, s)}
               />
             </div>
           </div>

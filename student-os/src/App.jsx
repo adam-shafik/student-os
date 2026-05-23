@@ -100,7 +100,9 @@ export default function App() {
   const handleNewNoteForContext = (meta = {}) => {
     const id = `note-${Date.now()}`
     setNotes(prev => [...prev, {
-      id, title: 'Untitled Note', strokes: [],
+      id, title: 'Untitled Note',
+      pages: [{ id: `page-${Date.now()}`, strokes: [] }],
+      template: 'blank', bgColor: '#f8f7f2', lineSpacing: 32, orientation: 'portrait',
       createdAt: new Date().toISOString(), updatedAt: new Date().toISOString(),
       domainId: meta.domainId || null,
       academicWeek: meta.academicWeek || null,
