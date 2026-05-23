@@ -482,7 +482,8 @@ export default function NoteCanvas({
   readonly = false,
 }) {
   const scrollRef     = useRef()
-  const addingPageRef = useRef(false)
+  const addingPageRef    = useRef(false)
+  const prevPenSizeRef   = useRef(5)
 
   const [penColor,     setPenColor]     = useState('#111827')
   const [penSize,      setPenSize]      = useState(5)
@@ -493,6 +494,16 @@ export default function NoteCanvas({
   const [customBg,     setCustomBg]     = useState(bgColor)
   const [showSettings, setShowSettings] = useState(false)
   const [isFullscreen, setIsFullscreen] = useState(false)
+
+  function handleSetTool(t) {
+    if (t === 'highlighter' && tool !== 'highlighter') {
+      prevPenSizeRef.current = penSize
+      setPenSize(18)
+    } else if (t !== 'highlighter' && tool === 'highlighter') {
+      setPenSize(prevPenSizeRef.current)
+    }
+    setTool(t)
+  }
 
   const pageH        = PAGE_HEIGHTS[orientation]    ?? 1200
   const maxW         = PAGE_MAX_WIDTHS[orientation] ?? 900
@@ -553,7 +564,7 @@ export default function NoteCanvas({
           }}>
             <div style={{ display: 'flex', gap: 3 }}>
               {TOOLS.map(([t, Icon, label]) => (
-                <button key={t} title={label} onClick={() => setTool(t)} style={tbtn(tool === t)}>
+                <button key={t} title={label} onClick={() => handleSetTool(t)} style={tbtn(tool === t)}>
                   <Icon size={13} />
                 </button>
               ))}
