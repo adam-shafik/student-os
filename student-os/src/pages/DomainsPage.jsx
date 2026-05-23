@@ -25,7 +25,7 @@ function ProgressBar({ progress, color }) {
         height: '100%', width: `${progress}%`, borderRadius: 2,
         background: `var(--progress-gradient, ${color})`,
         backgroundSize: '200% 100%',
-        animation: 'aurora-shift 4s ease infinite',
+        animation: 'var(--progress-anim)',
       }} />
     </div>
   )
@@ -58,7 +58,6 @@ function AcademicCard({ domain, pendingTasks, onClick }) {
       onMouseLeave={() => setHovered(false)}
       style={{
         background: hovered ? 'var(--bg-hover)' : 'var(--bg-surface)',
-        backdropFilter: 'var(--glass-blur)',
         border: `1px solid ${hovered ? 'var(--border-strong)' : 'var(--border)'}`,
         borderRadius: 14, padding: '22px 22px 18px',
         cursor: 'pointer', position: 'relative', overflow: 'hidden',
@@ -125,7 +124,6 @@ function GeneralCard({ domain, linkedEventCount, onClick }) {
       onMouseLeave={() => setHovered(false)}
       style={{
         background: hovered ? 'var(--bg-hover)' : 'var(--bg-surface)',
-        backdropFilter: 'var(--glass-blur)',
         border: `1px solid ${hovered ? 'var(--border-strong)' : 'var(--border)'}`,
         borderRadius: 14, padding: '22px 22px 18px',
         cursor: 'pointer', position: 'relative', overflow: 'hidden',
@@ -447,7 +445,7 @@ export default function DomainsPage({ domains, customCalendarEvents, todos, onOp
             { label: 'Avg Progress',  value: `${avgProgress}%`, color: 'var(--accent-purple)'  },
             { label: 'Pending Work',  value: totalPending,      color: 'var(--accent-amber)'   },
           ].map(s => (
-            <div key={s.label} style={{ flex: 1, background: 'var(--bg-surface)', backdropFilter: 'var(--glass-blur)', border: '1px solid var(--border)', borderRadius: 10, padding: '12px 16px' }}>
+            <div key={s.label} style={{ flex: 1, background: 'var(--bg-surface)', border: '1px solid var(--border)', borderRadius: 10, padding: '12px 16px' }}>
               <div style={{ fontSize: 20, fontWeight: 700, color: s.color, marginBottom: 2 }}>{s.value}</div>
               <div style={{ fontSize: 11, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.4px' }}>{s.label}</div>
             </div>

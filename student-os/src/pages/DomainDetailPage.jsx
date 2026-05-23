@@ -186,7 +186,7 @@ function OverviewTab({ domain, onOpenEvent }) {
                   height: '100%', width: `${domain.progress}%`, borderRadius: 3,
                   background: `var(--progress-gradient, ${domain.color})`,
                   backgroundSize: '200% 100%',
-                  animation: 'aurora-shift 4s ease infinite',
+                  animation: 'var(--progress-anim)',
                 }} />
               </div>
             </div>
@@ -545,7 +545,7 @@ export default function DomainDetailPage({ domain, linkedEvents, onBack, eventNo
       </button>
 
       {/* Domain header */}
-      <div style={{ background: 'var(--bg-surface)', backdropFilter: 'var(--glass-blur)', border: '1px solid var(--border)', borderRadius: 16, padding: '26px 30px', marginBottom: 22, position: 'relative', overflow: 'hidden' }}>
+      <div style={{ background: 'var(--bg-surface)', border: '1px solid var(--border)', borderRadius: 16, padding: '26px 30px', marginBottom: 22, position: 'relative', overflow: 'hidden' }}>
         <div style={{ position: 'absolute', left: 0, top: 0, bottom: 0, width: 4, background: domain.color, borderRadius: '16px 0 0 16px' }} />
         <div style={{ position: 'absolute', top: 0, left: 0, right: 0, bottom: 0, background: `radial-gradient(ellipse at 0% 50%, ${domain.color}07 0%, transparent 60%)`, pointerEvents: 'none' }} />
 

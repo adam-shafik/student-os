@@ -27,7 +27,7 @@ export const THEMES = [
     id: 'latenight',
     name: 'Late Night Study',
     description: 'Warm amber tones, easy on the eyes',
-    preview: ['#f59e0b', '#e07b39', '#1c1810'],
+    preview: ['#f59e0b', '#fb923c', '#131318'],
   },
   {
     id: 'aurora',

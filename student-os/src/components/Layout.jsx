@@ -90,7 +90,6 @@ export default function Layout({ currentPage, onNavigate, theme, onThemeChange, 
       <aside style={{
         width: 228, flexShrink: 0,
         background: 'var(--bg-elevated)',
-        backdropFilter: 'var(--glass-blur)',
         borderRight: '1px solid var(--border)',
         display: 'flex', flexDirection: 'column',
         padding: '20px 10px',

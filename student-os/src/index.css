@@ -55,6 +55,7 @@
 
   --progress-track:    #1e2030;
   /* --progress-gradient intentionally absent → inline fallback uses domain color */
+  --progress-anim:     none;
 
   --scrollbar-thumb:       #2a2c3e;
   --scrollbar-thumb-hover: #363850;
@@ -101,10 +102,11 @@ html.theme-neon {
   --glow-purple:       0 0 22px rgba(191,127,255,0.5);
   --glow-green:        0 0 22px rgba(0,255,157,0.45);
   --glow-red:          0 0 22px rgba(255,68,136,0.45);
-  --glass-blur:        blur(20px) saturate(180%);
+  --glass-blur:        blur(6px);
 
   --progress-track:    rgba(91,140,255,0.1);
   --progress-gradient: linear-gradient(90deg, #5b8cff, #bf7fff, #00d4ff, #5b8cff);
+  --progress-anim:     aurora-shift 5s linear infinite;
 
   --scrollbar-thumb:       rgba(91,140,255,0.22);
   --scrollbar-thumb-hover: rgba(91,140,255,0.42);
@@ -199,10 +201,11 @@ html.theme-cyberpunk {
   --glow-purple:       0 0 28px rgba(255,0,170,0.6);
   --glow-green:        0 0 28px rgba(0,255,136,0.6);
   --glow-red:          0 0 28px rgba(255,0,85,0.6);
-  --glass-blur:        blur(16px) saturate(120%);
+  --glass-blur:        blur(6px);
 
   --progress-track:    rgba(0,229,255,0.07);
   --progress-gradient: linear-gradient(90deg, #00e5ff, #ff00aa, #00ff88, #00e5ff);
+  --progress-anim:     aurora-shift 5s linear infinite;
 
   --scrollbar-thumb:       rgba(0,229,255,0.15);
   --scrollbar-thumb-hover: rgba(0,229,255,0.32);
@@ -213,50 +216,53 @@ html.theme-cyberpunk {
 
 /* ── Late Night Study ────────────────────────────────────────────────────────── */
 html.theme-latenight {
-  --bg-page:           #100e0a;
-  --bg-surface:        #1c1810;
-  --bg-elevated:       #161208;
-  --bg-hover:          #221e14;
-  --bg-overlay:        #201a0e;
-  --bg-overlay-hover:  #2c2418;
-  --bg-input:          #161208;
-  --bg-body-image:     none;
+  --bg-page:           #0c0c0f;
+  --bg-surface:        #131318;
+  --bg-elevated:       #0f0f13;
+  --bg-hover:          #1a1a22;
+  --bg-overlay:        #18181f;
+  --bg-overlay-hover:  #222230;
+  --bg-input:          #0f0f13;
+  --bg-body-image:     radial-gradient(ellipse at 50% 100%, rgba(245,158,11,0.04) 0%, transparent 60%),
+                       radial-gradient(ellipse at 80% 20%, rgba(251,146,60,0.03) 0%, transparent 50%);
 
-  --nav-hover:         #1e1a10;
-  --nav-active:        rgba(245,158,11,0.12);
+  --nav-hover:         rgba(245,158,11,0.05);
+  --nav-active:        rgba(245,158,11,0.09);
 
-  --border:            #302818;
-  --border-strong:     #40361e;
+  --border:            #1e1e28;
+  --border-strong:     #2a2a38;
   --border-focus:      rgba(245,158,11,0.5);
 
-  --text-primary:      #f2e8d0;
-  --text-bright:       #d8c8a0;
-  --text-secondary:    #9c8c68;
-  --text-muted:        #5c4c30;
-  --text-disabled:     #3c3020;
+  --text-primary:      #eeeef5;
+  --text-bright:       #d4d4e0;
+  --text-secondary:    #7878a0;
+  --text-muted:        #48485e;
+  --text-disabled:     #2c2c3a;
 
-  --accent-blue:       #7eb4cc;
-  --accent-purple:     #c490b0;
+  --accent-blue:       #7eb4d4;
+  --accent-purple:     #b094e0;
   --accent-amber:      #f59e0b;
-  --accent-green:      #78c070;
-  --accent-red:        #e06060;
+  --accent-green:      #4ade80;
+  --accent-red:        #f87171;
 
-  --shadow-card:       0 8px 24px rgba(0,0,0,0.5);
-  --shadow-modal:      0 24px 60px rgba(0,0,0,0.65);
+  --shadow-card:       0 8px 28px rgba(0,0,0,0.55), 0 0 0 1px rgba(245,158,11,0.03);
+  --shadow-modal:      0 24px 64px rgba(0,0,0,0.7), 0 0 0 1px rgba(245,158,11,0.06);
 
-  --glow-blue:         none;
-  --glow-purple:       none;
-  --glow-green:        0 0 14px rgba(120,192,112,0.3);
-  --glow-red:          none;
-  --glass-blur:        none;
+  --glow-blue:         0 0 18px rgba(245,158,11,0.28), 0 0 48px rgba(245,158,11,0.1);
+  --glow-purple:       0 0 18px rgba(176,148,224,0.3);
+  --glow-green:        0 0 18px rgba(74,222,128,0.28);
+  --glow-red:          0 0 18px rgba(248,113,113,0.28);
+  --glass-blur:        blur(5px);
 
-  --progress-track:    #302818;
+  --progress-track:    #1e1e28;
+  --progress-gradient: linear-gradient(90deg, #f59e0b, #fb923c, #fbbf24, #f59e0b);
+  --progress-anim:     aurora-shift 5s linear infinite;
 
-  --scrollbar-thumb:       #40361e;
-  --scrollbar-thumb-hover: #544428;
+  --scrollbar-thumb:       #2a2a38;
+  --scrollbar-thumb-hover: #363648;
 
-  --btn-primary-text:  #fff;
-  --row-hover:         rgba(245,158,11,0.05);
+  --btn-primary-text:  #0c0c0f;
+  --row-hover:         rgba(245,158,11,0.04);
 }
 
 /* ── Aurora Gradient ─────────────────────────────────────────────────────────── */
@@ -298,10 +304,11 @@ html.theme-aurora {
   --glow-purple:       0 0 22px rgba(155,127,255,0.45);
   --glow-green:        0 0 22px rgba(79,255,176,0.4);
   --glow-red:          0 0 22px rgba(255,110,136,0.4);
-  --glass-blur:        blur(20px) saturate(160%);
+  --glass-blur:        blur(6px);
 
   --progress-track:    rgba(100,200,255,0.09);
   --progress-gradient: linear-gradient(90deg, #64c8ff, #9b7fff, #4fffb0, #64c8ff);
+  --progress-anim:     aurora-shift 5s linear infinite;
 
   --scrollbar-thumb:       rgba(100,200,255,0.16);
   --scrollbar-thumb-hover: rgba(100,200,255,0.34);

@@ -360,7 +360,7 @@ export default function TodosPage({ todos, domains, onAddTodo, onToggleTodo, onD
       {todos.length > 0 && (
         <div style={{ display: 'flex', gap: 10, marginBottom: 28 }}>
           {summaryStats.map(s => (
-            <div key={s.label} style={{ flex: 1, background: 'var(--bg-surface)', backdropFilter: 'var(--glass-blur)', border: '1px solid var(--border)', borderRadius: 10, padding: '12px 16px', transition: 'box-shadow 0.2s' }}>
+            <div key={s.label} style={{ flex: 1, background: 'var(--bg-surface)', border: '1px solid var(--border)', borderRadius: 10, padding: '12px 16px', transition: 'box-shadow 0.2s' }}>
               <div style={{ fontSize: 20, fontWeight: 700, color: s.color, marginBottom: 2 }}>{s.value}</div>
               <div style={{ fontSize: 11, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.4px' }}>{s.label}</div>
             </div>
@@ -374,7 +374,7 @@ export default function TodosPage({ todos, domains, onAddTodo, onToggleTodo, onD
           <p style={{ fontSize: 14, margin: 0 }}>No tasks yet — click <strong style={{ color: 'var(--accent-blue)' }}>New Task</strong> to add one.</p>
         </div>
       ) : (
-        <div style={{ background: 'var(--bg-surface)', backdropFilter: 'var(--glass-blur)', border: '1px solid var(--border)', borderRadius: 14, padding: '8px 6px' }}>
+        <div style={{ background: 'var(--bg-surface)', border: '1px solid var(--border)', borderRadius: 14, padding: '8px 6px' }}>
           {domainsWithTasks.length === 0 && (
             <div style={{ padding: '16px 14px', fontSize: 13, color: 'var(--text-muted)', textAlign: 'center' }}>Nothing pending — nice work</div>
           )}
