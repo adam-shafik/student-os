@@ -1,6 +1,7 @@
 import { useState, useMemo } from 'react'
 import { Plus, X, CheckSquare, Square, Trash2, ChevronDown, AlertTriangle, CheckCircle2 } from 'lucide-react'
-import { getAcademicWeek, getBreakForDate } from '../utils/semester'
+import { getAcademicWeek, getBreakForDate, totalTeachingWeeks } from '../utils/semester'
+import { DOMAIN_CATEGORIES } from '../data/domains'
 
 const PRIORITIES = {
   high:   { label: 'High',   color: 'var(--accent-red)'   },
@@ -14,14 +15,23 @@ const PRIORITY_DOTS = {
   low:    '#34d399',
 }
 
+const TOTAL_WEEKS = totalTeachingWeeks()
+
+function todayMidnight() {
+  const d = new Date(); d.setHours(0, 0, 0, 0); return d
+}
+function parseDue(dateStr) {
+  const [y, m, d] = dateStr.split('-').map(Number)
+  return new Date(y, m - 1, d)
+}
+
 function PriorityDot({ priority }) {
   return <span style={{ width: 7, height: 7, borderRadius: '50%', background: PRIORITY_DOTS[priority] || PRIORITY_DOTS.low, display: 'inline-block', flexShrink: 0 }} />
 }
 
-function WeekBadge({ date }) {
+function DueDateWeekBadge({ date }) {
   if (!date) return null
-  const [y, m, d] = date.split('-').map(Number)
-  const dateObj = new Date(y, m - 1, d)
+  const dateObj = parseDue(date)
   const brk = getBreakForDate(dateObj)
   const wk  = getAcademicWeek(dateObj)
   if (!brk && wk == null) return null
@@ -36,14 +46,31 @@ function WeekBadge({ date }) {
   )
 }
 
+function AcademicWeekBadge({ week }) {
+  if (!week) return null
+  return (
+    <span style={{
+      fontSize: 10, fontWeight: 600, padding: '2px 7px', borderRadius: 4,
+      background: 'rgba(167,139,250,0.14)', color: 'var(--accent-purple)',
+    }}>
+      Study W{week}
+    </span>
+  )
+}
+
 function Label({ children }) {
   return <div style={{ fontSize: 11, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.5px', marginBottom: 7 }}>{children}</div>
 }
 
 // ─── Add task modal ────────────────────────────────────────────────────────────
 function AddTaskModal({ domains, onClose, onSave, initialDomainId }) {
-  const [form, setForm] = useState({ title: '', domainId: initialDomainId || '', dueDate: '', priority: 'medium' })
+  const [form, setForm] = useState({
+    title: '', domainId: initialDomainId || '', dueDate: '', priority: 'medium', academicWeek: '',
+  })
   const set = (k, v) => setForm(prev => ({ ...prev, [k]: v }))
+
+  const selectedDomain = domains.find(d => d.id === form.domainId)
+  const isAcademic = selectedDomain?.category === 'academic'
 
   const canSave = form.title.trim()
 
@@ -55,6 +82,7 @@ function AddTaskModal({ domains, onClose, onSave, initialDomainId }) {
       domainId: form.domainId || null,
       dueDate: form.dueDate || null,
       priority: form.priority,
+      academicWeek: isAcademic && form.academicWeek ? Number(form.academicWeek) : null,
       done: false,
       createdAt: new Date().toISOString(),
     })
@@ -99,7 +127,7 @@ function AddTaskModal({ domains, onClose, onSave, initialDomainId }) {
             <select
               style={{ ...inputStyle, cursor: 'pointer' }}
               value={form.domainId}
-              onChange={e => set('domainId', e.target.value)}
+              onChange={e => { set('domainId', e.target.value); set('academicWeek', '') }}
             >
               <option value="">— General / No domain —</option>
               {domains.map(d => (
@@ -108,7 +136,7 @@ function AddTaskModal({ domains, onClose, onSave, initialDomainId }) {
             </select>
           </div>
 
-          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 }}>
+          <div style={{ display: 'grid', gridTemplateColumns: isAcademic ? '1fr 1fr' : '1fr 1fr', gap: 10 }}>
             <div>
               <Label>Due date (optional)</Label>
               <input
@@ -118,7 +146,7 @@ function AddTaskModal({ domains, onClose, onSave, initialDomainId }) {
                 onFocus={e => e.target.style.borderColor = 'var(--border-focus)'}
                 onBlur={e => e.target.style.borderColor = 'var(--border-strong)'}
               />
-              {form.dueDate && <div style={{ marginTop: 6 }}><WeekBadge date={form.dueDate} /></div>}
+              {form.dueDate && <div style={{ marginTop: 6 }}><DueDateWeekBadge date={form.dueDate} /></div>}
             </div>
             <div>
               <Label>Priority</Label>
@@ -142,6 +170,27 @@ function AddTaskModal({ domains, onClose, onSave, initialDomainId }) {
               </div>
             </div>
           </div>
+
+          {isAcademic && (
+            <div>
+              <Label>Academic week (optional)</Label>
+              <select
+                style={{ ...inputStyle, cursor: 'pointer' }}
+                value={form.academicWeek}
+                onChange={e => set('academicWeek', e.target.value)}
+              >
+                <option value="">— Not week-specific —</option>
+                {Array.from({ length: TOTAL_WEEKS }, (_, i) => i + 1).map(w => (
+                  <option key={w} value={w}>Week {w}</option>
+                ))}
+              </select>
+              {form.academicWeek && (
+                <div style={{ marginTop: 6, fontSize: 11, color: 'var(--text-muted)' }}>
+                  Task tagged as studying/revising content from Week {form.academicWeek}
+                </div>
+              )}
+            </div>
+          )}
         </div>
 
         <div style={{ padding: '14px 22px', borderTop: '1px solid var(--border)', display: 'flex', justifyContent: 'flex-end', gap: 8 }}>
@@ -169,10 +218,7 @@ function TaskRow({ task, domainMap, onToggle, onDelete }) {
   const [hovered, setHovered] = useState(false)
   const domain = task.domainId ? domainMap[task.domainId] : null
 
-  const isOverdue = task.dueDate && !task.done && (() => {
-    const [y, m, d] = task.dueDate.split('-').map(Number)
-    return new Date(y, m - 1, d) < new Date(new Date().setHours(0, 0, 0, 0))
-  })()
+  const isOverdue = task.dueDate && !task.done && parseDue(task.dueDate) < todayMidnight()
 
   return (
     <div
@@ -202,14 +248,15 @@ function TaskRow({ task, domainMap, onToggle, onDelete }) {
         }}>
           {task.title}
         </span>
-        <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginTop: task.dueDate ? 3 : 0, flexWrap: 'wrap' }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginTop: 3, flexWrap: 'wrap' }}>
           {task.dueDate && (
             <span style={{ fontSize: 11, color: isOverdue ? 'var(--accent-red)' : 'var(--text-muted)' }}>
               {isOverdue && <AlertTriangle size={10} style={{ display: 'inline', marginRight: 3 }} />}
-              Due {new Date(...task.dueDate.split('-').map((v, i) => i === 1 ? v - 1 : +v)).toLocaleDateString('en-GB', { day: 'numeric', month: 'short' })}
+              Due {parseDue(task.dueDate).toLocaleDateString('en-GB', { day: 'numeric', month: 'short' })}
             </span>
           )}
-          <WeekBadge date={task.dueDate} />
+          <DueDateWeekBadge date={task.dueDate} />
+          <AcademicWeekBadge week={task.academicWeek} />
         </div>
       </div>
 
@@ -236,7 +283,34 @@ function TaskRow({ task, domainMap, onToggle, onDelete }) {
   )
 }
 
-// ─── Domain section ────────────────────────────────────────────────────────────
+// ─── Generic collapsible group (priority / due-date grouping) ──────────────────
+function TaskGroup({ label, labelColor, tasks, domainMap, onToggle, onDelete, defaultOpen = true }) {
+  const [open, setOpen] = useState(defaultOpen)
+  const pending = tasks.filter(t => !t.done).length
+  if (tasks.length === 0) return null
+  return (
+    <div style={{ marginBottom: 8 }}>
+      <button
+        onClick={() => setOpen(v => !v)}
+        style={{ display: 'flex', alignItems: 'center', gap: 8, background: 'none', border: 'none', cursor: 'pointer', padding: '6px 0', width: '100%', textAlign: 'left' }}
+      >
+        <span style={{ fontSize: 13, fontWeight: 700, color: labelColor || 'var(--text-secondary)' }}>{label}</span>
+        {pending > 0 && (
+          <span style={{ fontSize: 10, fontWeight: 600, background: 'var(--border)', color: 'var(--text-secondary)', padding: '1px 7px', borderRadius: 10 }}>
+            {pending}
+          </span>
+        )}
+        <div style={{ flex: 1, height: 1, background: 'var(--border)' }} />
+        <ChevronDown size={13} color="var(--text-muted)" style={{ transform: open ? 'none' : 'rotate(-90deg)', transition: 'transform 0.2s', flexShrink: 0 }} />
+      </button>
+      {open && tasks.map(task => (
+        <TaskRow key={task.id} task={task} domainMap={domainMap} onToggle={onToggle} onDelete={onDelete} />
+      ))}
+    </div>
+  )
+}
+
+// ─── Domain section (domain grouping) ─────────────────────────────────────────
 function DomainSection({ domain, tasks, domainMap, onToggle, onDelete, onAdd }) {
   const [open, setOpen] = useState(true)
   const pending = tasks.filter(t => !t.done).length
@@ -295,26 +369,58 @@ export default function TodosPage({ todos, domains, onAddTodo, onToggleTodo, onD
   const [showAdd, setShowAdd]           = useState(false)
   const [addForDomain, setAddForDomain] = useState(null)
   const [showDone, setShowDone]         = useState(false)
+  const [groupBy, setGroupBy]           = useState('domain')
 
   const domainMap = useMemo(() => Object.fromEntries(domains.map(d => [d.id, d])), [domains])
 
   const pending = todos.filter(t => !t.done)
   const done    = todos.filter(t => t.done)
 
-  const domainsWithTasks = useMemo(() => {
+  // ── Domain grouping ──────────────────────────────────────────────────────────
+  const domainGroups = useMemo(() => {
     const grouped = {}
     for (const task of pending) {
       const key = task.domainId || '__general__'
       if (!grouped[key]) grouped[key] = []
       grouped[key].push(task)
     }
-    const orderedDomainIds = domains.map(d => d.id).filter(id => grouped[id])
-    if (grouped['__general__']) orderedDomainIds.push('__general__')
-    return orderedDomainIds.map(id => ({
+    const orderedIds = domains.map(d => d.id).filter(id => grouped[id])
+    if (grouped['__general__']) orderedIds.push('__general__')
+    return orderedIds.map(id => ({
       domain: id === '__general__' ? null : domainMap[id],
       tasks: grouped[id] || [],
     }))
   }, [pending, domains, domainMap])
+
+  // ── Priority grouping ────────────────────────────────────────────────────────
+  const priorityGroups = useMemo(() => [
+    { key: 'high',   label: 'High Priority',   color: 'var(--accent-red)'   },
+    { key: 'medium', label: 'Medium Priority',  color: 'var(--accent-amber)' },
+    { key: 'low',    label: 'Low Priority',     color: 'var(--accent-green)' },
+  ].map(g => ({ ...g, tasks: pending.filter(t => t.priority === g.key) })), [pending])
+
+  // ── Due date grouping ────────────────────────────────────────────────────────
+  const dueDateGroups = useMemo(() => {
+    const today = todayMidnight()
+    const endOfWeek = new Date(today); endOfWeek.setDate(today.getDate() + (6 - today.getDay()))
+
+    const buckets = { overdue: [], today: [], week: [], later: [], none: [] }
+    for (const task of pending) {
+      if (!task.dueDate) { buckets.none.push(task); continue }
+      const d = parseDue(task.dueDate)
+      if (d < today)       buckets.overdue.push(task)
+      else if (d.getTime() === today.getTime()) buckets.today.push(task)
+      else if (d <= endOfWeek) buckets.week.push(task)
+      else                 buckets.later.push(task)
+    }
+    return [
+      { key: 'overdue', label: 'Overdue',      color: 'var(--accent-red)',   tasks: buckets.overdue },
+      { key: 'today',   label: 'Due Today',     color: 'var(--accent-amber)', tasks: buckets.today  },
+      { key: 'week',    label: 'This Week',     color: 'var(--accent-blue)',  tasks: buckets.week   },
+      { key: 'later',   label: 'Later',         color: 'var(--text-secondary)', tasks: buckets.later },
+      { key: 'none',    label: 'No Due Date',   color: 'var(--text-muted)',   tasks: buckets.none   },
+    ]
+  }, [pending])
 
   const openAdd = (domainId = null) => {
     setAddForDomain(domainId)
@@ -329,20 +435,24 @@ export default function TodosPage({ todos, domains, onAddTodo, onToggleTodo, onD
   const totalPending = pending.length
 
   const summaryStats = [
-    { label: 'Pending',  value: pending.length,                                    color: 'var(--accent-blue)'  },
-    { label: 'Done',     value: done.length,                                        color: 'var(--accent-green)' },
-    { label: 'High pri', value: pending.filter(t => t.priority === 'high').length,  color: 'var(--accent-red)'   },
-    { label: 'Overdue',  value: pending.filter(t => {
-      if (!t.dueDate) return false
-      const [y, m, d] = t.dueDate.split('-').map(Number)
-      return new Date(y, m - 1, d) < new Date(new Date().setHours(0, 0, 0, 0))
-    }).length, color: 'var(--accent-amber)' },
+    { label: 'Pending',  value: pending.length,                                   color: 'var(--accent-blue)'  },
+    { label: 'Done',     value: done.length,                                       color: 'var(--accent-green)' },
+    { label: 'High pri', value: pending.filter(t => t.priority === 'high').length, color: 'var(--accent-red)'   },
+    { label: 'Overdue',  value: pending.filter(t => t.dueDate && parseDue(t.dueDate) < todayMidnight()).length, color: 'var(--accent-amber)' },
   ]
+
+  const GROUP_OPTIONS = [
+    { key: 'domain',   label: 'Domain'   },
+    { key: 'priority', label: 'Priority' },
+    { key: 'dueDate',  label: 'Due Date' },
+  ]
+
+  const hasTasks = domainGroups.length > 0 || done.length > 0
 
   return (
     <div style={{ padding: '36px 40px', maxWidth: 860 }}>
 
-      <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', marginBottom: 28 }}>
+      <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', marginBottom: 20 }}>
         <div>
           <h1 style={{ margin: 0, fontSize: 26, fontWeight: 700, color: 'var(--text-primary)', letterSpacing: '-0.5px' }}>To Do</h1>
           <p style={{ margin: '4px 0 0', fontSize: 14, color: 'var(--text-secondary)' }}>
@@ -357,10 +467,30 @@ export default function TodosPage({ todos, domains, onAddTodo, onToggleTodo, onD
         </button>
       </div>
 
+      {/* Group by toolbar */}
+      <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 20 }}>
+        <span style={{ fontSize: 11, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.5px' }}>Group by</span>
+        {GROUP_OPTIONS.map(opt => (
+          <button
+            key={opt.key}
+            onClick={() => setGroupBy(opt.key)}
+            style={{
+              padding: '4px 12px', borderRadius: 6, border: 'none', cursor: 'pointer', fontSize: 12, fontWeight: 500,
+              background: groupBy === opt.key ? 'var(--nav-active)' : 'transparent',
+              color: groupBy === opt.key ? 'var(--accent-blue)' : 'var(--text-secondary)',
+              outline: groupBy === opt.key ? '1px solid var(--border-strong)' : '1px solid transparent',
+              transition: 'all 0.12s',
+            }}
+          >
+            {opt.label}
+          </button>
+        ))}
+      </div>
+
       {todos.length > 0 && (
-        <div style={{ display: 'flex', gap: 10, marginBottom: 28 }}>
+        <div style={{ display: 'flex', gap: 10, marginBottom: 24 }}>
           {summaryStats.map(s => (
-            <div key={s.label} style={{ flex: 1, background: 'var(--bg-surface)', border: '1px solid var(--border)', borderRadius: 10, padding: '12px 16px', transition: 'box-shadow 0.2s' }}>
+            <div key={s.label} style={{ flex: 1, background: 'var(--bg-surface)', border: '1px solid var(--border)', borderRadius: 10, padding: '12px 16px' }}>
               <div style={{ fontSize: 20, fontWeight: 700, color: s.color, marginBottom: 2 }}>{s.value}</div>
               <div style={{ fontSize: 11, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.4px' }}>{s.label}</div>
             </div>
@@ -368,27 +498,74 @@ export default function TodosPage({ todos, domains, onAddTodo, onToggleTodo, onD
         </div>
       )}
 
-      {domainsWithTasks.length === 0 && done.length === 0 ? (
+      {!hasTasks ? (
         <div style={{ textAlign: 'center', padding: '80px 0', color: 'var(--text-muted)' }}>
           <div style={{ marginBottom: 12, color: 'var(--border-strong)' }}><CheckCircle2 size={36} /></div>
           <p style={{ fontSize: 14, margin: 0 }}>No tasks yet — click <strong style={{ color: 'var(--accent-blue)' }}>New Task</strong> to add one.</p>
         </div>
       ) : (
         <div style={{ background: 'var(--bg-surface)', border: '1px solid var(--border)', borderRadius: 14, padding: '8px 6px' }}>
-          {domainsWithTasks.length === 0 && (
-            <div style={{ padding: '16px 14px', fontSize: 13, color: 'var(--text-muted)', textAlign: 'center' }}>Nothing pending — nice work</div>
+
+          {/* Domain grouping */}
+          {groupBy === 'domain' && (
+            <>
+              {domainGroups.length === 0 && (
+                <div style={{ padding: '16px 14px', fontSize: 13, color: 'var(--text-muted)', textAlign: 'center' }}>Nothing pending — nice work</div>
+              )}
+              {domainGroups.map(({ domain, tasks }) => (
+                <DomainSection
+                  key={domain ? domain.id : '__general__'}
+                  domain={domain}
+                  tasks={tasks}
+                  domainMap={domainMap}
+                  onToggle={onToggleTodo}
+                  onDelete={onDeleteTodo}
+                  onAdd={() => openAdd(domain?.id || null)}
+                />
+              ))}
+            </>
           )}
-          {domainsWithTasks.map(({ domain, tasks }) => (
-            <DomainSection
-              key={domain ? domain.id : '__general__'}
-              domain={domain}
-              tasks={tasks}
-              domainMap={domainMap}
-              onToggle={onToggleTodo}
-              onDelete={onDeleteTodo}
-              onAdd={() => openAdd(domain?.id || null)}
-            />
-          ))}
+
+          {/* Priority grouping */}
+          {groupBy === 'priority' && (
+            <>
+              {pending.length === 0 && (
+                <div style={{ padding: '16px 14px', fontSize: 13, color: 'var(--text-muted)', textAlign: 'center' }}>Nothing pending — nice work</div>
+              )}
+              {priorityGroups.map(g => (
+                <TaskGroup
+                  key={g.key}
+                  label={g.label}
+                  labelColor={g.color}
+                  tasks={g.tasks}
+                  domainMap={domainMap}
+                  onToggle={onToggleTodo}
+                  onDelete={onDeleteTodo}
+                />
+              ))}
+            </>
+          )}
+
+          {/* Due date grouping */}
+          {groupBy === 'dueDate' && (
+            <>
+              {pending.length === 0 && (
+                <div style={{ padding: '16px 14px', fontSize: 13, color: 'var(--text-muted)', textAlign: 'center' }}>Nothing pending — nice work</div>
+              )}
+              {dueDateGroups.map(g => (
+                <TaskGroup
+                  key={g.key}
+                  label={g.label}
+                  labelColor={g.color}
+                  tasks={g.tasks}
+                  domainMap={domainMap}
+                  onToggle={onToggleTodo}
+                  onDelete={onDeleteTodo}
+                  defaultOpen={g.key !== 'none'}
+                />
+              ))}
+            </>
+          )}
 
           {done.length > 0 && (
             <div style={{ borderTop: '1px solid var(--border)', marginTop: 8, paddingTop: 8 }}>
