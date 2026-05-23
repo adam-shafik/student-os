@@ -23,16 +23,16 @@ function StatusBadge({ status }) {
 function Row({ label, value }) {
   return (
     <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-      <span style={{ fontSize: 12, color: '#4a4c60', width: 52, flexShrink: 0 }}>{label}</span>
-      <span style={{ fontSize: 13, color: '#e6e7f0' }}>{value}</span>
+      <span style={{ fontSize: 12, color: 'var(--text-muted)', width: 52, flexShrink: 0 }}>{label}</span>
+      <span style={{ fontSize: 13, color: 'var(--text-primary)' }}>{value}</span>
     </div>
   )
 }
 function Stat({ label, value, color }) {
   return (
     <div>
-      <div style={{ fontSize: 10, color: '#4a4c60', textTransform: 'uppercase', letterSpacing: '0.5px', marginBottom: 4 }}>{label}</div>
-      <div style={{ fontSize: 16, fontWeight: 700, color: color || '#e6e7f0' }}>{value}</div>
+      <div style={{ fontSize: 10, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.5px', marginBottom: 4 }}>{label}</div>
+      <div style={{ fontSize: 16, fontWeight: 700, color: color || 'var(--text-primary)' }}>{value}</div>
     </div>
   )
 }
@@ -43,7 +43,6 @@ export default function EventDetailModal({ event, onClose, onViewDomain, note, o
   const typeLabel = resolveTypeLabel(event)
   const d = event.details || {}
 
-  // Auto-calculate academic week from date (only for domain-linked events)
   const calcWeek  = event.domainId ? getAcademicWeek(event.date) : null
   const calcBreak = event.domainId ? getBreakForDate(event.date)  : null
 
@@ -58,14 +57,17 @@ export default function EventDetailModal({ event, onClose, onViewDomain, note, o
       <div
         onClick={e => e.stopPropagation()}
         style={{
-          background: '#14151e', border: '1px solid #2a2c40', borderRadius: 16,
+          background: 'var(--bg-surface)',
+          backdropFilter: 'var(--glass-blur)',
+          border: '1px solid var(--border-strong)',
+          borderRadius: 16,
           width: 460, maxWidth: '90vw', maxHeight: '90vh',
           display: 'flex', flexDirection: 'column',
-          boxShadow: '0 24px 60px rgba(0,0,0,0.5)', overflow: 'hidden',
+          boxShadow: 'var(--shadow-modal)', overflow: 'hidden',
         }}
       >
         {/* Header */}
-        <div style={{ padding: '18px 22px', borderBottom: '1px solid #1e2030', borderTop: `3px solid ${typeColor}`, display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: 12, flexShrink: 0 }}>
+        <div style={{ padding: '18px 22px', borderBottom: '1px solid var(--border)', borderTop: `3px solid ${typeColor}`, display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: 12, flexShrink: 0 }}>
           <div style={{ flex: 1, minWidth: 0 }}>
             <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 8, flexWrap: 'wrap' }}>
               <div style={{ width: 28, height: 28, borderRadius: 7, background: `${typeColor}18`, display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
@@ -80,10 +82,10 @@ export default function EventDetailModal({ event, onClose, onViewDomain, note, o
                 </span>
               )}
             </div>
-            <h2 style={{ margin: 0, fontSize: 16, fontWeight: 600, color: '#e6e7f0', lineHeight: 1.4 }}>{event.title}</h2>
-            {event.domainName && <p style={{ margin: '4px 0 0', fontSize: 12, color: '#7c7e96' }}>{event.domainName}</p>}
+            <h2 style={{ margin: 0, fontSize: 16, fontWeight: 600, color: 'var(--text-primary)', lineHeight: 1.4 }}>{event.title}</h2>
+            {event.domainName && <p style={{ margin: '4px 0 0', fontSize: 12, color: 'var(--text-secondary)' }}>{event.domainName}</p>}
           </div>
-          <button onClick={onClose} style={{ width: 28, height: 28, borderRadius: 7, border: 'none', background: '#1e2030', color: '#7c7e96', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+          <button onClick={onClose} style={{ width: 28, height: 28, borderRadius: 7, border: 'none', background: 'var(--bg-overlay)', color: 'var(--text-secondary)', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
             <X size={14} />
           </button>
         </div>
@@ -92,8 +94,8 @@ export default function EventDetailModal({ event, onClose, onViewDomain, note, o
         <div style={{ overflowY: 'auto', flex: 1 }}>
           <div style={{ padding: '18px 22px', display: 'flex', flexDirection: 'column', gap: 12 }}>
             <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-              <Calendar size={14} color="#4a4c60" />
-              <span style={{ fontSize: 13, color: '#7c7e96' }}>
+              <Calendar size={14} color="var(--text-muted)" />
+              <span style={{ fontSize: 13, color: 'var(--text-secondary)' }}>
                 {event.date.toLocaleDateString('en-GB', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' })}
               </span>
             </div>
@@ -106,8 +108,8 @@ export default function EventDetailModal({ event, onClose, onViewDomain, note, o
                 <Row label="Status" value={<StatusBadge status={d.status} />} />
                 {d.hasNotes && (
                   <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-                    <StickyNote size={13} color="#5b8cff" />
-                    <span style={{ fontSize: 12, color: '#5b8cff' }}>Slides / materials available</span>
+                    <StickyNote size={13} color="var(--accent-blue)" />
+                    <span style={{ fontSize: 12, color: 'var(--accent-blue)' }}>Slides / materials available</span>
                   </div>
                 )}
               </div>
@@ -124,13 +126,13 @@ export default function EventDetailModal({ event, onClose, onViewDomain, note, o
 
             {event.type === 'assignment' && (
               <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
-                <div style={{ background: '#0f1018', borderRadius: 10, padding: '14px 16px', display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
-                  <Stat label="Weight" value={`${d.weight}%`} color="#fbbf24" />
+                <div style={{ background: 'var(--bg-elevated)', borderRadius: 10, padding: '14px 16px', display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
+                  <Stat label="Weight" value={`${d.weight}%`} color="var(--accent-amber)" />
                   <Stat label="Status" value={<StatusBadge status={d.status} />} />
-                  {d.grade != null && <Stat label="Grade" value={`${d.grade}%`} color={d.grade >= 70 ? '#34d399' : '#fb7185'} />}
+                  {d.grade != null && <Stat label="Grade" value={`${d.grade}%`} color={d.grade >= 70 ? 'var(--accent-green)' : 'var(--accent-red)'} />}
                 </div>
                 {(d.status === 'upcoming' || d.status === 'submitted') && (
-                  <div style={{ fontSize: 12, color: '#7c7e96', background: 'rgba(251,191,36,0.06)', border: '1px solid rgba(251,191,36,0.15)', borderRadius: 8, padding: '8px 12px' }}>
+                  <div style={{ fontSize: 12, color: 'var(--text-secondary)', background: 'rgba(251,191,36,0.06)', border: '1px solid rgba(251,191,36,0.15)', borderRadius: 8, padding: '8px 12px' }}>
                     <AlertTriangle size={11} style={{ display: 'inline', marginRight: 4 }} />Due {event.date.toLocaleDateString('en-GB', { day: 'numeric', month: 'short' })}
                     {d.status === 'upcoming' ? ' — not yet submitted' : ' — awaiting mark'}
                   </div>
@@ -139,30 +141,30 @@ export default function EventDetailModal({ event, onClose, onViewDomain, note, o
             )}
 
             {event.type === 'exam' && (
-              <div style={{ background: '#0f1018', borderRadius: 10, padding: '14px 16px', display: 'flex', flexDirection: 'column', gap: 10 }}>
-                {d.time     && <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}><Clock  size={13} color="#4a4c60" /><span style={{ fontSize: 13, color: '#7c7e96' }}>{d.time}</span></div>}
-                {d.location && <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}><MapPin size={13} color="#4a4c60" /><span style={{ fontSize: 13, color: '#7c7e96' }}>{d.location}</span></div>}
+              <div style={{ background: 'var(--bg-elevated)', borderRadius: 10, padding: '14px 16px', display: 'flex', flexDirection: 'column', gap: 10 }}>
+                {d.time     && <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}><Clock  size={13} color="var(--text-muted)" /><span style={{ fontSize: 13, color: 'var(--text-secondary)' }}>{d.time}</span></div>}
+                {d.location && <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}><MapPin size={13} color="var(--text-muted)" /><span style={{ fontSize: 13, color: 'var(--text-secondary)' }}>{d.location}</span></div>}
                 <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                  <span style={{ fontSize: 12, color: '#4a4c60' }}>Worth</span>
-                  <span style={{ fontSize: 14, fontWeight: 700, color: '#fb7185' }}>{d.weight}%</span>
-                  <span style={{ fontSize: 12, color: '#4a4c60' }}>of final grade</span>
+                  <span style={{ fontSize: 12, color: 'var(--text-muted)' }}>Worth</span>
+                  <span style={{ fontSize: 14, fontWeight: 700, color: 'var(--accent-red)' }}>{d.weight}%</span>
+                  <span style={{ fontSize: 12, color: 'var(--text-muted)' }}>of final grade</span>
                 </div>
               </div>
             )}
 
             {!['lecture', 'lab', 'assignment', 'exam'].includes(event.type) && (
               <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
-                {d.time  && <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}><Clock size={13} color="#4a4c60" /><span style={{ fontSize: 13, color: '#7c7e96' }}>{d.time}</span></div>}
-                {d.notes && <div style={{ display: 'flex', alignItems: 'flex-start', gap: 8 }}><AlignLeft size={13} color="#4a4c60" style={{ marginTop: 2, flexShrink: 0 }} /><span style={{ fontSize: 13, color: '#7c7e96', lineHeight: 1.5 }}>{d.notes}</span></div>}
+                {d.time  && <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}><Clock size={13} color="var(--text-muted)" /><span style={{ fontSize: 13, color: 'var(--text-secondary)' }}>{d.time}</span></div>}
+                {d.notes && <div style={{ display: 'flex', alignItems: 'flex-start', gap: 8 }}><AlignLeft size={13} color="var(--text-muted)" style={{ marginTop: 2, flexShrink: 0 }} /><span style={{ fontSize: 13, color: 'var(--text-secondary)', lineHeight: 1.5 }}>{d.notes}</span></div>}
               </div>
             )}
 
-            {/* Notes editor — always visible */}
-            <div style={{ borderTop: '1px solid #1e2030', paddingTop: 14, display: 'flex', flexDirection: 'column', gap: 8 }}>
+            {/* Notes editor */}
+            <div style={{ borderTop: '1px solid var(--border)', paddingTop: 14, display: 'flex', flexDirection: 'column', gap: 8 }}>
               <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-                <StickyNote size={12} color="#a78bfa" />
-                <span style={{ fontSize: 11, fontWeight: 600, color: '#a78bfa', textTransform: 'uppercase', letterSpacing: '0.5px' }}>Notes</span>
-                {note?.trim() && <span style={{ fontSize: 10, color: '#4a4c60', marginLeft: 'auto' }}>{note.length} chars</span>}
+                <StickyNote size={12} color="var(--accent-purple)" />
+                <span style={{ fontSize: 11, fontWeight: 600, color: 'var(--accent-purple)', textTransform: 'uppercase', letterSpacing: '0.5px' }}>Notes</span>
+                {note?.trim() && <span style={{ fontSize: 10, color: 'var(--text-muted)', marginLeft: 'auto' }}>{note.length} chars</span>}
               </div>
               <textarea
                 value={note || ''}
@@ -170,27 +172,27 @@ export default function EventDetailModal({ event, onClose, onViewDomain, note, o
                 placeholder="Write your notes here… (auto-saved)"
                 style={{
                   width: '100%', minHeight: 110, padding: '10px 12px',
-                  borderRadius: 8, border: '1px solid #2a2c40',
-                  background: '#0a0b11', color: '#e6e7f0',
+                  borderRadius: 8, border: '1px solid var(--border-strong)',
+                  background: 'var(--bg-elevated)', color: 'var(--text-primary)',
                   fontSize: 13, lineHeight: 1.7, resize: 'vertical',
                   fontFamily: 'inherit', outline: 'none',
                   boxSizing: 'border-box', transition: 'border-color 0.15s',
                 }}
-                onFocus={e => e.target.style.borderColor = '#a78bfa55'}
-                onBlur={e => e.target.style.borderColor = '#2a2c40'}
+                onFocus={e => e.target.style.borderColor = 'var(--border-focus)'}
+                onBlur={e => e.target.style.borderColor = 'var(--border-strong)'}
               />
             </div>
           </div>
         </div>
 
-        {/* Footer — "View in Domains" cross-link */}
+        {/* Footer */}
         {onViewDomain && event.domainId && (
-          <div style={{ padding: '12px 22px', borderTop: '1px solid #1e2030', flexShrink: 0 }}>
+          <div style={{ padding: '12px 22px', borderTop: '1px solid var(--border)', flexShrink: 0 }}>
             <button
               onClick={() => { onViewDomain(event.domainId); onClose() }}
-              style={{ display: 'flex', alignItems: 'center', gap: 7, background: 'none', border: '1px solid #2a2c40', borderRadius: 8, padding: '8px 14px', cursor: 'pointer', color: '#7c7e96', fontSize: 13, transition: 'all 0.15s' }}
-              onMouseEnter={e => { e.currentTarget.style.borderColor = '#5b8cff'; e.currentTarget.style.color = '#5b8cff' }}
-              onMouseLeave={e => { e.currentTarget.style.borderColor = '#2a2c40'; e.currentTarget.style.color = '#7c7e96' }}
+              style={{ display: 'flex', alignItems: 'center', gap: 7, background: 'none', border: '1px solid var(--border-strong)', borderRadius: 8, padding: '8px 14px', cursor: 'pointer', color: 'var(--text-secondary)', fontSize: 13, transition: 'all 0.15s' }}
+              onMouseEnter={e => { e.currentTarget.style.borderColor = 'var(--accent-blue)'; e.currentTarget.style.color = 'var(--accent-blue)' }}
+              onMouseLeave={e => { e.currentTarget.style.borderColor = 'var(--border-strong)'; e.currentTarget.style.color = 'var(--text-secondary)' }}
             >
               <ExternalLink size={13} /> View in Domains
             </button>

@@ -27,7 +27,6 @@ export default function NotesPage({ eventNotes, customCalendarEvents, domains, o
       .sort((a, b) => b.date - a.date)
   }, [allEvents, eventNotes, search, filterDomain])
 
-  // Domains that actually have notes
   const domainsWithNotes = useMemo(() => {
     const ids = new Set(allEvents.filter(ev => eventNotes?.[ev.id]?.trim()).map(ev => ev.domainId).filter(Boolean))
     return (domains || []).filter(d => ids.has(d.id))
@@ -36,10 +35,9 @@ export default function NotesPage({ eventNotes, customCalendarEvents, domains, o
   return (
     <div style={{ padding: '28px 32px 40px', display: 'flex', flexDirection: 'column', gap: 24, maxWidth: 860 }}>
 
-      {/* Header */}
       <div>
-        <h1 style={{ margin: 0, fontSize: 24, fontWeight: 700, color: '#e6e7f0', letterSpacing: '-0.4px' }}>Notes</h1>
-        <p style={{ margin: '4px 0 0', fontSize: 13, color: '#4a4c60' }}>
+        <h1 style={{ margin: 0, fontSize: 24, fontWeight: 700, color: 'var(--text-primary)', letterSpacing: '-0.4px' }}>Notes</h1>
+        <p style={{ margin: '4px 0 0', fontSize: 13, color: 'var(--text-muted)' }}>
           {notedEvents.length > 0
             ? `${Object.keys(eventNotes || {}).filter(id => eventNotes[id]?.trim()).length} note${Object.keys(eventNotes || {}).filter(id => eventNotes[id]?.trim()).length === 1 ? '' : 's'} across your events`
             : 'Open any event in the Calendar to start taking notes'}
@@ -50,25 +48,24 @@ export default function NotesPage({ eventNotes, customCalendarEvents, domains, o
         <EmptyState />
       ) : (
         <>
-          {/* Filters */}
           <div style={{ display: 'flex', gap: 10, alignItems: 'center' }}>
             <div style={{ position: 'relative', flex: 1, maxWidth: 320 }}>
-              <Search size={13} color="#4a4c60" style={{ position: 'absolute', left: 11, top: '50%', transform: 'translateY(-50%)', pointerEvents: 'none' }} />
+              <Search size={13} color="var(--text-muted)" style={{ position: 'absolute', left: 11, top: '50%', transform: 'translateY(-50%)', pointerEvents: 'none' }} />
               <input
                 value={search}
                 onChange={e => setSearch(e.target.value)}
                 placeholder="Search notes…"
                 style={{
                   width: '100%', padding: '8px 12px 8px 32px',
-                  borderRadius: 8, border: '1px solid #2a2c40',
-                  background: '#0f1018', color: '#e6e7f0', fontSize: 13,
+                  borderRadius: 8, border: '1px solid var(--border-strong)',
+                  background: 'var(--bg-input)', color: 'var(--text-primary)', fontSize: 13,
                   outline: 'none', boxSizing: 'border-box',
                 }}
-                onFocus={e => e.target.style.borderColor = '#3a3c50'}
-                onBlur={e => e.target.style.borderColor = '#2a2c40'}
+                onFocus={e => e.target.style.borderColor = 'var(--border-focus)'}
+                onBlur={e => e.target.style.borderColor = 'var(--border-strong)'}
               />
               {search && (
-                <button onClick={() => setSearch('')} style={{ position: 'absolute', right: 8, top: '50%', transform: 'translateY(-50%)', background: 'none', border: 'none', cursor: 'pointer', color: '#4a4c60', display: 'flex', padding: 2 }}>
+                <button onClick={() => setSearch('')} style={{ position: 'absolute', right: 8, top: '50%', transform: 'translateY(-50%)', background: 'none', border: 'none', cursor: 'pointer', color: 'var(--text-muted)', display: 'flex', padding: 2 }}>
                   <X size={12} />
                 </button>
               )}
@@ -76,7 +73,7 @@ export default function NotesPage({ eventNotes, customCalendarEvents, domains, o
 
             {domainsWithNotes.length > 0 && (
               <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
-                <FilterChip label="All" active={filterDomain === 'all'} color="#5b8cff" onClick={() => setFilterDomain('all')} />
+                <FilterChip label="All" active={filterDomain === 'all'} color="var(--accent-blue)" onClick={() => setFilterDomain('all')} />
                 {domainsWithNotes.map(d => (
                   <FilterChip key={d.id} label={d.code} active={filterDomain === d.id} color={d.color} onClick={() => setFilterDomain(filterDomain === d.id ? 'all' : d.id)} />
                 ))}
@@ -84,9 +81,8 @@ export default function NotesPage({ eventNotes, customCalendarEvents, domains, o
             )}
           </div>
 
-          {/* Notes list */}
           {notedEvents.length === 0 ? (
-            <div style={{ color: '#4a4c60', fontSize: 14, textAlign: 'center', padding: '40px 0' }}>No notes match your search.</div>
+            <div style={{ color: 'var(--text-muted)', fontSize: 14, textAlign: 'center', padding: '40px 0' }}>No notes match your search.</div>
           ) : (
             <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
               {notedEvents.map(ev => (
@@ -109,11 +105,11 @@ function NoteCard({ event, note, onOpenEvent }) {
 
   return (
     <div style={{
-      background: '#0f1018', border: '1px solid #1e2030',
+      background: 'var(--bg-surface)',
+      border: '1px solid var(--border)',
       borderRadius: 12, overflow: 'hidden',
       borderLeft: `3px solid ${typeColor}`,
     }}>
-      {/* Card header */}
       <div style={{ padding: '14px 18px', display: 'flex', alignItems: 'flex-start', gap: 12 }}>
         <div style={{ flex: 1, minWidth: 0 }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 6, flexWrap: 'wrap' }}>
@@ -125,33 +121,32 @@ function NoteCard({ event, note, onOpenEvent }) {
                 {event.domainCode}
               </span>
             )}
-            <span style={{ fontSize: 11, color: '#4a4c60', display: 'flex', alignItems: 'center', gap: 4 }}>
+            <span style={{ fontSize: 11, color: 'var(--text-muted)', display: 'flex', alignItems: 'center', gap: 4 }}>
               <Calendar size={10} />
               {event.date.toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' })}
             </span>
           </div>
-          <h3 style={{ margin: 0, fontSize: 14, fontWeight: 600, color: '#e6e7f0', lineHeight: 1.4 }}>{event.title}</h3>
-          {event.domainName && <p style={{ margin: '2px 0 0', fontSize: 12, color: '#7c7e96' }}>{event.domainName}</p>}
+          <h3 style={{ margin: 0, fontSize: 14, fontWeight: 600, color: 'var(--text-primary)', lineHeight: 1.4 }}>{event.title}</h3>
+          {event.domainName && <p style={{ margin: '2px 0 0', fontSize: 12, color: 'var(--text-secondary)' }}>{event.domainName}</p>}
         </div>
 
         {onOpenEvent && (
           <button
             onClick={() => onOpenEvent(event)}
-            style={{ flexShrink: 0, padding: '5px 10px', borderRadius: 7, border: '1px solid #2a2c40', background: 'none', color: '#7c7e96', fontSize: 11, cursor: 'pointer', whiteSpace: 'nowrap' }}
-            onMouseEnter={e => { e.currentTarget.style.borderColor = '#5b8cff'; e.currentTarget.style.color = '#5b8cff' }}
-            onMouseLeave={e => { e.currentTarget.style.borderColor = '#2a2c40'; e.currentTarget.style.color = '#7c7e96' }}
+            style={{ flexShrink: 0, padding: '5px 10px', borderRadius: 7, border: '1px solid var(--border-strong)', background: 'none', color: 'var(--text-secondary)', fontSize: 11, cursor: 'pointer', whiteSpace: 'nowrap' }}
+            onMouseEnter={e => { e.currentTarget.style.borderColor = 'var(--accent-blue)'; e.currentTarget.style.color = 'var(--accent-blue)' }}
+            onMouseLeave={e => { e.currentTarget.style.borderColor = 'var(--border-strong)'; e.currentTarget.style.color = 'var(--text-secondary)' }}
           >
             Open event
           </button>
         )}
       </div>
 
-      {/* Note body */}
-      <div style={{ padding: '0 18px 14px', borderTop: '1px solid #1a1b28' }}>
+      <div style={{ padding: '0 18px 14px', borderTop: '1px solid var(--border)' }}>
         <div style={{ marginTop: 12 }}>
           <pre style={{
             margin: 0, fontFamily: 'inherit', fontSize: 13,
-            color: '#c4c5d4', lineHeight: 1.7,
+            color: 'var(--text-bright)', lineHeight: 1.7,
             whiteSpace: 'pre-wrap', wordBreak: 'break-word',
           }}>
             {expanded ? note.trim() : preview}{isLong && !expanded ? '…' : ''}
@@ -159,7 +154,7 @@ function NoteCard({ event, note, onOpenEvent }) {
           {isLong && (
             <button
               onClick={() => setExpanded(v => !v)}
-              style={{ marginTop: 8, background: 'none', border: 'none', cursor: 'pointer', color: '#5b8cff', fontSize: 12, padding: 0 }}
+              style={{ marginTop: 8, background: 'none', border: 'none', cursor: 'pointer', color: 'var(--accent-blue)', fontSize: 12, padding: 0 }}
             >
               {expanded ? 'Show less' : 'Show more'}
             </button>
@@ -176,8 +171,8 @@ function FilterChip({ label, active, color, onClick }) {
       onClick={onClick}
       style={{
         padding: '5px 12px', borderRadius: 6, border: 'none', cursor: 'pointer', fontSize: 11, fontWeight: 600,
-        background: active ? `${color}22` : '#1a1b28',
-        color: active ? color : '#7c7e96',
+        background: active ? `${color}22` : 'var(--bg-overlay)',
+        color: active ? color : 'var(--text-secondary)',
         outline: active ? `1.5px solid ${color}44` : '1.5px solid transparent',
         transition: 'all 0.12s',
       }}
@@ -189,13 +184,13 @@ function FilterChip({ label, active, color, onClick }) {
 
 function EmptyState() {
   return (
-    <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 14, padding: '60px 0', color: '#4a4c60', textAlign: 'center' }}>
-      <div style={{ width: 64, height: 64, borderRadius: 16, background: '#14151e', border: '1px solid #1e2030', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-        <StickyNote size={28} color="#2a2c40" />
+    <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 14, padding: '60px 0', color: 'var(--text-muted)', textAlign: 'center' }}>
+      <div style={{ width: 64, height: 64, borderRadius: 16, background: 'var(--bg-surface)', border: '1px solid var(--border)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+        <StickyNote size={28} color="var(--border-strong)" />
       </div>
       <div>
-        <p style={{ margin: 0, fontSize: 15, fontWeight: 600, color: '#7c7e96' }}>No notes yet</p>
-        <p style={{ margin: '6px 0 0', fontSize: 13, color: '#4a4c60', maxWidth: 300, lineHeight: 1.6 }}>
+        <p style={{ margin: 0, fontSize: 15, fontWeight: 600, color: 'var(--text-secondary)' }}>No notes yet</p>
+        <p style={{ margin: '6px 0 0', fontSize: 13, color: 'var(--text-muted)', maxWidth: 300, lineHeight: 1.6 }}>
           Open any event in the Calendar and write notes directly inside the event panel.
         </p>
       </div>

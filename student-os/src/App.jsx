@@ -14,17 +14,17 @@ function ComingSoon({ label }) {
   return (
     <div style={{
       display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center',
-      height: '100%', minHeight: 400, gap: 12, color: '#4a4c60',
+      height: '100%', minHeight: 400, gap: 12, color: 'var(--text-muted)',
     }}>
       <div style={{
-        fontSize: 40, background: '#14151e', border: '1px solid #1e2030',
+        background: 'var(--bg-surface)', border: '1px solid var(--border)',
         width: 72, height: 72, borderRadius: 18,
         display: 'flex', alignItems: 'center', justifyContent: 'center',
       }}>
-        <Construction size={28} color="#4a4c60" />
+        <Construction size={28} color="var(--text-muted)" />
       </div>
-      <h2 style={{ margin: 0, fontSize: 18, fontWeight: 600, color: '#7c7e96' }}>{label}</h2>
-      <p style={{ margin: 0, fontSize: 13, color: '#4a4c60' }}>Coming soon — this section is in development</p>
+      <h2 style={{ margin: 0, fontSize: 18, fontWeight: 600, color: 'var(--text-secondary)' }}>{label}</h2>
+      <p style={{ margin: 0, fontSize: 13, color: 'var(--text-muted)' }}>Coming soon — this section is in development</p>
     </div>
   )
 }
