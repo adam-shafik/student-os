@@ -133,9 +133,9 @@ function applyStrokeErase(strokes, cx, cy, radius) {
 }
 
 // ─── Shape rendering ───────────────────────────────────────────────────────────
-function renderShape(s, bgColor) {
+function renderShape(s) {
   const { shape, x1, y1, x2, y2, color, size, opacity = 1 } = s
-  const ec   = adaptColor(color, bgColor)
+  const ec   = color
   const minX = Math.min(x1, x2), minY = Math.min(y1, y2)
   const w = Math.abs(x2 - x1), h = Math.abs(y2 - y1)
   const cx = (x1 + x2) / 2, cy = (y1 + y2) / 2
@@ -232,6 +232,7 @@ function PageCanvas({ page, pageH, onStrokesChange, penColor, penSize, tool, sha
     isErasingRef.current = false; erasingRef.current = null
   }, [tool])
 
+  const drawColor      = adaptColor(penColor, bgColor)
   const strokes        = page.strokes
   const displayStrokes = erasingStrokes ?? strokes
 
@@ -251,7 +252,7 @@ function PageCanvas({ page, pageH, onStrokesChange, penColor, penSize, tool, sha
     if (!liveShapeRef.current || liveShapeRef.current.type !== type) {
       clearLiveShape()
       const el = document.createElementNS('http://www.w3.org/2000/svg', tagMap[type])
-      el.setAttribute('stroke', penColor)
+      el.setAttribute('stroke', drawColor)
       el.setAttribute('stroke-width', penSize)
       el.setAttribute('fill', 'none')
       el.setAttribute('opacity', opacity)
@@ -314,9 +315,9 @@ function PageCanvas({ page, pageH, onStrokesChange, penColor, penSize, tool, sha
       shapeStartRef.current = pt; shapeModeRef.current = false; setShapeHeld(false)
       holdTimer.current = setTimeout(() => { shapeModeRef.current = true; setShapeHeld(true) }, 450)
     } else {
-      activeStroke.current = { points: [pt], color: penColor, size: penSize, opacity }
+      activeStroke.current = { points: [pt], color: drawColor, size: penSize, opacity }
       const path = document.createElementNS('http://www.w3.org/2000/svg', 'path')
-      path.setAttribute('fill', penColor)
+      path.setAttribute('fill', drawColor)
       path.setAttribute('fill-opacity', opacity)
       path.setAttribute('stroke', 'none')
       livePathRef.current = path
@@ -387,7 +388,7 @@ function PageCanvas({ page, pageH, onStrokesChange, penColor, penSize, tool, sha
         clearLiveShape()
         const type = classifyShape(x1, y1, x2, y2, shapeType)
         if (Math.abs(x2 - x1) > 5 || Math.abs(y2 - y1) > 5)
-          onStrokesChange([...strokes, { shape: type, x1, y1, x2, y2, color: penColor, size: penSize, opacity }])
+          onStrokesChange([...strokes, { shape: type, x1, y1, x2, y2, color: drawColor, size: penSize, opacity }])
       } else { clearLiveShape() }
       shapeModeRef.current = false; shapeStartRef.current = null; setShapeHeld(false)
     } else {
@@ -439,11 +440,11 @@ function PageCanvas({ page, pageH, onStrokesChange, penColor, penSize, tool, sha
           const dx  = sel && isMoving ? moveOff.dx : 0
           const dy  = sel && isMoving ? moveOff.dy : 0
           const tf  = (dx || dy) ? `translate(${dx},${dy})` : undefined
-          if (s.shape) return <g key={i} transform={tf}>{renderShape(s, bgColor)}</g>
+          if (s.shape) return <g key={i} transform={tf}>{renderShape(s)}</g>
           const outline = getStroke(s.points, strokeOpts(s.size, true))
           return (
             <g key={i} transform={tf}>
-              <path fill={adaptColor(s.color, bgColor)} fillOpacity={s.opacity ?? 1} stroke="none" d={toPath(outline)} />
+              <path fill={s.color} fillOpacity={s.opacity ?? 1} stroke="none" d={toPath(outline)} />
             </g>
           )
         })}
