@@ -60,32 +60,7 @@ function adaptColor(color, bg) {
   const lc = hexLuminance(color), lb = hexLuminance(bg)
   const contrast = (Math.max(lc, lb) + 0.05) / (Math.min(lc, lb) + 0.05)
   if (contrast >= 2.5) return color
-  const r = parseInt(color.slice(1, 3), 16) / 255
-  const g = parseInt(color.slice(3, 5), 16) / 255
-  const b = parseInt(color.slice(5, 7), 16) / 255
-  const max = Math.max(r, g, b), min = Math.min(r, g, b), d = max - min
-  let h = 0, s = 0
-  const l = (max + min) / 2
-  if (d > 0) {
-    s = d / (l > 0.5 ? 2 - max - min : max + min)
-    h = max === r ? ((g - b) / d + (g < b ? 6 : 0)) / 6
-      : max === g ? ((b - r) / d + 2) / 6
-      : ((r - g) / d + 4) / 6
-  }
-  const newL = lb > 0.5 ? 0.22 : 0.80
-  const q = newL < 0.5 ? newL * (1 + s) : newL + s - newL * s
-  const p2 = 2 * newL - q
-  const hue = t => {
-    if (t < 0) t += 1; if (t > 1) t -= 1
-    return t < 1 / 6 ? p2 + (q - p2) * 6 * t
-      : t < 1 / 2 ? q
-      : t < 2 / 3 ? p2 + (q - p2) * (2 / 3 - t) * 6
-      : p2
-  }
-  const nr = Math.round(hue(h + 1 / 3) * 255)
-  const ng = Math.round(hue(h) * 255)
-  const nb = Math.round(hue(h - 1 / 3) * 255)
-  return `#${nr.toString(16).padStart(2, '0')}${ng.toString(16).padStart(2, '0')}${nb.toString(16).padStart(2, '0')}`
+  return lb > 0.5 ? '#000000' : '#ffffff'
 }
 
 // ─── Eraser logic ──────────────────────────────────────────────────────────────
@@ -510,6 +485,7 @@ export default function NoteCanvas({
   const maxW         = PAGE_MAX_WIDTHS[orientation] ?? 900
   const opacity      = tool === 'highlighter' ? 0.35 : 1
   const eraserRadius = penSize * 4
+  const drawColor    = adaptColor(penColor, bgColor)
   const totalStrokes = pages.reduce((s, p) => s + p.strokes.length, 0)
 
   function addPage() {
@@ -541,9 +517,9 @@ export default function NoteCanvas({
     return {
       display: 'flex', alignItems: 'center', justifyContent: 'center',
       width: 30, height: 28, borderRadius: 7, border: '1px solid transparent',
-      cursor: 'pointer', background: active ? penColor + '22' : 'none',
-      color: active ? penColor : 'var(--text-muted)',
-      borderColor: active ? penColor + '55' : 'transparent',
+      cursor: 'pointer', background: active ? drawColor + '22' : 'none',
+      color: active ? drawColor : 'var(--text-muted)',
+      borderColor: active ? drawColor + '55' : 'transparent',
     }
   }
 
@@ -593,9 +569,9 @@ export default function NoteCanvas({
                     <button key={m} onClick={() => setEraserMode(m)} style={{
                       padding: '4px 9px', borderRadius: 6, border: '1px solid transparent',
                       cursor: 'pointer', fontSize: 11,
-                      background: eraserMode === m ? penColor + '22' : 'none',
-                      color: eraserMode === m ? penColor : 'var(--text-muted)',
-                      borderColor: eraserMode === m ? penColor + '55' : 'transparent',
+                      background: eraserMode === m ? drawColor + '22' : 'none',
+                      color: eraserMode === m ? drawColor : 'var(--text-muted)',
+                      borderColor: eraserMode === m ? drawColor + '55' : 'transparent',
                     }}>{label}</button>
                   ))}
                 </div>
@@ -604,15 +580,19 @@ export default function NoteCanvas({
             )}
 
             <div style={{ display: 'flex', gap: 7, alignItems: 'center' }}>
-              {PRESETS.map(c => (
-                <button key={c} onClick={() => setPenColor(c)} style={{
-                  width: 17, height: 17, borderRadius: '50%', background: c,
-                  border: 'none', cursor: 'pointer', padding: 0, flexShrink: 0,
-                  outline: penColor === c ? `2.5px solid ${c}` : '2px solid transparent',
-                  outlineOffset: 2, transform: penColor === c ? 'scale(1.25)' : 'scale(1)',
-                  transition: 'transform 0.12s',
-                }} />
-              ))}
+              {PRESETS.map(c => {
+                const active = penColor === c
+                return (
+                  <button key={c} onClick={() => setPenColor(c)} style={{
+                    width: 17, height: 17, borderRadius: '50%',
+                    background: active ? drawColor : c,
+                    border: 'none', cursor: 'pointer', padding: 0, flexShrink: 0,
+                    outline: active ? `2.5px solid ${drawColor}` : '2px solid transparent',
+                    outlineOffset: 2, transform: active ? 'scale(1.25)' : 'scale(1)',
+                    transition: 'transform 0.12s',
+                  }} />
+                )
+              })}
               <div style={{ position: 'relative', width: 17, height: 17, flexShrink: 0 }}>
                 <div style={{
                   width: 17, height: 17, borderRadius: '50%',
@@ -635,7 +615,7 @@ export default function NoteCanvas({
                 return (
                   <button key={s} onClick={() => setPenSize(s)} style={{
                     width: d, height: d, borderRadius: '50%',
-                    background: penSize === s ? penColor : 'var(--text-muted)',
+                    background: penSize === s ? drawColor : 'var(--text-muted)',
                     border: 'none', cursor: 'pointer', padding: 0, flexShrink: 0,
                     transition: 'background 0.12s',
                   }} />
@@ -685,9 +665,9 @@ export default function NoteCanvas({
                   <button key={o} onClick={() => onSettingsChange({ orientation: o })} style={{
                     padding: '4px 9px', borderRadius: 6, border: '1px solid transparent',
                     cursor: 'pointer', fontSize: 11, textTransform: 'capitalize',
-                    background: orientation === o ? penColor + '22' : 'none',
-                    color: orientation === o ? penColor : 'var(--text-muted)',
-                    borderColor: orientation === o ? penColor + '55' : 'transparent',
+                    background: orientation === o ? drawColor + '22' : 'none',
+                    color: orientation === o ? drawColor : 'var(--text-muted)',
+                    borderColor: orientation === o ? drawColor + '55' : 'transparent',
                   }}>{o}</button>
                 ))}
               </div>
@@ -700,9 +680,9 @@ export default function NoteCanvas({
                   <button key={t} onClick={() => onSettingsChange({ template: t })} style={{
                     padding: '4px 9px', borderRadius: 6, border: '1px solid transparent',
                     cursor: 'pointer', fontSize: 11, textTransform: 'capitalize',
-                    background: template === t ? penColor + '22' : 'none',
-                    color: template === t ? penColor : 'var(--text-muted)',
-                    borderColor: template === t ? penColor + '55' : 'transparent',
+                    background: template === t ? drawColor + '22' : 'none',
+                    color: template === t ? drawColor : 'var(--text-muted)',
+                    borderColor: template === t ? drawColor + '55' : 'transparent',
                   }}>{t}</button>
                 ))}
               </div>
@@ -738,9 +718,9 @@ export default function NoteCanvas({
                       <button key={val} onClick={() => onSettingsChange({ lineSpacing: val })} style={{
                         padding: '4px 8px', borderRadius: 6, border: '1px solid transparent',
                         cursor: 'pointer', fontSize: 11,
-                        background: lineSpacing === val ? penColor + '22' : 'none',
-                        color: lineSpacing === val ? penColor : 'var(--text-muted)',
-                        borderColor: lineSpacing === val ? penColor + '55' : 'transparent',
+                        background: lineSpacing === val ? drawColor + '22' : 'none',
+                        color: lineSpacing === val ? drawColor : 'var(--text-muted)',
+                        borderColor: lineSpacing === val ? drawColor + '55' : 'transparent',
                       }}>{label}</button>
                     ))}
                   </div>
