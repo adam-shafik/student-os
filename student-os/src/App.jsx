@@ -8,9 +8,25 @@ import CalendarPage from './pages/CalendarPage'
 import NotesPage from './pages/NotesPage'
 import TodosPage from './pages/TodosPage'
 import StudyPage, { FloatingTimerWidget, playChime } from './pages/StudyPage'
+import AuthPage from './pages/AuthPage'
 import { initialDomains } from './data/domains'
+import { supabase } from './lib/supabase'
 
 export default function App() {
+  const [session,     setSession]     = useState(null)
+  const [authLoading, setAuthLoading] = useState(true)
+
+  useEffect(() => {
+    supabase.auth.getSession().then(({ data: { session } }) => {
+      setSession(session)
+      setAuthLoading(false)
+    })
+    const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
+      setSession(session)
+    })
+    return () => subscription.unsubscribe()
+  }, [])
+
   const [theme, setTheme] = useState(getStoredTheme)
   useEffect(() => { applyTheme(theme) }, [])
 
@@ -210,9 +226,12 @@ export default function App() {
   const linkedEventsFor = (domainId) =>
     customCalendarEvents.filter(ev => ev.domainId === domainId)
 
+  if (authLoading) return null
+  if (!session) return <AuthPage />
+
   return (
     <>
-    <Layout currentPage={currentPage} onNavigate={handleNavigate} theme={theme} onThemeChange={handleThemeChange}>
+    <Layout currentPage={currentPage} onNavigate={handleNavigate} theme={theme} onThemeChange={handleThemeChange} onSignOut={() => supabase.auth.signOut()}>
       {currentPage === 'domains' && (
         <DomainsPage
           domains={domains}
