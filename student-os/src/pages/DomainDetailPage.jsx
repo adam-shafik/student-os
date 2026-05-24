@@ -22,7 +22,15 @@ function DomainIcon({ name, size = 16, color }) {
 }
 
 import { resolveTypeLabel, resolveTypeColor, parseSubjectDate } from '../utils/calendarEvents'
+import { totalTeachingWeeks } from '../utils/semester'
 import EventDetailModal from '../components/EventDetailModal'
+
+const TOTAL_WEEKS = totalTeachingWeeks()
+const CONF_LEVELS = [
+  { key: 'not_started', label: 'Not Started', color: '#4a4c60', bg: 'rgba(74,76,96,0.15)'   },
+  { key: 'reviewed',    label: 'Reviewed',    color: '#fbbf24', bg: 'rgba(251,191,36,0.12)' },
+  { key: 'confident',   label: 'Confident',   color: '#34d399', bg: 'rgba(52,211,153,0.12)' },
+]
 
 function lectureEvent(domain, lecture, idx) {
   return {
@@ -322,36 +330,229 @@ function AssignmentsTab({ domain, onOpenEvent, eventNotes }) {
   )
 }
 
-function LabsTab({ domain, onOpenEvent, eventNotes }) {
+function LabsTab({ domain, onOpenEvent, eventNotes, onNewNote, notes, onOpenNote }) {
+  const [openWeeks, setOpenWeeks] = useState(() => {
+    const o = {}
+    ;(domain.labs || []).forEach(l => { o[l.week] = true })
+    return o
+  })
+  const byWeek = (domain.labs || []).reduce((acc, lab) => {
+    if (!acc[lab.week]) acc[lab.week] = []
+    acc[lab.week].push(lab)
+    return acc
+  }, {})
+
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
-      {(domain.labs || []).map(lab => {
-        const ev = labEvent(domain, lab)
-        const hasNote = !!eventNotes?.[ev.id]?.trim()
-        const iconBg = lab.status === 'completed' ? 'rgba(52,211,153,0.1)' : lab.status === 'in-progress' ? 'rgba(91,140,255,0.1)' : 'var(--bg-overlay)'
-        const iconColor = lab.status === 'completed' ? 'var(--accent-green)' : lab.status === 'in-progress' ? 'var(--accent-blue)' : 'var(--text-muted)'
+      {Object.entries(byWeek).sort(([a], [b]) => Number(a) - Number(b)).map(([week, labs]) => {
+        const isOpen    = openWeeks[week]
+        const allDone   = labs.every(l => l.status === 'completed')
+        const hasActive = labs.some(l  => l.status === 'in-progress')
+        const wColor    = allDone ? 'var(--accent-green)' : hasActive ? 'var(--accent-blue)' : 'var(--text-muted)'
+        const wColorHex = allDone ? '#34d399' : hasActive ? '#5b8cff' : '#4a4c60'
         return (
-          <SectionCard key={lab.id}>
-            <ClickableRow onClick={() => onOpenEvent(ev)} style={{ padding: '16px 22px', display: 'flex', alignItems: 'center', gap: 14 }}>
-              <div style={{ width: 36, height: 36, borderRadius: 9, flexShrink: 0, background: iconBg, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-                <FlaskConical size={16} color={iconColor} />
+          <SectionCard key={week}>
+            <div style={{ display: 'flex', alignItems: 'center' }}>
+              <button
+                onClick={() => setOpenWeeks(prev => ({ ...prev, [week]: !prev[week] }))}
+                style={{ flex: 1, display: 'flex', alignItems: 'center', gap: 12, padding: '14px 20px', background: 'none', border: 'none', cursor: 'pointer', textAlign: 'left' }}
+              >
+                <div style={{ width: 28, height: 28, borderRadius: 7, background: `${wColorHex}18`, display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+                  <span style={{ fontSize: 11, fontWeight: 700, color: wColor }}>W{week}</span>
+                </div>
+                <div style={{ flex: 1 }}>
+                  <span style={{ fontSize: 13, fontWeight: 500, color: 'var(--text-primary)' }}>Week {week}</span>
+                  <span style={{ fontSize: 12, color: 'var(--text-muted)', marginLeft: 8 }}>
+                    {labs.length} lab{labs.length > 1 ? 's' : ''}
+                    {allDone ? <span style={{ color: 'var(--accent-green)' }}> · Done</span> : hasActive ? <span style={{ color: 'var(--accent-blue)' }}> · In Progress</span> : ''}
+                  </span>
+                </div>
+                {isOpen ? <ChevronDown size={15} color="var(--text-muted)" /> : <ChevronRight size={15} color="var(--text-muted)" />}
+              </button>
+              {onNewNote && (
+                <button
+                  onClick={e => { e.stopPropagation(); onNewNote({ domainId: domain.id, academicWeek: Number(week) }) }}
+                  title="New note for this week's labs"
+                  style={{ display: 'flex', alignItems: 'center', gap: 5, margin: '0 14px', padding: '5px 10px', borderRadius: 7, border: '1px solid var(--border)', background: 'none', color: 'var(--text-muted)', cursor: 'pointer', fontSize: 11, whiteSpace: 'nowrap', flexShrink: 0 }}
+                  onMouseEnter={e => { e.currentTarget.style.color = 'var(--accent-purple)'; e.currentTarget.style.borderColor = 'var(--accent-purple)' }}
+                  onMouseLeave={e => { e.currentTarget.style.color = 'var(--text-muted)'; e.currentTarget.style.borderColor = 'var(--border)' }}
+                >
+                  <PenLine size={12} /> Note
+                </button>
+              )}
+            </div>
+            {isOpen && (
+              <div style={{ borderTop: '1px solid var(--border)' }}>
+                {labs.map((lab, i) => {
+                  const ev           = labEvent(domain, lab)
+                  const labNotes     = (notes || []).filter(n => n.eventId === ev.id)
+                  const hasEventNote = !!eventNotes?.[ev.id]?.trim()
+                  const iconBg    = lab.status === 'completed' ? 'rgba(52,211,153,0.1)' : lab.status === 'in-progress' ? 'rgba(91,140,255,0.1)' : 'var(--bg-overlay)'
+                  const iconColor = lab.status === 'completed' ? 'var(--accent-green)' : lab.status === 'in-progress' ? 'var(--accent-blue)' : 'var(--text-muted)'
+                  return (
+                    <div key={lab.id} style={{ borderBottom: i < labs.length - 1 ? '1px solid var(--border)' : 'none' }}>
+                      <ClickableRow onClick={() => onOpenEvent(ev)} style={{ padding: '13px 20px', display: 'flex', alignItems: 'center', gap: 14 }}>
+                        <div style={{ width: 34, height: 34, borderRadius: 9, flexShrink: 0, background: iconBg, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                          <FlaskConical size={15} color={iconColor} />
+                        </div>
+                        <div style={{ flex: 1 }}>
+                          <div style={{ fontSize: 13, fontWeight: 500, color: 'var(--text-primary)', marginBottom: 2 }}>{lab.title}</div>
+                          <div style={{ fontSize: 11, color: 'var(--text-muted)', display: 'flex', alignItems: 'center', gap: 4 }}>
+                            <Calendar size={10} />{lab.date}
+                          </div>
+                        </div>
+                        <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
+                          {labNotes.map(n => (
+                            <button
+                              key={n.id}
+                              onClick={e => { e.stopPropagation(); onOpenNote?.(n.id) }}
+                              style={{ display: 'flex', alignItems: 'center', gap: 4, padding: '3px 8px', borderRadius: 5, border: '1px solid rgba(167,139,250,0.3)', background: 'rgba(167,139,250,0.08)', color: 'var(--accent-purple)', cursor: 'pointer', fontSize: 10 }}
+                            >
+                              <PenLine size={9} />{n.title || 'Note'}
+                            </button>
+                          ))}
+                          {hasEventNote && (
+                            <span style={{ fontSize: 10, color: 'var(--accent-purple)', background: 'rgba(167,139,250,0.12)', padding: '2px 7px', borderRadius: 4, display: 'flex', alignItems: 'center', gap: 3 }}>
+                              <StickyNote size={9} /> Notes
+                            </span>
+                          )}
+                          {onNewNote && (
+                            <button
+                              onClick={e => { e.stopPropagation(); onNewNote({ domainId: domain.id, academicWeek: lab.week, eventId: ev.id }) }}
+                              title="New handwritten note for this lab"
+                              style={{ display: 'flex', alignItems: 'center', gap: 4, padding: '3px 8px', borderRadius: 5, border: '1px solid var(--border)', background: 'none', color: 'var(--text-muted)', cursor: 'pointer', fontSize: 10 }}
+                              onMouseEnter={e => { e.currentTarget.style.color = 'var(--accent-purple)'; e.currentTarget.style.borderColor = 'var(--accent-purple)' }}
+                              onMouseLeave={e => { e.currentTarget.style.color = 'var(--text-muted)'; e.currentTarget.style.borderColor = 'var(--border)' }}
+                            >
+                              <PenLine size={9} /> Note
+                            </button>
+                          )}
+                          <StatusBadge status={lab.status} />
+                        </div>
+                      </ClickableRow>
+                    </div>
+                  )
+                })}
+              </div>
+            )}
+          </SectionCard>
+        )
+      })}
+    </div>
+  )
+}
+
+function StudyTab({ domain, studySessions, notes, weekConfidence, onSetWeekConfidence, onNewNote, onOpenNote }) {
+  const [openWeeks, setOpenWeeks] = useState({})
+  const domainConf = (weekConfidence || {})[domain.id] || {}
+
+  function cycleConf(week, e) {
+    e.stopPropagation()
+    const current = domainConf[week] || 'not_started'
+    const idx = CONF_LEVELS.findIndex(l => l.key === current)
+    const next = CONF_LEVELS[(idx + 1) % CONF_LEVELS.length].key
+    onSetWeekConfidence?.(domain.id, week, next)
+  }
+
+  return (
+    <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+      {Array.from({ length: TOTAL_WEEKS }, (_, i) => i + 1).map(week => {
+        const sessions  = (studySessions || []).filter(s => s.domainId === domain.id && s.academicWeek === week)
+        const weekNotes = (notes || []).filter(n => n.domainId === domain.id && n.academicWeek === week && !n.studySessionId)
+        const conf      = domainConf[week] || 'not_started'
+        const confCfg   = CONF_LEVELS.find(l => l.key === conf) || CONF_LEVELS[0]
+        const hasData   = sessions.length > 0 || weekNotes.length > 0
+        const isOpen    = openWeeks[week]
+        return (
+          <SectionCard key={week}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 12, padding: '12px 20px' }}>
+              <div style={{ width: 32, height: 32, borderRadius: 8, background: `${confCfg.color}18`, display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+                <span style={{ fontSize: 11, fontWeight: 700, color: confCfg.color }}>W{week}</span>
               </div>
               <div style={{ flex: 1 }}>
-                <div style={{ fontSize: 14, fontWeight: 500, color: 'var(--text-primary)', marginBottom: 3 }}>{lab.title}</div>
-                <div style={{ display: 'flex', gap: 10, alignItems: 'center' }}>
-                  <span style={{ fontSize: 11, fontWeight: 600, color: domain.color, background: domain.colorMuted, padding: '2px 6px', borderRadius: 4 }}>Week {lab.week}</span>
-                  <span style={{ fontSize: 12, color: 'var(--text-muted)', display: 'flex', alignItems: 'center', gap: 4 }}><Calendar size={11} />{lab.date}</span>
-                </div>
-              </div>
-              <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-                {hasNote && (
-                  <span title="Has notes" style={{ fontSize: 10, color: 'var(--accent-purple)', background: 'rgba(167,139,250,0.12)', padding: '3px 7px', borderRadius: 4, display: 'flex', alignItems: 'center', gap: 3 }}>
-                    <StickyNote size={9} /> Notes
+                <span style={{ fontSize: 13, fontWeight: 500, color: 'var(--text-primary)' }}>Week {week}</span>
+                {hasData && (
+                  <span style={{ fontSize: 12, color: 'var(--text-muted)', marginLeft: 8 }}>
+                    {[
+                      sessions.length  > 0 && `${sessions.length} session${sessions.length > 1 ? 's' : ''}`,
+                      weekNotes.length > 0 && `${weekNotes.length} note${weekNotes.length > 1 ? 's' : ''}`,
+                    ].filter(Boolean).join(' · ')}
                   </span>
                 )}
-                <StatusBadge status={lab.status} />
               </div>
-            </ClickableRow>
+              {onNewNote && (
+                <button
+                  onClick={e => { e.stopPropagation(); onNewNote({ domainId: domain.id, academicWeek: week }) }}
+                  style={{ display: 'flex', alignItems: 'center', gap: 4, padding: '4px 9px', borderRadius: 6, border: '1px solid var(--border)', background: 'none', color: 'var(--text-muted)', cursor: 'pointer', fontSize: 11, flexShrink: 0 }}
+                  onMouseEnter={e => { e.currentTarget.style.color = 'var(--accent-purple)'; e.currentTarget.style.borderColor = 'var(--accent-purple)' }}
+                  onMouseLeave={e => { e.currentTarget.style.color = 'var(--text-muted)'; e.currentTarget.style.borderColor = 'var(--border)' }}
+                >
+                  <PenLine size={11} /> Note
+                </button>
+              )}
+              <button
+                onClick={e => cycleConf(week, e)}
+                style={{ display: 'flex', alignItems: 'center', gap: 5, padding: '5px 10px', borderRadius: 6, border: `1px solid ${confCfg.color}40`, background: confCfg.bg, color: confCfg.color, cursor: 'pointer', fontSize: 11, fontWeight: 600, flexShrink: 0, transition: 'all 0.12s' }}
+              >
+                {confCfg.label}
+              </button>
+              {hasData && (
+                <button
+                  onClick={() => setOpenWeeks(prev => ({ ...prev, [week]: !prev[week] }))}
+                  style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--text-muted)', display: 'flex', padding: 4, borderRadius: 5, flexShrink: 0 }}
+                >
+                  {isOpen ? <ChevronDown size={15} /> : <ChevronRight size={15} />}
+                </button>
+              )}
+            </div>
+            {isOpen && hasData && (
+              <div style={{ borderTop: '1px solid var(--border)' }}>
+                {sessions.map((s, i) => {
+                  const isLast    = i === sessions.length - 1 && weekNotes.length === 0
+                  const sColor    = s.status === 'completed' ? '#34d399' : '#fbbf24'
+                  const totalMins = s.pomodoroWork * s.roundsCompleted
+                  return (
+                    <div key={s.id} style={{ display: 'flex', alignItems: 'center', gap: 12, padding: '11px 20px', borderBottom: isLast ? 'none' : '1px solid var(--border)' }}>
+                      <div style={{ width: 8, height: 8, borderRadius: '50%', background: sColor, flexShrink: 0 }} />
+                      <div style={{ flex: 1 }}>
+                        <div style={{ fontSize: 13, fontWeight: 500, color: 'var(--text-primary)' }}>{s.topic || 'Study Session'}</div>
+                        <div style={{ fontSize: 11, color: 'var(--text-muted)', marginTop: 2 }}>
+                          {s.roundsCompleted}/{s.totalRounds} rounds · {totalMins}min
+                          {' · '}{new Date(s.startedAt).toLocaleDateString('en-GB', { day: 'numeric', month: 'short' })}
+                        </div>
+                      </div>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                        {s.noteId && onOpenNote && (
+                          <button
+                            onClick={() => onOpenNote(s.noteId)}
+                            style={{ display: 'flex', alignItems: 'center', gap: 4, padding: '3px 8px', borderRadius: 5, border: '1px solid rgba(167,139,250,0.3)', background: 'rgba(167,139,250,0.08)', color: 'var(--accent-purple)', cursor: 'pointer', fontSize: 10 }}
+                          >
+                            <PenLine size={9} /> Open Note
+                          </button>
+                        )}
+                        <span style={{ fontSize: 10, fontWeight: 600, padding: '2px 7px', borderRadius: 4, background: `${sColor}18`, color: sColor }}>{s.status}</span>
+                      </div>
+                    </div>
+                  )
+                })}
+                {weekNotes.map((note, i) => (
+                  <div
+                    key={note.id}
+                    onClick={() => onOpenNote?.(note.id)}
+                    style={{ display: 'flex', alignItems: 'center', gap: 12, padding: '11px 20px', borderBottom: i < weekNotes.length - 1 ? '1px solid var(--border)' : 'none', cursor: 'pointer' }}
+                  >
+                    <PenLine size={13} color="var(--accent-purple)" />
+                    <div style={{ flex: 1 }}>
+                      <div style={{ fontSize: 13, fontWeight: 500, color: 'var(--text-primary)' }}>{note.title || 'Untitled Note'}</div>
+                      <div style={{ fontSize: 11, color: 'var(--text-muted)', marginTop: 2 }}>
+                        Note · {new Date(note.updatedAt).toLocaleDateString('en-GB', { day: 'numeric', month: 'short' })}
+                      </div>
+                    </div>
+                    <ChevronRight size={14} color="var(--text-muted)" />
+                  </div>
+                ))}
+              </div>
+            )}
           </SectionCard>
         )
       })}
@@ -536,10 +737,10 @@ function EventRow({ event, isLast, onClick }) {
 }
 
 // ─── Main page ─────────────────────────────────────────────────────────────────
-export default function DomainDetailPage({ domain, linkedEvents, onBack, eventNotes, onUpdateNote, onNewNote }) {
+export default function DomainDetailPage({ domain, linkedEvents, onBack, eventNotes, onUpdateNote, onNewNote, studySessions, notes, weekConfidence, onSetWeekConfidence, onOpenNote }) {
   const isAcademic = domain.category === 'academic'
   const TABS = isAcademic
-    ? ['Overview', 'Lectures', 'Assignments', 'Labs', 'Exams']
+    ? ['Overview', 'Lectures', 'Assignments', 'Labs', 'Exams', 'Study']
     : ['Overview', 'Events']
   const [activeTab, setActiveTab] = useState('Overview')
   const [openEvent, setOpenEvent] = useState(null)
@@ -619,8 +820,9 @@ export default function DomainDetailPage({ domain, linkedEvents, onBack, eventNo
           {activeTab === 'Overview'    && <OverviewTab    domain={domain} onOpenEvent={setOpenEvent} />}
           {activeTab === 'Lectures'    && <LecturesTab    domain={domain} onOpenEvent={setOpenEvent} eventNotes={eventNotes} onNewNote={onNewNote} />}
           {activeTab === 'Assignments' && <AssignmentsTab domain={domain} onOpenEvent={setOpenEvent} eventNotes={eventNotes} />}
-          {activeTab === 'Labs'        && <LabsTab        domain={domain} onOpenEvent={setOpenEvent} eventNotes={eventNotes} />}
+          {activeTab === 'Labs'        && <LabsTab        domain={domain} onOpenEvent={setOpenEvent} eventNotes={eventNotes} onNewNote={onNewNote} notes={notes} onOpenNote={onOpenNote} />}
           {activeTab === 'Exams'       && <ExamsTab       domain={domain} onOpenEvent={setOpenEvent} eventNotes={eventNotes} />}
+          {activeTab === 'Study'       && <StudyTab       domain={domain} studySessions={studySessions} notes={notes} weekConfidence={weekConfidence} onSetWeekConfidence={onSetWeekConfidence} onNewNote={onNewNote} onOpenNote={onOpenNote} />}
         </>
       ) : (
         <>

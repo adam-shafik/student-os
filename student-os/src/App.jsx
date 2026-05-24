@@ -1,5 +1,4 @@
-import { useState, useEffect } from 'react'
-import { Construction } from 'lucide-react'
+import { useState, useEffect, useRef } from 'react'
 import { getStoredTheme, applyTheme } from './theme'
 import './App.css'
 import Layout from './components/Layout'
@@ -8,26 +7,8 @@ import DomainDetailPage from './pages/DomainDetailPage'
 import CalendarPage from './pages/CalendarPage'
 import NotesPage from './pages/NotesPage'
 import TodosPage from './pages/TodosPage'
+import StudyPage, { FloatingTimerWidget, playChime } from './pages/StudyPage'
 import { initialDomains } from './data/domains'
-
-function ComingSoon({ label }) {
-  return (
-    <div style={{
-      display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center',
-      height: '100%', minHeight: 400, gap: 12, color: 'var(--text-muted)',
-    }}>
-      <div style={{
-        background: 'var(--bg-surface)', border: '1px solid var(--border)',
-        width: 72, height: 72, borderRadius: 18,
-        display: 'flex', alignItems: 'center', justifyContent: 'center',
-      }}>
-        <Construction size={28} color="var(--text-muted)" />
-      </div>
-      <h2 style={{ margin: 0, fontSize: 18, fontWeight: 600, color: 'var(--text-secondary)' }}>{label}</h2>
-      <p style={{ margin: 0, fontSize: 13, color: 'var(--text-muted)' }}>Coming soon — this section is in development</p>
-    </div>
-  )
-}
 
 export default function App() {
   const [theme, setTheme] = useState(getStoredTheme)
@@ -46,6 +27,7 @@ export default function App() {
   const [eventNotes,    setEventNotes]    = useState({})
   const [notes,         setNotes]         = useState([])
   const [noteToOpen,    setNoteToOpen]    = useState(null)
+  const [weekConfidence, setWeekConfidence] = useState({})
   const [todos,         setTodos]         = useState([
     { id: 'todo-1', title: 'Review Week 6 lecture slides', domainId: 'cs301', dueDate: '2026-03-10', priority: 'high',   done: false, createdAt: '2026-03-05T10:00:00Z' },
     { id: 'todo-2', title: 'Finish Graph Algorithm Coursework', domainId: 'cs301', dueDate: '2026-03-10', priority: 'high',   done: false, createdAt: '2026-03-05T10:01:00Z' },
@@ -87,9 +69,110 @@ export default function App() {
     setEventNotes(prev => ({ ...prev, [eventId]: text }))
   }
 
+  const handleSetWeekConfidence = (domainId, week, level) =>
+    setWeekConfidence(prev => ({ ...prev, [domainId]: { ...(prev[domainId] || {}), [week]: level } }))
+
   const handleAddTodo    = (todo) => setTodos(prev => [...prev, todo])
   const handleToggleTodo = (id)   => setTodos(prev => prev.map(t => t.id === id ? { ...t, done: !t.done } : t))
   const handleDeleteTodo = (id)   => setTodos(prev => prev.filter(t => t.id !== id))
+
+  const [studySessions, setStudySessions] = useState([])
+  const [activeSession, setActiveSession] = useState(null)
+  const [soundEnabled,  setSoundEnabled]  = useState(true)
+  const soundEnabledRef = useRef(true)
+  soundEnabledRef.current = soundEnabled
+
+  // Countdown — fires every second while running
+  useEffect(() => {
+    if (!activeSession?.isRunning || activeSession.phase === 'done' || activeSession.secondsLeft <= 0) return
+    const id = setTimeout(() => {
+      setActiveSession(prev => prev?.isRunning ? { ...prev, secondsLeft: prev.secondsLeft - 1 } : prev)
+    }, 1000)
+    return () => clearTimeout(id)
+  }, [activeSession?.secondsLeft, activeSession?.isRunning])
+
+  // Phase transition when secondsLeft hits 0
+  useEffect(() => {
+    if (!activeSession || activeSession.secondsLeft !== 0 || activeSession.phase === 'done') return
+    if (soundEnabledRef.current) playChime()
+    setActiveSession(prev => {
+      if (!prev || prev.secondsLeft !== 0 || prev.phase === 'done') return prev
+      if (prev.phase === 'work') {
+        const roundsCompleted = prev.roundsCompleted + 1
+        if (roundsCompleted >= prev.totalRounds) {
+          return { ...prev, phase: 'done', isRunning: false, roundsCompleted }
+        }
+        return { ...prev, phase: 'break', secondsLeft: prev.pomodoroBreak * 60, roundsCompleted }
+      }
+      return { ...prev, phase: 'work', secondsLeft: prev.pomodoroWork * 60, currentRound: prev.currentRound + 1 }
+    })
+  }, [activeSession?.secondsLeft])
+
+  const handleStartSession = ({ domainId, topic, academicWeek, pomodoroWork, pomodoroBreak, totalRounds, withNote }) => {
+    const ts        = Date.now()
+    const sessionId = `session-${ts}`
+    let noteId      = null
+    if (withNote) {
+      noteId = `note-study-${ts}`
+      const domain = domains.find(d => d.id === domainId)
+      setNotes(prev => [...prev, {
+        id: noteId,
+        title: topic || `Study Session`,
+        pages: [{ id: `page-${ts}`, strokes: [] }],
+        template: 'lined', bgColor: '#f8f7f2', lineSpacing: 32, orientation: 'portrait',
+        createdAt: new Date().toISOString(), updatedAt: new Date().toISOString(),
+        domainId: domainId || null, academicWeek: academicWeek || null,
+        eventId: null, studySessionId: sessionId,
+      }])
+      setNoteToOpen(noteId)
+      handleNavigate('notes')
+    }
+    setActiveSession({
+      id: sessionId, domainId, topic, academicWeek,
+      pomodoroWork, pomodoroBreak, totalRounds, noteId,
+      phase: 'work', currentRound: 1, roundsCompleted: 0,
+      secondsLeft: pomodoroWork * 60, isRunning: true,
+      widgetHidden: false, widgetBlurred: false,
+      startedAt: new Date().toISOString(),
+    })
+  }
+
+  const handleEndSession = () => {
+    if (!activeSession) return
+    setStudySessions(prev => [{
+      id: activeSession.id, domainId: activeSession.domainId, topic: activeSession.topic,
+      academicWeek: activeSession.academicWeek, pomodoroWork: activeSession.pomodoroWork,
+      pomodoroBreak: activeSession.pomodoroBreak, totalRounds: activeSession.totalRounds,
+      roundsCompleted: activeSession.roundsCompleted, noteId: activeSession.noteId,
+      status: activeSession.phase === 'done' ? 'completed' : 'abandoned',
+      startedAt: activeSession.startedAt, endedAt: new Date().toISOString(),
+    }, ...prev])
+    setActiveSession(null)
+  }
+
+  const handlePauseResume = () =>
+    setActiveSession(prev => prev ? { ...prev, isRunning: !prev.isRunning } : null)
+
+  const handleSkipPhase = () =>
+    setActiveSession(prev => {
+      if (!prev) return null
+      if (prev.phase === 'work') {
+        const roundsCompleted = prev.roundsCompleted + 1
+        if (roundsCompleted >= prev.totalRounds)
+          return { ...prev, phase: 'done', isRunning: false, roundsCompleted, secondsLeft: 0 }
+        return { ...prev, phase: 'break', secondsLeft: prev.pomodoroBreak * 60, roundsCompleted }
+      }
+      return { ...prev, phase: 'work', secondsLeft: prev.pomodoroWork * 60, currentRound: prev.currentRound + 1 }
+    })
+
+  const handleToggleWidgetHidden  = () => setActiveSession(prev => prev ? { ...prev, widgetHidden:  !prev.widgetHidden  } : null)
+  const handleToggleWidgetBlurred = () => setActiveSession(prev => prev ? { ...prev, widgetBlurred: !prev.widgetBlurred } : null)
+
+  const handleOpenNoteFromSession = (noteId) => {
+    if (!noteId) return
+    setNoteToOpen(noteId)
+    handleNavigate('notes')
+  }
 
   const handleAddNote = (note) => setNotes(prev => [...prev, note])
   const handleUpdateNoteData = (id, updates) =>
@@ -128,6 +211,7 @@ export default function App() {
     customCalendarEvents.filter(ev => ev.domainId === domainId)
 
   return (
+    <>
     <Layout currentPage={currentPage} onNavigate={handleNavigate} theme={theme} onThemeChange={handleThemeChange}>
       {currentPage === 'domains' && (
         <DomainsPage
@@ -146,6 +230,11 @@ export default function App() {
           eventNotes={eventNotes}
           onUpdateNote={handleUpdateNote}
           onNewNote={handleNewNoteForContext}
+          studySessions={studySessions}
+          notes={notes}
+          weekConfidence={weekConfidence}
+          onSetWeekConfidence={handleSetWeekConfidence}
+          onOpenNote={handleOpenNoteFromSession}
         />
       )}
       {currentPage === 'calendar' && (
@@ -158,7 +247,20 @@ export default function App() {
           onUpdateNote={handleUpdateNote}
         />
       )}
-      {currentPage === 'study' && <ComingSoon label="Study Session" />}
+      {currentPage === 'study' && (
+        <StudyPage
+          domains={domains}
+          studySessions={studySessions}
+          activeSession={activeSession}
+          onStartSession={handleStartSession}
+          onEndSession={handleEndSession}
+          onPauseResume={handlePauseResume}
+          onSkipPhase={handleSkipPhase}
+          soundEnabled={soundEnabled}
+          onToggleSound={() => setSoundEnabled(v => !v)}
+          onOpenNote={handleOpenNoteFromSession}
+        />
+      )}
       {currentPage === 'notes' && (
         <NotesPage
           notes={notes}
@@ -180,5 +282,17 @@ export default function App() {
         />
       )}
     </Layout>
+    {activeSession && currentPage !== 'study' && (
+      <FloatingTimerWidget
+        session={activeSession}
+        domain={domains.find(d => d.id === activeSession.domainId)}
+        onPauseResume={handlePauseResume}
+        onSkipPhase={handleSkipPhase}
+        onGoToStudy={() => handleNavigate('study')}
+        onToggleHidden={handleToggleWidgetHidden}
+        onToggleBlurred={handleToggleWidgetBlurred}
+      />
+    )}
+    </>
   )
 }
