@@ -44,16 +44,75 @@ export default function App() {
   const [notes,         setNotes]         = useState([])
   const [noteToOpen,    setNoteToOpen]    = useState(null)
   const [weekConfidence, setWeekConfidence] = useState({})
-  const [todos,         setTodos]         = useState([
-    { id: 'todo-1', title: 'Review Week 6 lecture slides', domainId: 'cs301', dueDate: '2026-03-10', priority: 'high',   done: false, createdAt: '2026-03-05T10:00:00Z' },
-    { id: 'todo-2', title: 'Finish Graph Algorithm Coursework', domainId: 'cs301', dueDate: '2026-03-10', priority: 'high',   done: false, createdAt: '2026-03-05T10:01:00Z' },
-    { id: 'todo-3', title: 'Redo Transaction Management notes', domainId: 'cs302', dueDate: '2026-03-20', priority: 'medium', done: false, createdAt: '2026-03-05T10:02:00Z' },
-    { id: 'todo-4', title: 'Read Chapter 4 of the textbook',   domainId: 'cs303', dueDate: null,         priority: 'low',    done: false, createdAt: '2026-03-05T10:03:00Z' },
-    { id: 'todo-5', title: 'Practice past exam papers',        domainId: 'cs301', dueDate: '2026-05-10', priority: 'medium', done: false, createdAt: '2026-03-05T10:04:00Z' },
-    { id: 'todo-6', title: 'Email Dr. Smith about coursework', domainId: null,    dueDate: '2026-03-08', priority: 'medium', done: false, createdAt: '2026-03-05T10:05:00Z' },
-    { id: 'todo-7', title: 'Buy revision stationery',          domainId: null,    dueDate: null,         priority: 'low',    done: true,  createdAt: '2026-03-04T09:00:00Z' },
-    { id: 'todo-8', title: 'Submit SQL assignment',            domainId: 'cs302', dueDate: '2026-03-01', priority: 'high',   done: true,  createdAt: '2026-03-01T08:00:00Z' },
-  ])
+  const [todos,         setTodos]         = useState([])
+
+  const userId = session?.user?.id
+
+  useEffect(() => {
+    if (!userId) return
+
+    supabase.from('todos').select('*').eq('user_id', userId).order('created_at', { ascending: false })
+      .then(({ data }) => {
+        if (data) setTodos(data.map(r => ({
+          id: r.id, title: r.title, domainId: r.domain_id, dueDate: r.due_date,
+          priority: r.priority, done: r.done, createdAt: r.created_at,
+        })))
+      })
+
+    supabase.from('custom_calendar_events').select('*').eq('user_id', userId)
+      .then(({ data }) => {
+        if (data) setCustomCalendarEvents(data.map(r => ({
+          id: r.id, type: r.type, title: r.title,
+          date: new Date(r.date + 'T00:00:00'),
+          domainId: r.domain_id, academicWeek: r.academic_week,
+        })))
+      })
+
+    supabase.from('event_notes').select('*').eq('user_id', userId)
+      .then(({ data }) => {
+        if (data) {
+          const map = {}
+          data.forEach(r => { map[r.event_id] = r.text })
+          setEventNotes(map)
+        }
+      })
+
+    supabase.from('week_confidence').select('*').eq('user_id', userId)
+      .then(({ data }) => {
+        if (data) {
+          const map = {}
+          data.forEach(r => {
+            if (!map[r.domain_id]) map[r.domain_id] = {}
+            map[r.domain_id][r.week] = r.status
+          })
+          setWeekConfidence(map)
+        }
+      })
+
+    supabase.from('study_sessions').select('*').eq('user_id', userId).order('started_at', { ascending: false })
+      .then(({ data }) => {
+        if (data) setStudySessions(data.map(r => ({
+          id: r.id, domainId: r.domain_id, topic: r.topic,
+          academicWeek: r.academic_week, pomodoroWork: r.pomodoro_work,
+          pomodoroBreak: r.pomodoro_break, totalRounds: r.total_rounds,
+          roundsCompleted: r.rounds_completed, noteId: r.note_id,
+          status: r.status, startedAt: r.started_at, endedAt: r.ended_at,
+        })))
+      })
+
+    supabase.from('notes').select('*, note_pages(id, page_order, strokes)').eq('user_id', userId).order('updated_at', { ascending: false })
+      .then(({ data }) => {
+        if (data) setNotes(data.map(n => ({
+          id: n.id, title: n.title, domainId: n.domain_id, academicWeek: n.academic_week,
+          eventId: n.event_id, studySessionId: n.study_session_id,
+          template: n.template, bgColor: n.bg_color, lineSpacing: n.line_spacing,
+          orientation: n.orientation, createdAt: n.created_at, updatedAt: n.updated_at,
+          pages: (n.note_pages || []).sort((a, b) => a.page_order - b.page_order).map(p => ({
+            id: p.id, strokes: p.strokes || [],
+          })),
+        })))
+      })
+  }, [userId])
 
   const handleNavigate = (page) => {
     setPreviousPage(currentPage)
@@ -78,19 +137,54 @@ export default function App() {
   }
 
   const handleAddCalendarEvent = (event) => {
-    setCustomCalendarEvents(prev => [...prev, event])
+    const id = crypto.randomUUID()
+    setCustomCalendarEvents(prev => [...prev, { ...event, id }])
+    const d = event.date
+    const dateStr = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`
+    supabase.from('custom_calendar_events').insert({
+      id, user_id: userId, type: event.type, title: event.title,
+      date: dateStr, domain_id: event.domainId || null, academic_week: event.academicWeek || null,
+    })
   }
 
   const handleUpdateNote = (eventId, text) => {
     setEventNotes(prev => ({ ...prev, [eventId]: text }))
+    supabase.from('event_notes').upsert(
+      { user_id: userId, event_id: eventId, text, updated_at: new Date().toISOString() },
+      { onConflict: 'user_id,event_id' }
+    )
   }
 
-  const handleSetWeekConfidence = (domainId, week, level) =>
+  const handleSetWeekConfidence = (domainId, week, level) => {
     setWeekConfidence(prev => ({ ...prev, [domainId]: { ...(prev[domainId] || {}), [week]: level } }))
+    supabase.from('week_confidence').upsert(
+      { user_id: userId, domain_id: domainId, week, status: level },
+      { onConflict: 'user_id,domain_id,week' }
+    )
+  }
 
-  const handleAddTodo    = (todo) => setTodos(prev => [...prev, todo])
-  const handleToggleTodo = (id)   => setTodos(prev => prev.map(t => t.id === id ? { ...t, done: !t.done } : t))
-  const handleDeleteTodo = (id)   => setTodos(prev => prev.filter(t => t.id !== id))
+  const handleAddTodo = (todo) => {
+    const id  = crypto.randomUUID()
+    const now = new Date().toISOString()
+    setTodos(prev => [...prev, { ...todo, id, createdAt: now }])
+    supabase.from('todos').insert({
+      id, user_id: userId, title: todo.title, domain_id: todo.domainId || null,
+      due_date: todo.dueDate || null, priority: todo.priority, done: false, created_at: now,
+    })
+  }
+
+  const handleToggleTodo = (id) => {
+    setTodos(prev => prev.map(t => {
+      if (t.id !== id) return t
+      supabase.from('todos').update({ done: !t.done }).eq('id', id)
+      return { ...t, done: !t.done }
+    }))
+  }
+
+  const handleDeleteTodo = (id) => {
+    setTodos(prev => prev.filter(t => t.id !== id))
+    supabase.from('todos').delete().eq('id', id)
+  }
 
   const [studySessions, setStudySessions] = useState([])
   const [activeSession, setActiveSession] = useState(null)
@@ -125,21 +219,31 @@ export default function App() {
   }, [activeSession?.secondsLeft])
 
   const handleStartSession = ({ domainId, topic, academicWeek, pomodoroWork, pomodoroBreak, totalRounds, withNote }) => {
-    const ts        = Date.now()
-    const sessionId = `session-${ts}`
+    const sessionId = crypto.randomUUID()
     let noteId      = null
     if (withNote) {
-      noteId = `note-study-${ts}`
-      const domain = domains.find(d => d.id === domainId)
-      setNotes(prev => [...prev, {
-        id: noteId,
-        title: topic || `Study Session`,
-        pages: [{ id: `page-${ts}`, strokes: [] }],
+      noteId = crypto.randomUUID()
+      const pageId  = crypto.randomUUID()
+      const now     = new Date().toISOString()
+      const newNote = {
+        id: noteId, title: topic || 'Study Session',
+        pages: [{ id: pageId, strokes: [] }],
         template: 'lined', bgColor: '#f8f7f2', lineSpacing: 32, orientation: 'portrait',
-        createdAt: new Date().toISOString(), updatedAt: new Date().toISOString(),
+        createdAt: now, updatedAt: now,
         domainId: domainId || null, academicWeek: academicWeek || null,
         eventId: null, studySessionId: sessionId,
-      }])
+      }
+      setNotes(prev => [...prev, newNote])
+      supabase.from('notes').insert({
+        id: noteId, user_id: userId, title: newNote.title,
+        domain_id: newNote.domainId, academic_week: newNote.academicWeek,
+        study_session_id: sessionId, event_id: null,
+        template: newNote.template, bg_color: newNote.bgColor,
+        line_spacing: newNote.lineSpacing, orientation: newNote.orientation,
+        created_at: now, updated_at: now,
+      }).then(() => {
+        supabase.from('note_pages').insert({ note_id: noteId, page_order: 0, strokes: [] })
+      })
       setNoteToOpen(noteId)
       handleNavigate('notes')
     }
@@ -155,14 +259,23 @@ export default function App() {
 
   const handleEndSession = () => {
     if (!activeSession) return
-    setStudySessions(prev => [{
+    const endedAt = new Date().toISOString()
+    const record  = {
       id: activeSession.id, domainId: activeSession.domainId, topic: activeSession.topic,
       academicWeek: activeSession.academicWeek, pomodoroWork: activeSession.pomodoroWork,
       pomodoroBreak: activeSession.pomodoroBreak, totalRounds: activeSession.totalRounds,
       roundsCompleted: activeSession.roundsCompleted, noteId: activeSession.noteId,
       status: activeSession.phase === 'done' ? 'completed' : 'abandoned',
-      startedAt: activeSession.startedAt, endedAt: new Date().toISOString(),
-    }, ...prev])
+      startedAt: activeSession.startedAt, endedAt,
+    }
+    setStudySessions(prev => [record, ...prev])
+    supabase.from('study_sessions').insert({
+      id: record.id, user_id: userId, domain_id: record.domainId, topic: record.topic,
+      academic_week: record.academicWeek, pomodoro_work: record.pomodoroWork,
+      pomodoro_break: record.pomodoroBreak, total_rounds: record.totalRounds,
+      rounds_completed: record.roundsCompleted, note_id: record.noteId,
+      status: record.status, started_at: record.startedAt, ended_at: endedAt,
+    })
     setActiveSession(null)
   }
 
@@ -190,24 +303,71 @@ export default function App() {
     handleNavigate('notes')
   }
 
-  const handleAddNote = (note) => setNotes(prev => [...prev, note])
+  const handleAddNote = (note) => {
+    const id     = crypto.randomUUID()
+    const pageId = crypto.randomUUID()
+    const now    = new Date().toISOString()
+    const newNote = { ...note, id, pages: [{ id: pageId, strokes: [] }], createdAt: now, updatedAt: now }
+    setNotes(prev => [...prev, newNote])
+    supabase.from('notes').insert({
+      id, user_id: userId, title: newNote.title, domain_id: newNote.domainId || null,
+      academic_week: newNote.academicWeek || null, event_id: newNote.eventId || null,
+      study_session_id: null, template: newNote.template, bg_color: newNote.bgColor,
+      line_spacing: newNote.lineSpacing, orientation: newNote.orientation,
+      created_at: now, updated_at: now,
+    }).then(() => {
+      supabase.from('note_pages').insert({ note_id: id, page_order: 0, strokes: [] })
+    })
+  }
+
   const handleUpdateNoteData = (id, updates) =>
     setNotes(prev => prev.map(n => n.id === id ? { ...n, ...updates, updatedAt: new Date().toISOString() } : n))
-  const handleDeleteNote = (id) => setNotes(prev => prev.filter(n => n.id !== id))
+
+  const handleDeleteNote = (id) => {
+    setNotes(prev => prev.filter(n => n.id !== id))
+    supabase.from('notes').delete().eq('id', id)  // note_pages cascade deletes
+  }
+
+  const handleSaveNote = async (noteId) => {
+    const note = notes.find(n => n.id === noteId)
+    if (!note) return
+    const now = new Date().toISOString()
+    await supabase.from('notes').update({
+      title: note.title, template: note.template, bg_color: note.bgColor,
+      line_spacing: note.lineSpacing, orientation: note.orientation, updated_at: now,
+    }).eq('id', noteId)
+    await supabase.from('note_pages').delete().eq('note_id', noteId)
+    if (note.pages.length > 0) {
+      await supabase.from('note_pages').insert(
+        note.pages.map((p, i) => ({ note_id: noteId, page_order: i, strokes: p.strokes }))
+      )
+    }
+    setNotes(prev => prev.map(n => n.id === noteId ? { ...n, updatedAt: now } : n))
+  }
 
   // Called from DomainDetailPage — creates note, navigates, signals NotesPage to auto-open it
   const handleNewNoteForContext = (meta = {}) => {
-    const id = `note-${Date.now()}`
-    setNotes(prev => [...prev, {
+    const id     = crypto.randomUUID()
+    const pageId = crypto.randomUUID()
+    const now    = new Date().toISOString()
+    const newNote = {
       id, title: 'Untitled Note',
-      pages: [{ id: `page-${Date.now()}`, strokes: [] }],
+      pages: [{ id: pageId, strokes: [] }],
       template: 'blank', bgColor: '#f8f7f2', lineSpacing: 32, orientation: 'portrait',
-      createdAt: new Date().toISOString(), updatedAt: new Date().toISOString(),
-      domainId: meta.domainId || null,
-      academicWeek: meta.academicWeek || null,
-      eventId: meta.eventId || null,
-      studySessionId: null,
-    }])
+      createdAt: now, updatedAt: now,
+      domainId: meta.domainId || null, academicWeek: meta.academicWeek || null,
+      eventId: meta.eventId || null, studySessionId: null,
+    }
+    setNotes(prev => [...prev, newNote])
+    supabase.from('notes').insert({
+      id, user_id: userId, title: newNote.title, domain_id: newNote.domainId,
+      academic_week: newNote.academicWeek, event_id: newNote.eventId,
+      study_session_id: null, template: newNote.template, bg_color: newNote.bgColor,
+      line_spacing: newNote.lineSpacing, orientation: newNote.orientation,
+      created_at: now, updated_at: now,
+    }).then(() => {
+      supabase.from('note_pages').insert({ note_id: id, page_order: 0, strokes: [] })
+    })
     setNoteToOpen(id)
     handleNavigate('notes')
   }
@@ -289,6 +449,7 @@ export default function App() {
           onAddNote={handleAddNote}
           onUpdateNote={handleUpdateNoteData}
           onDeleteNote={handleDeleteNote}
+          onSaveNote={handleSaveNote}
         />
       )}
       {currentPage === 'todos' && (
