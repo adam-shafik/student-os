@@ -1,16 +1,21 @@
-import { semesterConfig } from '../data/semester'
+import { semesterConfig as _defaultConfig } from '../data/semester'
 
 const MS = 86400000
 const d0 = date => { const n = new Date(date); n.setHours(0, 0, 0, 0); return n }
 
+// Module-level config — updated by App.jsx once user profile is loaded from DB
+let _config = _defaultConfig
+export function setSemesterConfig(config) { _config = config }
+export function getSemesterConfig() { return _config }
+
 export function isInSemester(date) {
   const d = d0(date)
-  return d >= d0(semesterConfig.start) && d <= d0(semesterConfig.end)
+  return d >= d0(_config.start) && d <= d0(_config.end)
 }
 
 export function getBreakForDate(date) {
   const d = d0(date)
-  return semesterConfig.breaks.find(b => d >= d0(b.start) && d <= d0(b.end)) || null
+  return _config.breaks.find(b => d >= d0(b.start) && d <= d0(b.end)) || null
 }
 
 // Returns academic teaching week number (1-based) or null if outside semester / in break
@@ -18,11 +23,11 @@ export function getAcademicWeek(date) {
   const d = d0(date)
   if (!isInSemester(d) || getBreakForDate(d)) return null
 
-  const semStart = d0(semesterConfig.start)
+  const semStart = d0(_config.start)
 
   // Count break days that fall strictly before d
   let breakDays = 0
-  for (const brk of semesterConfig.breaks) {
+  for (const brk of _config.breaks) {
     const bStart = d0(brk.start)
     const bEnd   = d0(brk.end)
     if (bStart < d) {
@@ -38,7 +43,7 @@ export function getAcademicWeek(date) {
 
 // Total number of teaching weeks in the semester
 export function totalTeachingWeeks() {
-  const { start, end, breaks } = semesterConfig
+  const { start, end, breaks } = _config
   const totalDays = Math.round((d0(end) - d0(start)) / MS) + 1
   const breakDays = breaks.reduce((sum, b) => {
     return sum + Math.round((d0(b.end) - d0(b.start)) / MS) + 1

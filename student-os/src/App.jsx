@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef } from 'react'
+import { useState, useEffect, useRef, useMemo } from 'react'
 import { getStoredTheme, applyTheme } from './theme'
 import './App.css'
 import Layout from './components/Layout'
@@ -9,12 +9,16 @@ import NotesPage from './pages/NotesPage'
 import TodosPage from './pages/TodosPage'
 import StudyPage, { FloatingTimerWidget, playChime } from './pages/StudyPage'
 import AuthPage from './pages/AuthPage'
-import { initialDomains } from './data/domains'
+import OnboardingPage from './pages/OnboardingPage'
 import { supabase } from './lib/supabase'
+import { setSemesterConfig, getSemesterConfig } from './utils/semester'
+import { buildScheduleEvents } from './utils/calendarEvents'
 
 export default function App() {
-  const [session,     setSession]     = useState(null)
-  const [authLoading, setAuthLoading] = useState(true)
+  const [session,        setSession]        = useState(null)
+  const [authLoading,    setAuthLoading]    = useState(true)
+  const [profileChecked, setProfileChecked] = useState(false)
+  const [userProfile,    setUserProfile]    = useState(null)  // null = no profile yet
 
   useEffect(() => {
     supabase.auth.getSession().then(({ data: { session } }) => {
@@ -23,6 +27,7 @@ export default function App() {
     })
     const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
       setSession(session)
+      if (!session) { setProfileChecked(false); setUserProfile(null) }
     })
     return () => subscription.unsubscribe()
   }, [])
@@ -38,18 +43,81 @@ export default function App() {
   const [currentPage,    setCurrentPage]    = useState('domains')
   const [previousPage,   setPreviousPage]   = useState(null)
   const [selectedDomain, setSelectedDomain] = useState(null)
-  const [domains,        setDomains]        = useState(initialDomains)
+  const [domains,        setDomains]        = useState([])
+  const [scheduleSlots,  setScheduleSlots]  = useState([])
   const [customCalendarEvents, setCustomCalendarEvents] = useState([])
   const [eventNotes,    setEventNotes]    = useState({})
   const [notes,         setNotes]         = useState([])
   const [noteToOpen,    setNoteToOpen]    = useState(null)
   const [weekConfidence, setWeekConfidence] = useState({})
   const [todos,         setTodos]         = useState([])
+  const [semConfig,     setSemConfig]     = useState(null)
 
   const userId = session?.user?.id
 
+  // Build semesterConfig shape from user_profiles + semester_breaks DB rows
+  function buildSemesterConfig(profile, dbBreaks) {
+    return {
+      start: new Date(profile.semester_start + 'T00:00:00'),
+      end:   new Date(profile.semester_end   + 'T00:00:00'),
+      breaks: (dbBreaks || []).map(b => {
+        const returnMon = new Date(b.return_monday + 'T00:00:00')
+        const breakEnd  = new Date(returnMon)
+        breakEnd.setDate(breakEnd.getDate() - 1)
+        return {
+          name:      b.name,
+          shortName: b.name.split(' ')[0],
+          color:     '#fbbf24',
+          start:     new Date(b.start_monday + 'T00:00:00'),
+          end:       breakEnd,
+        }
+      }),
+    }
+  }
+
+  function dbDomainToLocal(r) {
+    return {
+      id: r.id, name: r.name, code: r.code, category: r.category || 'academic',
+      color: r.color || '#5b8cff', icon: r.icon || 'BookOpen',
+      professor: r.professor, credits: r.credits,
+      semester: r.semester_label, description: r.description,
+      progress: r.progress || 0,
+      lectures: [], labs: [], assignments: [], exams: [],
+    }
+  }
+
   useEffect(() => {
     if (!userId) return
+
+    // Check if user has completed onboarding
+    supabase.from('user_profiles').select('*').eq('id', userId).maybeSingle()
+      .then(({ data }) => {
+        if (data) {
+          setUserProfile(data)
+          // Load semester breaks and build the dynamic semester config
+          supabase.from('semester_breaks').select('*').eq('user_id', userId)
+            .then(({ data: breaks }) => {
+              const config = buildSemesterConfig(data, breaks || [])
+              setSemesterConfig(config)  // Updates the semester utils module
+              setSemConfig(config)
+            })
+        }
+        setProfileChecked(true)
+      })
+
+    // Load domains from Supabase
+    supabase.from('domains').select('*').eq('user_id', userId).order('created_at')
+      .then(({ data }) => { if (data) setDomains(data.map(dbDomainToLocal)) })
+
+    // Load schedule slots
+    supabase.from('domain_schedule_slots').select('*').eq('user_id', userId)
+      .then(({ data }) => {
+        if (data) setScheduleSlots(data.map(r => ({
+          id: r.id, domainId: r.domain_id, dayOfWeek: r.day_of_week,
+          startTime: r.start_time?.substring(0, 5) || r.start_time,
+          durationMinutes: r.duration_minutes, slotType: r.slot_type,
+        })))
+      })
 
     supabase.from('todos').select('*').eq('user_id', userId).order('created_at', { ascending: false })
       .then(({ data }) => {
@@ -132,8 +200,76 @@ export default function App() {
     setPreviousPage(null)
   }
 
+  // Auto-generated domain events from schedule slots + semester config
+  const domainEvents = useMemo(
+    () => buildScheduleEvents(domains, scheduleSlots, semConfig || getSemesterConfig()),
+    [domains, scheduleSlots, semConfig]
+  )
+
+  const handleCompleteOnboarding = async ({ profile, semBreaks, domains: newDomains, slots }) => {
+    const now = new Date().toISOString()
+
+    // Save profile
+    const { error: profErr } = await supabase.from('user_profiles').upsert({
+      id: userId, ...profile, created_at: now, updated_at: now,
+    })
+    if (profErr) throw profErr
+
+    // Save breaks
+    if (semBreaks.length) {
+      await supabase.from('semester_breaks').delete().eq('user_id', userId)
+      const { error: brkErr } = await supabase.from('semester_breaks').insert(
+        semBreaks.map(b => ({ id: crypto.randomUUID(), user_id: userId, name: b.name, start_monday: b.startMonday, return_monday: b.returnMonday }))
+      )
+      if (brkErr) throw brkErr
+    }
+
+    // Save domains
+    if (newDomains.length) {
+      const { error: domErr } = await supabase.from('domains').insert(
+        newDomains.map(d => ({
+          id: d.id, user_id: userId, name: d.name, code: d.code || null,
+          category: d.category, color: d.color, icon: d.icon || 'BookOpen',
+          professor: d.professor || null, credits: d.credits || null,
+          progress: 0, created_at: now, updated_at: now,
+        }))
+      )
+      if (domErr) throw domErr
+      setDomains(newDomains.map(d => ({ ...d, lectures:[], labs:[], assignments:[], exams:[] })))
+    }
+
+    // Save schedule slots
+    if (slots.length) {
+      const { error: slotErr } = await supabase.from('domain_schedule_slots').insert(
+        slots.map(s => ({
+          id: s.id, user_id: userId, domain_id: s.domainId,
+          day_of_week: s.dayOfWeek, start_time: s.startTime,
+          duration_minutes: s.durationMinutes, slot_type: s.slotType,
+        }))
+      )
+      if (slotErr) throw slotErr
+      setScheduleSlots(slots)
+    }
+
+    // Apply semester config to utils
+    const config = buildSemesterConfig(profile, semBreaks.map(b => ({
+      ...b, start_monday: b.startMonday, return_monday: b.returnMonday,
+    })))
+    setSemesterConfig(config)
+    setSemConfig(config)
+    setUserProfile(profile)
+  }
+
   const handleCreateDomain = (domain) => {
-    setDomains(prev => [...prev, domain])
+    const now = new Date().toISOString()
+    const withDefaults = { ...domain, lectures:[], labs:[], assignments:[], exams:[] }
+    setDomains(prev => [...prev, withDefaults])
+    supabase.from('domains').insert({
+      id: domain.id, user_id: userId, name: domain.name, code: domain.code || null,
+      category: domain.category, color: domain.color, icon: domain.icon || 'BookOpen',
+      professor: domain.professor || null, credits: domain.credits || null,
+      progress: 0, created_at: now, updated_at: now,
+    })
   }
 
   const handleAddCalendarEvent = (event) => {
@@ -395,6 +531,8 @@ export default function App() {
 
   if (authLoading) return null
   if (!session) return <AuthPage />
+  if (!profileChecked) return null
+  if (!userProfile) return <OnboardingPage userId={userId} onComplete={handleCompleteOnboarding} />
 
   return (
     <>
@@ -426,6 +564,7 @@ export default function App() {
       {currentPage === 'calendar' && (
         <CalendarPage
           domains={domains}
+          domainEvents={domainEvents}
           customEvents={customCalendarEvents}
           onViewDomain={handleViewDomainById}
           onAddCalendarEvent={handleAddCalendarEvent}

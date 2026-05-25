@@ -1,5 +1,3 @@
-import { initialDomains } from '../data/domains'
-
 // ─── Date parsing ─────────────────────────────────────────────────────────────
 const MONTH_SHORT = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec']
 
@@ -38,94 +36,73 @@ export function resolveTypeColor(event) {
   return EVENT_TYPES[event.type]?.color || '#9ca3af'
 }
 
-// ─── Derive events from domains data ─────────────────────────────────────────
-// GOOGLE CALENDAR HOOK: In the future, merge getDomainEvents() output with
-// events fetched from the Google Calendar API (after OAuth2 auth). The event
-// shape below is designed to accommodate external events with domainId: null.
-export function getDomainEvents() {
-  const events = []
+// ─── Build schedule events from user's weekly slots + semester config ─────────
+// Generates a lecture/lab event for every teaching week based on slots set in onboarding.
+// GOOGLE CALENDAR HOOK: In the future, merge this output with events from the Google
+// Calendar API (after OAuth2 auth). The event shape is designed to accommodate external
+// events with domainId: null.
+export function buildScheduleEvents(domains, scheduleSlots, config) {
+  if (!domains?.length || !scheduleSlots?.length || !config) return []
 
-  initialDomains.forEach(domain => {
-    if (!domain.lectures && !domain.labs && !domain.assignments && !domain.exams) return
+  const { start, end, breaks } = config
+  const events     = []
+  const domainMap  = Object.fromEntries(domains.map(d => [d.id, d]))
+  const d0         = date => { const n = new Date(date); n.setHours(0,0,0,0); return n }
+  const semStart   = d0(start)
+  const semEnd     = d0(end)
 
-    ;(domain.lectures || []).forEach((lecture, i) => {
-      events.push({
-        id: `${domain.id}-lecture-w${lecture.week}-${i}`,
-        type: 'lecture',
-        title: lecture.title,
-        date: parseSubjectDate(lecture.date),
-        domainId: domain.id,
-        domainCode: domain.code,
-        domainName: domain.name,
-        domainColor: domain.color,
-        details: {
-          week: lecture.week,
-          status: lecture.status,
-          hasNotes: lecture.hasNotes,
-        },
-      })
+  let weekMonday = new Date(semStart)
+  let weekNum    = 1
+
+  while (weekMonday <= semEnd) {
+    const wednesday = new Date(weekMonday)
+    wednesday.setDate(wednesday.getDate() + 2)
+
+    const inBreak = breaks.some(b => {
+      const bs = d0(b.start)
+      const be = d0(b.end)
+      return wednesday >= bs && wednesday <= be
     })
 
-    ;(domain.labs || []).forEach(lab => {
-      events.push({
-        id: `${domain.id}-${lab.id}`,
-        type: 'lab',
-        title: lab.title,
-        date: parseSubjectDate(lab.date),
-        domainId: domain.id,
-        domainCode: domain.code,
-        domainName: domain.name,
-        domainColor: domain.color,
-        details: {
-          week: lab.week,
-          status: lab.status,
-        },
-      })
-    })
+    if (!inBreak) {
+      for (const slot of scheduleSlots) {
+        const domain = domainMap[slot.domainId]
+        if (!domain) continue
 
-    ;(domain.assignments || []).forEach(assignment => {
-      events.push({
-        id: `${domain.id}-${assignment.id}`,
-        type: 'assignment',
-        title: assignment.title,
-        date: parseSubjectDate(assignment.dueDate),
-        domainId: domain.id,
-        domainCode: domain.code,
-        domainName: domain.name,
-        domainColor: domain.color,
-        details: {
-          weight: assignment.weight,
-          status: assignment.status,
-          grade: assignment.grade,
-          assignmentId: assignment.id,
-        },
-      })
-    })
+        const eventDate = new Date(weekMonday)
+        eventDate.setDate(eventDate.getDate() + slot.dayOfWeek) // 0=Mon…4=Fri
 
-    ;(domain.exams || []).forEach(exam => {
-      events.push({
-        id: `${domain.id}-${exam.id}`,
-        type: 'exam',
-        title: exam.title,
-        date: parseSubjectDate(exam.date),
-        domainId: domain.id,
-        domainCode: domain.code,
-        domainName: domain.name,
-        domainColor: domain.color,
-        details: {
-          time: exam.time,
-          location: exam.location,
-          weight: exam.weight,
-          status: exam.status,
-        },
-      })
-    })
-  })
+        if (eventDate > semEnd) continue
+
+        events.push({
+          id: `schedule-${slot.id}-w${weekNum}`,
+          type: slot.slotType,
+          title: domain.code || domain.name,
+          date: eventDate,
+          domainId: domain.id,
+          domainCode: domain.code,
+          domainName: domain.name,
+          domainColor: domain.color,
+          details: {
+            week: weekNum,
+            time: slot.startTime,
+            duration: slot.durationMinutes,
+            status: 'upcoming',
+          },
+        })
+      }
+      weekNum++
+    }
+
+    weekMonday = new Date(weekMonday)
+    weekMonday.setDate(weekMonday.getDate() + 7)
+  }
 
   return events
 }
 
-// Backward-compat alias
+// Legacy no-op — replaced by buildScheduleEvents
+export function getDomainEvents() { return [] }
 export const getSubjectEvents = getDomainEvents
 
 // ─── Calendar grid helpers ────────────────────────────────────────────────────

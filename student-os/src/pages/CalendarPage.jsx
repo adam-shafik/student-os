@@ -2,7 +2,7 @@ import { useState, useMemo } from 'react'
 import { ChevronLeft, ChevronRight, Plus, X, ChevronUp, ChevronDown, Check } from 'lucide-react'
 import {
   EVENT_TYPES, TYPE_PRIORITY, MONTHS, WEEKDAYS,
-  getDomainEvents, getCalendarDays, dateKey,
+  getCalendarDays, dateKey,
   resolveTypeLabel, resolveTypeColor,
 } from '../utils/calendarEvents'
 import { getWeekRowInfo, getAcademicWeek, getBreakForDate } from '../utils/semester'
@@ -397,7 +397,7 @@ const navBtn = {
 }
 
 // ─── Calendar page ────────────────────────────────────────────────────────────
-export default function CalendarPage({ domains = [], customEvents = [], onViewDomain, onAddCalendarEvent, eventNotes = {}, onUpdateNote }) {
+export default function CalendarPage({ domains = [], domainEvents = [], customEvents = [], onViewDomain, onAddCalendarEvent, eventNotes = {}, onUpdateNote }) {
   const today = new Date()
   const [viewDate,      setViewDate]      = useState(new Date(today.getFullYear(), today.getMonth(), 1))
   const [selectedEvent, setSelectedEvent] = useState(null)
@@ -410,8 +410,7 @@ export default function CalendarPage({ domains = [], customEvents = [], onViewDo
   const nextMonth = () => setViewDate(new Date(year, month + 1, 1))
   const goToday   = () => setViewDate(new Date(today.getFullYear(), today.getMonth(), 1))
 
-  const domainEvents = useMemo(() => getDomainEvents(), [])
-  const allEvents    = useMemo(() => [...domainEvents, ...customEvents], [domainEvents, customEvents])
+  const allEvents = useMemo(() => [...domainEvents, ...customEvents], [domainEvents, customEvents])
 
   const eventsMap = useMemo(() => {
     const map = {}
