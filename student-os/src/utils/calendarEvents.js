@@ -12,19 +12,23 @@ export function dateKey(date) {
 
 // ─── Event type config ────────────────────────────────────────────────────────
 export const EVENT_TYPES = {
-  lecture:     { label: 'Lecture',     color: '#5b8cff' },
-  lab:         { label: 'Lab',         color: '#a78bfa' },
-  assignment:  { label: 'Deadline',    color: '#fbbf24' },
-  exam:        { label: 'Exam',        color: '#fb7185' },
-  study:       { label: 'Study',       color: '#34d399' },
-  social:      { label: 'Social',      color: '#fb923c' },
-  appointment: { label: 'Appointment', color: '#22d3ee' },
-  reminder:    { label: 'Reminder',    color: '#f472b6' },
-  other:       { label: 'Other',       color: '#9ca3af' },
+  lecture:     { label: 'Lecture',       color: '#5b8cff' },
+  lab:         { label: 'Lab',           color: '#a78bfa' },
+  tutorial:    { label: 'Tutorial',      color: '#4ade80' },
+  seminar:     { label: 'Seminar',       color: '#fb923c' },
+  workshop:    { label: 'Workshop',      color: '#38bdf8' },
+  group:       { label: 'Group Meeting', color: '#e879f9' },
+  assignment:  { label: 'Deadline',      color: '#fbbf24' },
+  exam:        { label: 'Exam',          color: '#fb7185' },
+  study:       { label: 'Study',         color: '#34d399' },
+  social:      { label: 'Social',        color: '#fb923c' },
+  appointment: { label: 'Appointment',   color: '#22d3ee' },
+  reminder:    { label: 'Reminder',      color: '#f472b6' },
+  other:       { label: 'Other',         color: '#9ca3af' },
 }
 
 // Priority order for rendering (high priority = shown first on crowded days)
-export const TYPE_PRIORITY = ['exam', 'assignment', 'lab', 'lecture', 'study', 'social', 'appointment', 'reminder', 'other']
+export const TYPE_PRIORITY = ['exam', 'assignment', 'lab', 'lecture', 'tutorial', 'seminar', 'workshop', 'group', 'study', 'social', 'appointment', 'reminder', 'other']
 
 // Resolve the display label for any event (handles custom "Other" type names)
 export function resolveTypeLabel(event) {
@@ -68,6 +72,8 @@ export function buildScheduleEvents(domains, scheduleSlots, config) {
       for (const slot of scheduleSlots) {
         const domain = domainMap[slot.domainId]
         if (!domain) continue
+        if (slot.weekFrom != null && weekNum < slot.weekFrom) continue
+        if (slot.weekTo   != null && weekNum > slot.weekTo)   continue
 
         const eventDate = new Date(weekMonday)
         eventDate.setDate(eventDate.getDate() + slot.dayOfWeek) // 0=Mon…4=Fri
@@ -77,7 +83,7 @@ export function buildScheduleEvents(domains, scheduleSlots, config) {
         events.push({
           id: `schedule-${slot.id}-w${weekNum}`,
           type: slot.slotType,
-          title: domain.code || domain.name,
+          title: domain.name,
           date: eventDate,
           domainId: domain.id,
           domainCode: domain.code,

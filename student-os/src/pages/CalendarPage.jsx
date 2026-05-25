@@ -10,16 +10,31 @@ import EventDetailModal from '../components/EventDetailModal'
 
 const MAX_VISIBLE = 3
 
+function fmtTime(t) {
+  if (!t) return null
+  const [h, m] = t.split(':').map(Number)
+  return `${h % 12 || 12}${m ? ':' + String(m).padStart(2, '0') : ''}${h >= 12 ? 'pm' : 'am'}`
+}
+function fmtDuration(mins) {
+  if (!mins) return null
+  const h = Math.floor(mins / 60), m = mins % 60
+  return h && m ? `${h}h ${m}m` : h ? `${h}h` : `${m}m`
+}
+
 // ─── Event chip ───────────────────────────────────────────────────────────────
 function EventChip({ event, onClick, hasNote }) {
   const typeColor   = resolveTypeColor(event)
   const typeLabel   = resolveTypeLabel(event)
   const domainColor = event.domainColor || null
+  const time        = fmtTime(event.details?.time)
+  const duration    = fmtDuration(event.details?.duration)
+  // Show domain name only when it adds info (i.e. the title is NOT already the domain name)
+  const showDomain  = event.domainName && event.domainName !== event.title && domainColor
 
   return (
     <div
       onClick={e => { e.stopPropagation(); onClick(event) }}
-      title={`${typeLabel}${event.domainCode ? ' · ' + event.domainCode : ''}: ${event.title}`}
+      title={`${typeLabel}: ${event.title}${time ? ' · ' + time : ''}`}
       style={{
         display: 'flex', flexDirection: 'column', gap: 1,
         padding: '4px 7px 4px 6px',
@@ -44,10 +59,20 @@ function EventChip({ event, onClick, hasNote }) {
           <span title="Has notes" style={{ width: 5, height: 5, borderRadius: '50%', background: 'var(--accent-purple)', flexShrink: 0 }} />
         )}
       </div>
-      {event.domainCode && domainColor && (
-        <span style={{ marginTop: 2, fontSize: 9, fontWeight: 700, color: domainColor, background: `${domainColor}22`, padding: '1px 5px', borderRadius: 3, display: 'inline-block', alignSelf: 'flex-start', whiteSpace: 'nowrap' }}>
-          {event.domainCode}
-        </span>
+      {(time || showDomain) && (
+        <div style={{ display: 'flex', alignItems: 'center', gap: 4, marginTop: 1, flexWrap: 'nowrap', overflow: 'hidden' }}>
+          {time && (
+            <span style={{ fontSize: 9, fontWeight: 600, color: typeColor, opacity: 0.85, whiteSpace: 'nowrap' }}>
+              {time}{duration ? ` · ${duration}` : ''}
+            </span>
+          )}
+          {time && showDomain && <span style={{ fontSize: 8, color: 'var(--text-muted)' }}>·</span>}
+          {showDomain && (
+            <span style={{ fontSize: 9, fontWeight: 600, color: domainColor, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+              {event.domainName}
+            </span>
+          )}
+        </div>
       )}
     </div>
   )
@@ -397,7 +422,7 @@ const navBtn = {
 }
 
 // ─── Calendar page ────────────────────────────────────────────────────────────
-export default function CalendarPage({ domains = [], domainEvents = [], customEvents = [], onViewDomain, onAddCalendarEvent, eventNotes = {}, onUpdateNote }) {
+export default function CalendarPage({ domains = [], domainEvents = [], customEvents = [], onViewDomain, onAddCalendarEvent, onDeleteCalendarEvent, eventNotes = {}, onUpdateNote }) {
   const today = new Date()
   const [viewDate,      setViewDate]      = useState(new Date(today.getFullYear(), today.getMonth(), 1))
   const [selectedEvent, setSelectedEvent] = useState(null)
@@ -511,6 +536,9 @@ export default function CalendarPage({ domains = [], domainEvents = [], customEv
           onViewDomain={onViewDomain}
           note={eventNotes[selectedEvent.id] || ''}
           onUpdateNote={onUpdateNote || (() => {})}
+          onDelete={customEvents.some(ev => ev.id === selectedEvent.id)
+            ? () => { onDeleteCalendarEvent?.(selectedEvent.id); setSelectedEvent(null) }
+            : undefined}
         />
       )}
       {addModalDate && (

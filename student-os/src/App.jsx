@@ -116,6 +116,7 @@ export default function App() {
           id: r.id, domainId: r.domain_id, dayOfWeek: r.day_of_week,
           startTime: r.start_time?.substring(0, 5) || r.start_time,
           durationMinutes: r.duration_minutes, slotType: r.slot_type,
+          weekFrom: r.week_from ?? null, weekTo: r.week_to ?? null,
         })))
       })
 
@@ -245,6 +246,7 @@ export default function App() {
           id: s.id, user_id: userId, domain_id: s.domainId,
           day_of_week: s.dayOfWeek, start_time: s.startTime,
           duration_minutes: s.durationMinutes, slot_type: s.slotType,
+          week_from: s.weekFrom ?? null, week_to: s.weekTo ?? null,
         }))
       )
       if (slotErr) throw slotErr
@@ -270,6 +272,11 @@ export default function App() {
       professor: domain.professor || null, credits: domain.credits || null,
       progress: 0, created_at: now, updated_at: now,
     })
+  }
+
+  const handleDeleteCalendarEvent = (id) => {
+    setCustomCalendarEvents(prev => prev.filter(ev => ev.id !== id))
+    supabase.from('custom_calendar_events').delete().eq('id', id)
   }
 
   const handleAddCalendarEvent = (event) => {
@@ -529,6 +536,33 @@ export default function App() {
   const linkedEventsFor = (domainId) =>
     customCalendarEvents.filter(ev => ev.domainId === domainId)
 
+  const handleDevResetOnboarding = async () => {
+    if (!userId) return
+    await Promise.all([
+      supabase.from('notes').delete().eq('user_id', userId),
+      supabase.from('todos').delete().eq('user_id', userId),
+      supabase.from('custom_calendar_events').delete().eq('user_id', userId),
+      supabase.from('event_notes').delete().eq('user_id', userId),
+      supabase.from('week_confidence').delete().eq('user_id', userId),
+      supabase.from('study_sessions').delete().eq('user_id', userId),
+      supabase.from('domain_schedule_slots').delete().eq('user_id', userId),
+      supabase.from('semester_breaks').delete().eq('user_id', userId),
+      supabase.from('domains').delete().eq('user_id', userId),
+      supabase.from('user_profiles').delete().eq('id', userId),
+    ])
+    setUserProfile(null)
+    setDomains([])
+    setScheduleSlots([])
+    setSemConfig(null)
+    setTodos([])
+    setStudySessions([])
+    setCustomCalendarEvents([])
+    setEventNotes({})
+    setWeekConfidence({})
+    setNotes([])
+    setCurrentPage('domains')
+  }
+
   if (authLoading) return null
   if (!session) return <AuthPage />
   if (!profileChecked) return null
@@ -568,6 +602,7 @@ export default function App() {
           customEvents={customCalendarEvents}
           onViewDomain={handleViewDomainById}
           onAddCalendarEvent={handleAddCalendarEvent}
+          onDeleteCalendarEvent={handleDeleteCalendarEvent}
           eventNotes={eventNotes}
           onUpdateNote={handleUpdateNote}
         />
@@ -618,6 +653,21 @@ export default function App() {
         onToggleHidden={handleToggleWidgetHidden}
         onToggleBlurred={handleToggleWidgetBlurred}
       />
+    )}
+    {import.meta.env.DEV && (
+      <button
+        onClick={handleDevResetOnboarding}
+        style={{
+          position: 'fixed', bottom: 16, right: 16, zIndex: 9999,
+          padding: '6px 12px', borderRadius: 7,
+          background: '#0f1018', border: '1px solid #fb7185',
+          color: '#fb7185', fontSize: 11, fontWeight: 700,
+          cursor: 'pointer', fontFamily: 'monospace', letterSpacing: '0.3px',
+          boxShadow: '0 2px 12px rgba(0,0,0,0.4)',
+        }}
+      >
+        DEV: Reset Onboarding
+      </button>
     )}
     </>
   )
