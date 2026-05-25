@@ -3,20 +3,12 @@ import {
   ArrowLeft, User, Award, BookOpen, FileText, FlaskConical,
   GraduationCap, CheckCircle2, Clock, Circle, ChevronDown,
   ChevronRight, StickyNote, Calendar, MapPin, TrendingUp,
-  AlertCircle, ExternalLink, Tag, PenLine,
+  AlertCircle, ExternalLink, Tag, PenLine, Pencil, X,
 } from 'lucide-react'
-import { DOMAIN_CATEGORIES } from '../data/domains'
-import {
-  GitBranch, Database, Code2, Globe, Server, Brain, Monitor, Zap, Users as UsersIcon, FileText as FileTextIcon,
-  Cpu, Network, Layers, Shield, Terminal, BarChart2, Wrench, Microscope, Rocket, Star, Building2, Briefcase,
-} from 'lucide-react'
+import { DOMAIN_CATEGORIES, DOMAIN_COLORS, DOMAIN_ICON_OPTIONS, getDomainIcon } from '../data/domains'
 
-const ICON_COMPONENT_MAP = {
-  GitBranch, Database, Code2, Globe, Server, Brain, Monitor, Zap, Users: UsersIcon, FileText: FileTextIcon,
-  Cpu, Network, Layers, Shield, Terminal, BarChart2, BookOpen, Wrench, Microscope, FlaskConical, Rocket, Star, Building2, Briefcase,
-}
 function DomainIcon({ name, size = 16, color }) {
-  const Icon = ICON_COMPONENT_MAP[name]
+  const Icon = getDomainIcon(name)
   if (!Icon) return null
   return <Icon size={size} color={color} />
 }
@@ -736,27 +728,210 @@ function EventRow({ event, isLast, onClick }) {
   )
 }
 
+// ─── Edit domain modal ─────────────────────────────────────────────────────────
+function FieldLabel({ children }) {
+  return <div style={{ fontSize: 11, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.5px', marginBottom: 7 }}>{children}</div>
+}
+
+function EditDomainModal({ domain, onClose, onSave }) {
+  const isAcademic = domain.category === 'academic'
+  const [form, setForm] = useState({
+    name: domain.name || '',
+    code: domain.code || '',
+    icon: domain.icon || 'BookOpen',
+    color: domain.color || '#5b8cff',
+    description: domain.description || '',
+    professor: domain.professor || '',
+    credits: domain.credits ? String(domain.credits) : '',
+    semester: domain.semester || '',
+    role: domain.role || '',
+  })
+  const set = (k, v) => setForm(prev => ({ ...prev, [k]: v }))
+  const canSave = form.name.trim() && form.code.trim()
+
+  const inputStyle = {
+    width: '100%', padding: '9px 12px', borderRadius: 8,
+    border: '1px solid var(--border-strong)', background: 'var(--bg-input)',
+    color: 'var(--text-primary)', fontSize: 13, outline: 'none',
+    boxSizing: 'border-box', fontFamily: 'inherit',
+  }
+
+  const handleSave = () => {
+    if (!canSave) return
+    onSave({
+      name: form.name.trim(),
+      code: form.code.trim().toUpperCase(),
+      icon: form.icon,
+      color: form.color,
+      colorMuted: `${form.color}18`,
+      description: form.description.trim(),
+      ...(isAcademic ? {
+        professor: form.professor.trim(),
+        credits: parseInt(form.credits) || 0,
+        semester: form.semester.trim(),
+      } : {
+        role: form.role.trim(),
+      }),
+    })
+    onClose()
+  }
+
+  return (
+    <div onClick={onClose} style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.65)', zIndex: 1000, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+      <div onClick={e => e.stopPropagation()} style={{ background: 'var(--bg-surface)', backdropFilter: 'var(--glass-blur)', border: '1px solid var(--border-strong)', borderRadius: 16, width: 500, maxWidth: '92vw', maxHeight: '90vh', display: 'flex', flexDirection: 'column', boxShadow: 'var(--shadow-modal)', overflow: 'hidden' }}>
+
+        <div style={{ padding: '18px 22px', borderBottom: '1px solid var(--border)', display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexShrink: 0 }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+            <div style={{ width: 28, height: 28, borderRadius: 7, background: `${form.color}20`, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+              <DomainIcon name={form.icon} size={14} color={form.color} />
+            </div>
+            <span style={{ fontSize: 15, fontWeight: 600, color: 'var(--text-primary)' }}>Edit Domain</span>
+          </div>
+          <button onClick={onClose} style={{ width: 28, height: 28, borderRadius: 7, border: 'none', background: 'var(--bg-overlay)', color: 'var(--text-secondary)', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+            <X size={14} />
+          </button>
+        </div>
+
+        <div style={{ padding: '20px 22px', display: 'flex', flexDirection: 'column', gap: 16, overflowY: 'auto' }}>
+          <div style={{ display: 'grid', gridTemplateColumns: '1fr 90px', gap: 10 }}>
+            <div>
+              <FieldLabel>Name</FieldLabel>
+              <input style={inputStyle} value={form.name} onChange={e => set('name', e.target.value)} autoFocus
+                onFocus={e => e.target.style.borderColor = 'var(--border-focus)'}
+                onBlur={e => e.target.style.borderColor = 'var(--border-strong)'}
+              />
+            </div>
+            <div>
+              <FieldLabel>Code</FieldLabel>
+              <input style={{ ...inputStyle, textTransform: 'uppercase', fontWeight: 600 }} maxLength={5} value={form.code} onChange={e => set('code', e.target.value)}
+                onFocus={e => e.target.style.borderColor = 'var(--border-focus)'}
+                onBlur={e => e.target.style.borderColor = 'var(--border-strong)'}
+              />
+            </div>
+          </div>
+
+          <div>
+            <FieldLabel>Icon</FieldLabel>
+            <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}>
+              {DOMAIN_ICON_OPTIONS.map(name => (
+                <button key={name} onClick={() => set('icon', name)} title={name}
+                  style={{
+                    width: 34, height: 34, borderRadius: 7, border: 'none', cursor: 'pointer',
+                    display: 'flex', alignItems: 'center', justifyContent: 'center',
+                    background: form.icon === name ? `${form.color}22` : 'var(--bg-overlay)',
+                    outline: form.icon === name ? `1.5px solid ${form.color}66` : '1.5px solid transparent',
+                    transition: 'all 0.12s',
+                  }}
+                  onMouseEnter={e => { if (form.icon !== name) e.currentTarget.style.background = 'var(--bg-overlay-hover)' }}
+                  onMouseLeave={e => { if (form.icon !== name) e.currentTarget.style.background = 'var(--bg-overlay)' }}
+                >
+                  <DomainIcon name={name} size={14} color={form.icon === name ? form.color : 'var(--text-secondary)'} />
+                </button>
+              ))}
+            </div>
+          </div>
+
+          <div>
+            <FieldLabel>Colour</FieldLabel>
+            <div style={{ display: 'flex', gap: 7, flexWrap: 'wrap' }}>
+              {DOMAIN_COLORS.map(c => (
+                <button key={c} onClick={() => set('color', c)}
+                  style={{
+                    width: 26, height: 26, borderRadius: '50%', border: 'none', cursor: 'pointer',
+                    background: c,
+                    outline: form.color === c ? `2.5px solid ${c}` : '2.5px solid transparent',
+                    outlineOffset: 2,
+                    transform: form.color === c ? 'scale(1.15)' : 'scale(1)',
+                    transition: 'all 0.12s',
+                  }}
+                />
+              ))}
+            </div>
+          </div>
+
+          <div>
+            <FieldLabel>Description (optional)</FieldLabel>
+            <textarea style={{ ...inputStyle, resize: 'vertical', minHeight: 64, lineHeight: 1.5 }} value={form.description} onChange={e => set('description', e.target.value)}
+              onFocus={e => e.target.style.borderColor = 'var(--border-focus)'}
+              onBlur={e => e.target.style.borderColor = 'var(--border-strong)'}
+            />
+          </div>
+
+          {isAcademic && (
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 10, padding: '14px 16px', background: 'var(--bg-elevated)', borderRadius: 10, border: '1px solid var(--border)' }}>
+              <div style={{ fontSize: 11, color: 'var(--accent-blue)', fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.4px', marginBottom: 4 }}>Academic Details</div>
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 80px', gap: 10 }}>
+                <div><FieldLabel>Professor</FieldLabel><input style={inputStyle} placeholder="Dr. Name" value={form.professor} onChange={e => set('professor', e.target.value)} onFocus={e => e.target.style.borderColor = 'var(--border-focus)'} onBlur={e => e.target.style.borderColor = 'var(--border-strong)'} /></div>
+                <div><FieldLabel>Credits</FieldLabel><input style={inputStyle} type="number" placeholder="20" value={form.credits} onChange={e => set('credits', e.target.value)} onFocus={e => e.target.style.borderColor = 'var(--border-focus)'} onBlur={e => e.target.style.borderColor = 'var(--border-strong)'} /></div>
+              </div>
+              <div><FieldLabel>Semester</FieldLabel><input style={inputStyle} placeholder="Semester 2 · Year 2" value={form.semester} onChange={e => set('semester', e.target.value)} onFocus={e => e.target.style.borderColor = 'var(--border-focus)'} onBlur={e => e.target.style.borderColor = 'var(--border-strong)'} /></div>
+            </div>
+          )}
+
+          {!isAcademic && (
+            <div>
+              <FieldLabel>Your Role (optional)</FieldLabel>
+              <input style={inputStyle} placeholder="e.g. Team Lead, Member, President…" value={form.role} onChange={e => set('role', e.target.value)}
+                onFocus={e => e.target.style.borderColor = 'var(--border-focus)'}
+                onBlur={e => e.target.style.borderColor = 'var(--border-strong)'}
+              />
+            </div>
+          )}
+        </div>
+
+        <div style={{ padding: '14px 22px', borderTop: '1px solid var(--border)', display: 'flex', justifyContent: 'flex-end', gap: 8, flexShrink: 0 }}>
+          <button onClick={onClose} style={{ padding: '8px 16px', borderRadius: 8, border: '1px solid var(--border-strong)', background: 'none', color: 'var(--text-secondary)', cursor: 'pointer', fontSize: 13 }}>Cancel</button>
+          <button onClick={handleSave} disabled={!canSave}
+            style={{ padding: '8px 18px', borderRadius: 8, border: 'none', fontSize: 13, fontWeight: 600, background: canSave ? form.color : 'var(--border)', color: canSave ? '#fff' : 'var(--text-muted)', cursor: canSave ? 'pointer' : 'default', transition: 'all 0.15s' }}
+          >
+            Save Changes
+          </button>
+        </div>
+      </div>
+    </div>
+  )
+}
+
 // ─── Main page ─────────────────────────────────────────────────────────────────
-export default function DomainDetailPage({ domain, linkedEvents, onBack, eventNotes, onUpdateNote, onNewNote, studySessions, notes, weekConfidence, onSetWeekConfidence, onOpenNote }) {
+export default function DomainDetailPage({ domain, linkedEvents, onBack, eventNotes, onUpdateNote, onNewNote, studySessions, notes, weekConfidence, onSetWeekConfidence, onOpenNote, onUpdateDomain }) {
   const isAcademic = domain.category === 'academic'
   const TABS = isAcademic
     ? ['Overview', 'Lectures', 'Assignments', 'Labs', 'Exams', 'Study']
     : ['Overview', 'Events']
-  const [activeTab, setActiveTab] = useState('Overview')
-  const [openEvent, setOpenEvent] = useState(null)
+  const [activeTab,  setActiveTab]  = useState('Overview')
+  const [openEvent,  setOpenEvent]  = useState(null)
+  const [showEdit,   setShowEdit]   = useState(false)
 
   const catCfg = DOMAIN_CATEGORIES[domain.category] || DOMAIN_CATEGORIES.other
 
   return (
     <div style={{ padding: '32px 40px', maxWidth: 1000 }}>
-      <button
-        onClick={onBack}
-        style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 24, background: 'none', border: 'none', cursor: 'pointer', color: 'var(--text-secondary)', fontSize: 13, padding: 0, transition: 'color 0.15s' }}
-        onMouseEnter={e => e.currentTarget.style.color = 'var(--text-primary)'}
-        onMouseLeave={e => e.currentTarget.style.color = 'var(--text-secondary)'}
-      >
-        <ArrowLeft size={15} /> Back to Domains
-      </button>
+      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 24 }}>
+        <button
+          onClick={onBack}
+          style={{ display: 'flex', alignItems: 'center', gap: 6, background: 'none', border: 'none', cursor: 'pointer', color: 'var(--text-secondary)', fontSize: 13, padding: 0, transition: 'color 0.15s' }}
+          onMouseEnter={e => e.currentTarget.style.color = 'var(--text-primary)'}
+          onMouseLeave={e => e.currentTarget.style.color = 'var(--text-secondary)'}
+        >
+          <ArrowLeft size={15} /> Back to Domains
+        </button>
+        <button
+          onClick={() => setShowEdit(true)}
+          style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '7px 14px', borderRadius: 8, border: '1px solid var(--border-strong)', background: 'none', color: 'var(--text-secondary)', fontSize: 13, cursor: 'pointer', transition: 'all 0.15s' }}
+          onMouseEnter={e => { e.currentTarget.style.borderColor = domain.color; e.currentTarget.style.color = domain.color }}
+          onMouseLeave={e => { e.currentTarget.style.borderColor = 'var(--border-strong)'; e.currentTarget.style.color = 'var(--text-secondary)' }}
+        >
+          <Pencil size={13} /> Edit Domain
+        </button>
+      </div>
+
+      {showEdit && (
+        <EditDomainModal
+          domain={domain}
+          onClose={() => setShowEdit(false)}
+          onSave={updates => { onUpdateDomain?.(domain.id, updates); setShowEdit(false) }}
+        />
+      )}
 
       {/* Domain header */}
       <div style={{ background: 'var(--bg-surface)', border: '1px solid var(--border)', borderRadius: 16, padding: '26px 30px', marginBottom: 22, position: 'relative', overflow: 'hidden' }}>

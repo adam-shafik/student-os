@@ -285,6 +285,18 @@ export default function App() {
     })
   }
 
+  const handleUpdateDomain = (id, updates) => {
+    setDomains(prev => prev.map(d => d.id === id ? { ...d, ...updates } : d))
+    setSelectedDomain(prev => prev?.id === id ? { ...prev, ...updates } : prev)
+    supabase.from('domains').update({
+      name: updates.name, code: updates.code, icon: updates.icon,
+      color: updates.color, description: updates.description ?? null,
+      professor: updates.professor ?? null, credits: updates.credits ?? null,
+      semester_label: updates.semester ?? null, role: updates.role ?? null,
+      updated_at: new Date().toISOString(),
+    }).eq('id', id)
+  }
+
   const handleDeleteCalendarEvent = (id) => {
     setCustomCalendarEvents(prev => prev.filter(ev => ev.id !== id))
     supabase.from('custom_calendar_events').delete().eq('id', id)
@@ -619,6 +631,7 @@ export default function App() {
           eventNotes={eventNotes}
           onUpdateNote={handleUpdateNote}
           onNewNote={handleNewNoteForContext}
+          onUpdateDomain={handleUpdateDomain}
           studySessions={studySessions}
           notes={notes}
           weekConfidence={weekConfidence}
