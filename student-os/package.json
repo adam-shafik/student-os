@@ -2,12 +2,34 @@
   "name": "student-os",
   "private": true,
   "version": "0.0.0",
-  "type": "module",
+  "main": "dist-electron/main.cjs",
   "scripts": {
     "dev": "vite",
     "build": "vite build",
     "lint": "eslint .",
-    "preview": "vite preview"
+    "preview": "vite preview",
+    "electron:dev": "node build-electron.mjs && cross-env ELECTRON_RUN_AS_NODE= electron .",
+    "electron:build": "vite build && node build-electron.mjs && cross-env ELECTRON_RUN_AS_NODE= electron-builder"
+  },
+  "build": {
+    "appId": "com.student-os.app",
+    "productName": "StudentOS",
+    "files": [
+      "dist/**/*",
+      "dist-electron/**/*"
+    ],
+    "directories": {
+      "output": "release"
+    },
+    "mac": {
+      "category": "public.app-category.education"
+    },
+    "win": {
+      "target": "nsis"
+    },
+    "linux": {
+      "target": "AppImage"
+    }
   },
   "dependencies": {
     "@supabase/supabase-js": "^2.106.1",
@@ -23,10 +45,18 @@
     "@types/react": "^19.2.14",
     "@types/react-dom": "^19.2.3",
     "@vitejs/plugin-react": "^6.0.1",
+    "concurrently": "^9.2.1",
+    "cross-env": "^10.1.0",
+    "electron": "^33.4.11",
+    "electron-builder": "^26.8.1",
+    "electron-vite": "^5.0.0",
+    "esbuild": "^0.28.0",
     "eslint": "^10.3.0",
     "eslint-plugin-react-hooks": "^7.1.1",
     "eslint-plugin-react-refresh": "^0.5.2",
     "globals": "^17.6.0",
-    "vite": "^8.0.12"
+    "vite": "^8.0.12",
+    "vite-plugin-electron": "^0.29.1",
+    "wait-on": "^9.0.10"
   }
 }
