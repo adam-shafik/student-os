@@ -50,8 +50,9 @@ export default function App() {
   const [notes,         setNotes]         = useState([])
   const [noteToOpen,    setNoteToOpen]    = useState(null)
   const [weekConfidence, setWeekConfidence] = useState({})
-  const [todos,         setTodos]         = useState([])
-  const [semConfig,     setSemConfig]     = useState(null)
+  const [todos,              setTodos]              = useState([])
+  const [semConfig,          setSemConfig]          = useState(null)
+  const [cancelledEventIds,  setCancelledEventIds]  = useState(() => new Set())
 
   const userId = session?.user?.id
 
@@ -137,6 +138,11 @@ export default function App() {
         })))
       })
 
+    supabase.from('cancelled_schedule_events').select('event_id').eq('user_id', userId)
+      .then(({ data }) => {
+        if (data) setCancelledEventIds(new Set(data.map(r => r.event_id)))
+      })
+
     supabase.from('event_notes').select('*').eq('user_id', userId)
       .then(({ data }) => {
         if (data) {
@@ -203,8 +209,9 @@ export default function App() {
 
   // Auto-generated domain events from schedule slots + semester config
   const domainEvents = useMemo(
-    () => buildScheduleEvents(domains, scheduleSlots, semConfig || getSemesterConfig()),
-    [domains, scheduleSlots, semConfig]
+    () => buildScheduleEvents(domains, scheduleSlots, semConfig || getSemesterConfig())
+      .filter(ev => !cancelledEventIds.has(ev.id)),
+    [domains, scheduleSlots, semConfig, cancelledEventIds]
   )
 
   const handleCompleteOnboarding = async ({ profile, semBreaks, domains: newDomains, slots }) => {
@@ -277,6 +284,11 @@ export default function App() {
   const handleDeleteCalendarEvent = (id) => {
     setCustomCalendarEvents(prev => prev.filter(ev => ev.id !== id))
     supabase.from('custom_calendar_events').delete().eq('id', id)
+  }
+
+  const handleCancelScheduleEvent = (eventId) => {
+    setCancelledEventIds(prev => new Set([...prev, eventId]))
+    supabase.from('cancelled_schedule_events').insert({ user_id: userId, event_id: eventId })
   }
 
   const handleAddCalendarEvent = (event) => {
@@ -542,6 +554,7 @@ export default function App() {
       supabase.from('notes').delete().eq('user_id', userId),
       supabase.from('todos').delete().eq('user_id', userId),
       supabase.from('custom_calendar_events').delete().eq('user_id', userId),
+      supabase.from('cancelled_schedule_events').delete().eq('user_id', userId),
       supabase.from('event_notes').delete().eq('user_id', userId),
       supabase.from('week_confidence').delete().eq('user_id', userId),
       supabase.from('study_sessions').delete().eq('user_id', userId),
@@ -557,6 +570,7 @@ export default function App() {
     setTodos([])
     setStudySessions([])
     setCustomCalendarEvents([])
+    setCancelledEventIds(new Set())
     setEventNotes({})
     setWeekConfidence({})
     setNotes([])
@@ -603,6 +617,7 @@ export default function App() {
           onViewDomain={handleViewDomainById}
           onAddCalendarEvent={handleAddCalendarEvent}
           onDeleteCalendarEvent={handleDeleteCalendarEvent}
+          onCancelScheduleEvent={handleCancelScheduleEvent}
           eventNotes={eventNotes}
           onUpdateNote={handleUpdateNote}
         />

@@ -149,11 +149,11 @@ function DayCell({ day, events, isToday, onEventClick, onAddClick, eventNotes, i
         )}
       </div>
 
-      {day.isCurrentMonth && visible.map(ev => (
+      {visible.map(ev => (
         <EventChip key={ev.id} event={ev} onClick={onEventClick} hasNote={!!eventNotes?.[ev.id]?.trim()} />
       ))}
 
-      {day.isCurrentMonth && overflow > 0 && (
+      {overflow > 0 && (
         <button
           onClick={e => { e.stopPropagation(); setExpanded(v => !v) }}
           style={{
@@ -422,7 +422,7 @@ const navBtn = {
 }
 
 // ─── Calendar page ────────────────────────────────────────────────────────────
-export default function CalendarPage({ domains = [], domainEvents = [], customEvents = [], onViewDomain, onAddCalendarEvent, onDeleteCalendarEvent, eventNotes = {}, onUpdateNote }) {
+export default function CalendarPage({ domains = [], domainEvents = [], customEvents = [], onViewDomain, onAddCalendarEvent, onDeleteCalendarEvent, onCancelScheduleEvent, eventNotes = {}, onUpdateNote }) {
   const today = new Date()
   const [viewDate,      setViewDate]      = useState(new Date(today.getFullYear(), today.getMonth(), 1))
   const [selectedEvent, setSelectedEvent] = useState(null)
@@ -536,9 +536,14 @@ export default function CalendarPage({ domains = [], domainEvents = [], customEv
           onViewDomain={onViewDomain}
           note={eventNotes[selectedEvent.id] || ''}
           onUpdateNote={onUpdateNote || (() => {})}
-          onDelete={customEvents.some(ev => ev.id === selectedEvent.id)
-            ? () => { onDeleteCalendarEvent?.(selectedEvent.id); setSelectedEvent(null) }
-            : undefined}
+          onDelete={() => {
+            if (customEvents.some(ev => ev.id === selectedEvent.id)) {
+              onDeleteCalendarEvent?.(selectedEvent.id)
+            } else {
+              onCancelScheduleEvent?.(selectedEvent.id)
+            }
+            setSelectedEvent(null)
+          }}
         />
       )}
       {addModalDate && (
