@@ -586,7 +586,7 @@ export default function CalendarPage({ domains = [], domainEvents = [], customEv
           )
         })}
         {presentTypes.length > 0 && (
-          <span style={{ fontSize: 10, color: 'var(--text-disabled)', marginLeft: 2 }}>· click to change color</span>
+          <span style={{ fontSize: 10, color: 'var(--text-secondary)', marginLeft: 2 }}>· click to change color</span>
         )}
       </div>
 

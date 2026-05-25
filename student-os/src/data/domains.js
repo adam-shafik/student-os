@@ -1,21 +1,39 @@
 // ─── Icon key → lucide icon name mapping ─────────────────────────────────────
 import {
-  GitBranch, Database, Code2, Globe, Server, Brain, Monitor, Zap, Users, FileText, Cpu, Network,
-  Layers, Shield, Terminal, BarChart2, BookOpen, Wrench, Microscope, FlaskConical, Rocket, Star,
-  Building2, Briefcase,
+  // Tech & CS
+  Code2, Terminal, Server, Database, Monitor, Cpu, Network, Layers, Shield,
+  Cloud, Wifi, HardDrive, GitBranch, Binary, CircuitBoard, Package, Bug, Workflow, Globe,
+  // AI & Data
+  Brain, BrainCircuit, Bot, Sparkles, BarChart2, BarChart3, TrendingUp, PieChart,
+  // Math & Science
+  Calculator, Pi, Atom, Microscope, FlaskConical, Dna, Waves, Zap,
+  // Business & Org
+  Briefcase, Building2, Users, DollarSign, Presentation, FileText, ClipboardList,
+  // Arts & Humanities
+  BookOpen, Book, Pen, Music, Palette, Film, Camera, Languages, MessageSquare,
+  // Other
+  Star, Rocket, Heart, Coffee, Dumbbell, Gamepad2, Headphones, Wrench,
 } from 'lucide-react'
 
-export const DOMAIN_ICON_OPTIONS = [
-  'GitBranch', 'Database', 'Code2', 'Globe', 'Server', 'Brain',
-  'Monitor', 'Zap', 'Users', 'FileText', 'Cpu', 'Network',
-  'Layers', 'Shield', 'Terminal', 'BarChart2', 'BookOpen', 'Wrench',
-  'Microscope', 'FlaskConical', 'Rocket', 'Star', 'Building2', 'Briefcase',
+export const DOMAIN_ICON_GROUPS = [
+  { label: 'Tech & CS',       icons: ['Code2','Terminal','Server','Database','Monitor','Cpu','Network','Layers','Shield','Cloud','Wifi','HardDrive','GitBranch','Binary','CircuitBoard','Package','Bug','Workflow','Globe'] },
+  { label: 'AI & Data',       icons: ['Brain','BrainCircuit','Bot','Sparkles','BarChart2','BarChart3','TrendingUp','PieChart'] },
+  { label: 'Math & Science',  icons: ['Calculator','Pi','Atom','Microscope','FlaskConical','Dna','Waves','Zap'] },
+  { label: 'Business & Org',  icons: ['Briefcase','Building2','Users','DollarSign','Presentation','FileText','ClipboardList'] },
+  { label: 'Arts & Humanities', icons: ['BookOpen','Book','Pen','Music','Palette','Film','Camera','Languages','MessageSquare'] },
+  { label: 'Other',           icons: ['Star','Rocket','Heart','Coffee','Dumbbell','Gamepad2','Headphones','Wrench'] },
 ]
 
+export const DOMAIN_ICON_OPTIONS = DOMAIN_ICON_GROUPS.flatMap(g => g.icons)
+
 export const ICON_COMPONENT_MAP = {
-  GitBranch, Database, Code2, Globe, Server, Brain, Monitor, Zap, Users, FileText, Cpu, Network,
-  Layers, Shield, Terminal, BarChart2, BookOpen, Wrench, Microscope, FlaskConical, Rocket, Star,
-  Building2, Briefcase,
+  Code2, Terminal, Server, Database, Monitor, Cpu, Network, Layers, Shield,
+  Cloud, Wifi, HardDrive, GitBranch, Binary, CircuitBoard, Package, Bug, Workflow, Globe,
+  Brain, BrainCircuit, Bot, Sparkles, BarChart2, BarChart3, TrendingUp, PieChart,
+  Calculator, Pi, Atom, Microscope, FlaskConical, Dna, Waves, Zap,
+  Briefcase, Building2, Users, DollarSign, Presentation, FileText, ClipboardList,
+  BookOpen, Book, Pen, Music, Palette, Film, Camera, Languages, MessageSquare,
+  Star, Rocket, Heart, Coffee, Dumbbell, Gamepad2, Headphones, Wrench,
 }
 
 export function getDomainIcon(name) {

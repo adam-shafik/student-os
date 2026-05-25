@@ -1,10 +1,8 @@
 import { useState } from 'react'
 import {
-  Plus, X, BookOpen, User, Award, ChevronRight, FileCheck, FlaskConical, ChevronDown, CheckSquare,
-  GitBranch, Database, Code2, Globe, Server, Brain, Monitor, Zap, Users, FileText, Cpu, Network,
-  Layers, Shield, Terminal, BarChart2, Wrench, Microscope, Rocket, Star, Building2, Briefcase, FolderOpen,
+  Plus, X, BookOpen, User, Award, ChevronRight, FileCheck, FlaskConical, ChevronDown, CheckSquare, FolderOpen,
 } from 'lucide-react'
-import { DOMAIN_CATEGORIES, DOMAIN_COLORS, DOMAIN_ICON_OPTIONS, getDomainIcon } from '../data/domains'
+import { DOMAIN_CATEGORIES, DOMAIN_COLORS, DOMAIN_ICON_GROUPS, getDomainIcon } from '../data/domains'
 
 function DomainIcon({ name, size = 14, color }) {
   const Icon = getDomainIcon(name)
@@ -275,24 +273,28 @@ function CreateDomainModal({ onClose, onSave }) {
 
           <div>
             <FieldLabel>Icon</FieldLabel>
-            <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}>
-              {DOMAIN_ICON_OPTIONS.map(name => (
-                <button
-                  key={name}
-                  onClick={() => set('icon', name)}
-                  title={name}
-                  style={{
-                    width: 34, height: 34, borderRadius: 7, border: 'none', cursor: 'pointer',
-                    display: 'flex', alignItems: 'center', justifyContent: 'center',
-                    background: form.icon === name ? `${form.color}22` : 'var(--bg-overlay)',
-                    outline: form.icon === name ? `1.5px solid ${form.color}66` : '1.5px solid transparent',
-                    transition: 'all 0.12s',
-                  }}
-                  onMouseEnter={e => { if (form.icon !== name) e.currentTarget.style.background = 'var(--bg-overlay-hover)' }}
-                  onMouseLeave={e => { if (form.icon !== name) e.currentTarget.style.background = 'var(--bg-overlay)' }}
-                >
-                  <DomainIcon name={name} size={14} color={form.icon === name ? form.color : 'var(--text-secondary)'} />
-                </button>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+              {DOMAIN_ICON_GROUPS.map(group => (
+                <div key={group.label}>
+                  <div style={{ fontSize: 10, fontWeight: 600, color: 'var(--text-secondary)', textTransform: 'uppercase', letterSpacing: '0.5px', marginBottom: 5 }}>{group.label}</div>
+                  <div style={{ display: 'flex', flexWrap: 'wrap', gap: 5 }}>
+                    {group.icons.map(name => (
+                      <button key={name} onClick={() => set('icon', name)} title={name}
+                        style={{
+                          width: 32, height: 32, borderRadius: 7, border: 'none', cursor: 'pointer',
+                          display: 'flex', alignItems: 'center', justifyContent: 'center',
+                          background: form.icon === name ? `${form.color}22` : 'var(--bg-overlay)',
+                          outline: form.icon === name ? `1.5px solid ${form.color}66` : '1.5px solid transparent',
+                          transition: 'all 0.12s',
+                        }}
+                        onMouseEnter={e => { if (form.icon !== name) e.currentTarget.style.background = 'var(--bg-overlay-hover)' }}
+                        onMouseLeave={e => { if (form.icon !== name) e.currentTarget.style.background = 'var(--bg-overlay)' }}
+                      >
+                        <DomainIcon name={name} size={13} color={form.icon === name ? form.color : 'var(--text-secondary)'} />
+                      </button>
+                    ))}
+                  </div>
+                </div>
               ))}
             </div>
           </div>
