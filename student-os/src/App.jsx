@@ -184,6 +184,7 @@ export default function App() {
         if (data) setNotes(data.map(n => ({
           id: n.id, title: n.title, domainId: n.domain_id, academicWeek: n.academic_week,
           eventId: n.event_id, studySessionId: n.study_session_id,
+          type: n.note_type || 'handwritten', content: n.content || '',
           template: n.template, bgColor: n.bg_color, lineSpacing: n.line_spacing,
           orientation: n.orientation, createdAt: n.created_at, updatedAt: n.updated_at,
           pages: (n.note_pages || []).sort((a, b) => a.page_order - b.page_order).map(p => ({
@@ -486,19 +487,21 @@ export default function App() {
   }
 
   const handleAddNote = (note) => {
-    const id     = crypto.randomUUID()
-    const pageId = crypto.randomUUID()
-    const now    = new Date().toISOString()
-    const newNote = { ...note, id, pages: [{ id: pageId, strokes: [] }], createdAt: now, updatedAt: now }
+    const id      = note.id || crypto.randomUUID()
+    const now     = new Date().toISOString()
+    const isTyped = note.type === 'typed'
+    const pageId  = isTyped ? null : crypto.randomUUID()
+    const newNote = { ...note, id, pages: isTyped ? [] : [{ id: pageId, strokes: [] }], createdAt: now, updatedAt: now }
     setNotes(prev => [...prev, newNote])
     supabase.from('notes').insert({
       id, user_id: userId, title: newNote.title, domain_id: newNote.domainId || null,
       academic_week: newNote.academicWeek || null, event_id: newNote.eventId || null,
       study_session_id: null, template: newNote.template, bg_color: newNote.bgColor,
       line_spacing: newNote.lineSpacing, orientation: newNote.orientation,
+      note_type: newNote.type || 'handwritten', content: newNote.content || null,
       created_at: now, updated_at: now,
     }).then(() => {
-      supabase.from('note_pages').insert({ note_id: id, page_order: 0, strokes: [] })
+      if (!isTyped && pageId) supabase.from('note_pages').insert({ note_id: id, page_order: 0, strokes: [] })
     })
   }
 
@@ -515,20 +518,27 @@ export default function App() {
     if (!note) return
     const now = new Date().toISOString()
 
-    const { error: updateErr } = await supabase.from('notes').update({
-      title: note.title, template: note.template, bg_color: note.bgColor,
-      line_spacing: note.lineSpacing, orientation: note.orientation, updated_at: now,
-    }).eq('id', noteId)
-    if (updateErr) { console.error('notes update failed:', updateErr); throw updateErr }
+    if (note.type === 'typed') {
+      const { error } = await supabase.from('notes').update({
+        title: note.title, content: note.content || null, updated_at: now,
+      }).eq('id', noteId)
+      if (error) { console.error('notes update failed:', error); throw error }
+    } else {
+      const { error: updateErr } = await supabase.from('notes').update({
+        title: note.title, template: note.template, bg_color: note.bgColor,
+        line_spacing: note.lineSpacing, orientation: note.orientation, updated_at: now,
+      }).eq('id', noteId)
+      if (updateErr) { console.error('notes update failed:', updateErr); throw updateErr }
 
-    const { error: deleteErr } = await supabase.from('note_pages').delete().eq('note_id', noteId)
-    if (deleteErr) { console.error('note_pages delete failed:', deleteErr); throw deleteErr }
+      const { error: deleteErr } = await supabase.from('note_pages').delete().eq('note_id', noteId)
+      if (deleteErr) { console.error('note_pages delete failed:', deleteErr); throw deleteErr }
 
-    if (note.pages.length > 0) {
-      const { error: insertErr } = await supabase.from('note_pages').insert(
-        note.pages.map((p, i) => ({ note_id: noteId, page_order: i, strokes: p.strokes }))
-      )
-      if (insertErr) { console.error('note_pages insert failed:', insertErr); throw insertErr }
+      if (note.pages.length > 0) {
+        const { error: insertErr } = await supabase.from('note_pages').insert(
+          note.pages.map((p, i) => ({ note_id: noteId, page_order: i, strokes: p.strokes }))
+        )
+        if (insertErr) { console.error('note_pages insert failed:', insertErr); throw insertErr }
+      }
     }
 
     setNotes(prev => prev.map(n => n.id === noteId ? { ...n, updatedAt: now } : n))
@@ -540,7 +550,7 @@ export default function App() {
     const pageId = crypto.randomUUID()
     const now    = new Date().toISOString()
     const newNote = {
-      id, title: 'Untitled Note',
+      id, title: 'Untitled Note', type: 'handwritten', content: '',
       pages: [{ id: pageId, strokes: [] }],
       template: 'blank', bgColor: '#f8f7f2', lineSpacing: 32, orientation: 'portrait',
       createdAt: now, updatedAt: now,
@@ -553,6 +563,7 @@ export default function App() {
       academic_week: newNote.academicWeek, event_id: newNote.eventId,
       study_session_id: null, template: newNote.template, bg_color: newNote.bgColor,
       line_spacing: newNote.lineSpacing, orientation: newNote.orientation,
+      note_type: 'handwritten', content: null,
       created_at: now, updated_at: now,
     }).then(() => {
       supabase.from('note_pages').insert({ note_id: id, page_order: 0, strokes: [] })

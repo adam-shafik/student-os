@@ -1,14 +1,14 @@
 import { useState, useMemo, useEffect, useRef } from 'react'
 import {
   PenLine, Plus, Trash2, ChevronRight, ChevronDown,
-  BookOpen, FolderOpen, Folder, Pencil, Check, X, MapPin, Save,
+  BookOpen, FolderOpen, Folder, Pencil, Check, X, MapPin, Save, Type,
 } from 'lucide-react'
 import NoteCanvas from '../components/NoteCanvas'
 import { totalTeachingWeeks } from '../utils/semester'
 
 const TOTAL_WEEKS = totalTeachingWeeks()
 
-function noteId() { return `note-${Date.now()}-${Math.random().toString(36).slice(2, 7)}` }
+function noteId() { return crypto.randomUUID() }
 function fmt(iso) {
   return new Date(iso).toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' })
 }
@@ -47,9 +47,79 @@ function FolderItem({ label, count, active, depth = 0, onClick, children, defaul
   )
 }
 
+// ─── New note type picker ──────────────────────────────────────────────────────
+function NewNoteTypePicker({ onSelect, onClose }) {
+  const ref = useRef()
+  useEffect(() => {
+    function h(e) { if (ref.current && !ref.current.contains(e.target)) onClose() }
+    document.addEventListener('mousedown', h)
+    return () => document.removeEventListener('mousedown', h)
+  }, [onClose])
+
+  const optBtn = {
+    width: '100%', display: 'flex', alignItems: 'center', gap: 10,
+    padding: '10px 14px', border: 'none', background: 'none',
+    color: 'var(--text-secondary)', cursor: 'pointer', fontSize: 13,
+    textAlign: 'left', transition: 'background 0.1s, color 0.1s',
+  }
+
+  return (
+    <div ref={ref} style={{
+      position: 'absolute', top: 'calc(100% + 6px)', left: 0, zIndex: 300,
+      background: 'var(--bg-surface)', border: '1px solid var(--border-strong)',
+      borderRadius: 10, overflow: 'hidden', boxShadow: 'var(--shadow-modal)',
+      minWidth: 170,
+    }}>
+      <button
+        style={optBtn}
+        onMouseEnter={e => { e.currentTarget.style.background = 'var(--bg-hover)'; e.currentTarget.style.color = 'var(--accent-purple)' }}
+        onMouseLeave={e => { e.currentTarget.style.background = 'none'; e.currentTarget.style.color = 'var(--text-secondary)' }}
+        onClick={() => { onSelect('handwritten'); onClose() }}
+      >
+        <PenLine size={14} color="var(--accent-purple)" /> Handwritten
+      </button>
+      <div style={{ height: 1, background: 'var(--border)' }} />
+      <button
+        style={optBtn}
+        onMouseEnter={e => { e.currentTarget.style.background = 'var(--bg-hover)'; e.currentTarget.style.color = 'var(--accent-blue)' }}
+        onMouseLeave={e => { e.currentTarget.style.background = 'none'; e.currentTarget.style.color = 'var(--text-secondary)' }}
+        onClick={() => { onSelect('typed'); onClose() }}
+      >
+        <Type size={14} color="var(--accent-blue)" /> Typed
+      </button>
+    </div>
+  )
+}
+
+// ─── Typed note editor ────────────────────────────────────────────────────────
+function TypedEditor({ note, onUpdate }) {
+  return (
+    <div style={{ height: '100%', overflowY: 'auto', background: 'var(--bg-page)' }}>
+      <textarea
+        value={note.content || ''}
+        onChange={e => onUpdate({ content: e.target.value })}
+        placeholder="Start typing your note…"
+        autoFocus
+        style={{
+          display: 'block', width: '100%', minHeight: '100%',
+          border: 'none', outline: 'none', resize: 'none',
+          background: 'transparent', color: 'var(--text-primary)',
+          fontSize: 15, lineHeight: 1.85, padding: '40px 80px',
+          fontFamily: 'system-ui, -apple-system, "Segoe UI", sans-serif',
+          boxSizing: 'border-box',
+        }}
+      />
+    </div>
+  )
+}
+
 // ─── Note card in grid ─────────────────────────────────────────────────────────
 function NoteCard({ note, domain, onClick, onDelete }) {
   const [hovered, setHovered] = useState(false)
+  const isTyped  = note.type === 'typed'
+  const preview  = isTyped ? (note.content || '').trim().slice(0, 120) : null
+  const pagesCnt = (note.pages || []).length
+
   return (
     <div
       onClick={onClick}
@@ -79,7 +149,9 @@ function NoteCard({ note, domain, onClick, onDelete }) {
 
       <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 8 }}>
         <div style={{ width: 30, height: 30, borderRadius: 8, background: 'var(--bg-overlay)', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
-          <PenLine size={14} color="var(--accent-purple)" />
+          {isTyped
+            ? <Type size={14} color="var(--accent-blue)" />
+            : <PenLine size={14} color="var(--accent-purple)" />}
         </div>
         <div style={{ flex: 1, minWidth: 0 }}>
           <div style={{ fontSize: 13, fontWeight: 600, color: 'var(--text-primary)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
@@ -101,8 +173,20 @@ function NoteCard({ note, domain, onClick, onDelete }) {
         )}
       </div>
 
+      {preview && (
+        <div style={{
+          fontSize: 11, color: 'var(--text-secondary)', marginBottom: 8,
+          lineHeight: 1.55, overflow: 'hidden',
+          display: '-webkit-box', WebkitLineClamp: 2, WebkitBoxOrient: 'vertical',
+        }}>
+          {preview}
+        </div>
+      )}
+
       <div style={{ fontSize: 11, color: 'var(--text-muted)' }}>
-        {fmt(note.updatedAt)} · {(note.pages || []).length} page{(note.pages || []).length !== 1 ? 's' : ''}
+        {fmt(note.updatedAt)} · {isTyped
+          ? `${(note.content || '').length} chars`
+          : `${pagesCnt} page${pagesCnt !== 1 ? 's' : ''}`}
       </div>
     </div>
   )
@@ -285,9 +369,11 @@ function NoteLocationPicker({ note, domains, onSave }) {
 
 // ─── Main page ─────────────────────────────────────────────────────────────────
 export default function NotesPage({ notes, domains, noteToOpen, onClearNoteToOpen, onAddNote, onUpdateNote, onDeleteNote, onSaveNote }) {
-  const [selectedFolder, setSelectedFolder] = useState({ type: 'all' })
-  const [openNoteId, setOpenNoteId] = useState(null)
-  const [saveState, setSaveState] = useState('idle') // 'idle' | 'saving' | 'saved'
+  const [selectedFolder,  setSelectedFolder]  = useState({ type: 'all' })
+  const [openNoteId,      setOpenNoteId]      = useState(null)
+  const [saveState,       setSaveState]       = useState('idle') // 'idle' | 'saving' | 'saved'
+  const [sidebarPicker,   setSidebarPicker]   = useState(false)
+  const [mainPicker,      setMainPicker]      = useState(false)
 
   async function handleSave(noteId) {
     setSaveState('saving')
@@ -340,11 +426,11 @@ export default function NotesPage({ notes, domains, noteToOpen, onClearNoteToOpe
     setOpenNoteId(null)
   }
 
-  function createNote(meta = {}) {
+  function createNote(meta = {}, type = 'handwritten') {
     const id = noteId()
     onAddNote({
-      id, title: 'Untitled Note',
-      pages: [{ id: `page-${Date.now()}`, strokes: [] }],
+      id, title: 'Untitled Note', type, content: '',
+      pages: type === 'handwritten' ? [{ id: `page-${Date.now()}`, strokes: [] }] : [],
       template: 'blank', bgColor: '#f8f7f2', lineSpacing: 32, orientation: 'portrait',
       createdAt: new Date().toISOString(),
       updatedAt: new Date().toISOString(),
@@ -355,13 +441,13 @@ export default function NotesPage({ notes, domains, noteToOpen, onClearNoteToOpe
     setOpenNoteId(id)
   }
 
-  function handleNewNote() {
+  function handleNewNote(type = 'handwritten') {
     const f = selectedFolder
     const meta =
       f.type === 'general' ? {} :
       f.type === 'domain'  ? { domainId: f.domainId } :
       f.type === 'week'    ? { domainId: f.domainId, academicWeek: f.week } : {}
-    createNote(meta)
+    createNote(meta, type)
   }
 
   // Weeks that have notes, per domain
@@ -381,9 +467,9 @@ export default function NotesPage({ notes, domains, noteToOpen, onClearNoteToOpe
         background: 'var(--bg-elevated)', display: 'flex', flexDirection: 'column',
         overflow: 'hidden',
       }}>
-        <div style={{ padding: '16px 10px 10px' }}>
+        <div style={{ padding: '16px 10px 10px', position: 'relative' }}>
           <button
-            onClick={handleNewNote}
+            onClick={() => setSidebarPicker(v => !v)}
             style={{
               width: '100%', display: 'flex', alignItems: 'center', gap: 8,
               padding: '9px 12px', borderRadius: 8, border: 'none',
@@ -396,6 +482,12 @@ export default function NotesPage({ notes, domains, noteToOpen, onClearNoteToOpe
           >
             <Plus size={15} /> New Note
           </button>
+          {sidebarPicker && (
+            <NewNoteTypePicker
+              onSelect={type => { handleNewNote(type); setSidebarPicker(false) }}
+              onClose={() => setSidebarPicker(false)}
+            />
+          )}
         </div>
 
         <div style={{ flex: 1, overflowY: 'auto', padding: '4px 8px 16px' }}>
@@ -518,15 +610,22 @@ export default function NotesPage({ notes, domains, noteToOpen, onClearNoteToOpe
             </div>
 
             <div style={{ flex: 1, overflow: 'hidden' }}>
-              <NoteCanvas
-                pages={openNote.pages || [{ id: 'page-legacy', strokes: [] }]}
-                onPagesChange={pages => onUpdateNote(openNote.id, { pages })}
-                template={openNote.template || 'blank'}
-                bgColor={openNote.bgColor || '#f8f7f2'}
-                lineSpacing={openNote.lineSpacing || 32}
-                orientation={openNote.orientation || 'portrait'}
-                onSettingsChange={s => onUpdateNote(openNote.id, s)}
-              />
+              {openNote.type === 'typed' ? (
+                <TypedEditor
+                  note={openNote}
+                  onUpdate={updates => onUpdateNote(openNote.id, updates)}
+                />
+              ) : (
+                <NoteCanvas
+                  pages={openNote.pages || [{ id: 'page-legacy', strokes: [] }]}
+                  onPagesChange={pages => onUpdateNote(openNote.id, { pages })}
+                  template={openNote.template || 'blank'}
+                  bgColor={openNote.bgColor || '#f8f7f2'}
+                  lineSpacing={openNote.lineSpacing || 32}
+                  orientation={openNote.orientation || 'portrait'}
+                  onSettingsChange={s => onUpdateNote(openNote.id, s)}
+                />
+              )}
             </div>
           </div>
         ) : (
@@ -545,16 +644,24 @@ export default function NotesPage({ notes, domains, noteToOpen, onClearNoteToOpe
                   {folderNotes.length} note{folderNotes.length !== 1 ? 's' : ''}
                 </p>
               </div>
-              <button
-                onClick={handleNewNote}
-                style={{
-                  display: 'flex', alignItems: 'center', gap: 6, padding: '8px 14px',
-                  borderRadius: 8, border: 'none', background: 'var(--accent-blue)',
-                  color: '#fff', cursor: 'pointer', fontSize: 13, fontWeight: 600,
-                }}
-              >
-                <Plus size={14} /> New Note
-              </button>
+              <div style={{ position: 'relative' }}>
+                <button
+                  onClick={() => setMainPicker(v => !v)}
+                  style={{
+                    display: 'flex', alignItems: 'center', gap: 6, padding: '8px 14px',
+                    borderRadius: 8, border: 'none', background: 'var(--accent-blue)',
+                    color: '#fff', cursor: 'pointer', fontSize: 13, fontWeight: 600,
+                  }}
+                >
+                  <Plus size={14} /> New Note
+                </button>
+                {mainPicker && (
+                  <NewNoteTypePicker
+                    onSelect={type => { handleNewNote(type); setMainPicker(false) }}
+                    onClose={() => setMainPicker(false)}
+                  />
+                )}
+              </div>
             </div>
 
             {folderNotes.length === 0 ? (
