@@ -53,6 +53,7 @@ export default function App() {
   const [todos,              setTodos]              = useState([])
   const [semConfig,          setSemConfig]          = useState(null)
   const [cancelledEventIds,  setCancelledEventIds]  = useState(() => new Set())
+  const [eventTypeColors,    setEventTypeColors]    = useState({})
 
   const userId = session?.user?.id
 
@@ -142,6 +143,9 @@ export default function App() {
       .then(({ data }) => {
         if (data) setCancelledEventIds(new Set(data.map(r => r.event_id)))
       })
+
+    supabase.from('user_preferences').select('event_type_colors').eq('user_id', userId).maybeSingle()
+      .then(({ data }) => { if (data?.event_type_colors) setEventTypeColors(data.event_type_colors) })
 
     supabase.from('event_notes').select('*').eq('user_id', userId)
       .then(({ data }) => {
@@ -289,6 +293,17 @@ export default function App() {
   const handleCancelScheduleEvent = (eventId) => {
     setCancelledEventIds(prev => new Set([...prev, eventId]))
     supabase.from('cancelled_schedule_events').insert({ user_id: userId, event_id: eventId })
+  }
+
+  const handleUpdateEventTypeColor = (type, color) => {
+    setEventTypeColors(prev => {
+      const next = { ...prev, [type]: color }
+      supabase.from('user_preferences').upsert(
+        { user_id: userId, event_type_colors: next },
+        { onConflict: 'user_id' }
+      )
+      return next
+    })
   }
 
   const handleAddCalendarEvent = (event) => {
@@ -562,6 +577,7 @@ export default function App() {
       supabase.from('semester_breaks').delete().eq('user_id', userId),
       supabase.from('domains').delete().eq('user_id', userId),
       supabase.from('user_profiles').delete().eq('id', userId),
+      supabase.from('user_preferences').delete().eq('user_id', userId),
     ])
     setUserProfile(null)
     setDomains([])
@@ -574,6 +590,7 @@ export default function App() {
     setEventNotes({})
     setWeekConfidence({})
     setNotes([])
+    setEventTypeColors({})
     setCurrentPage('domains')
   }
 
@@ -620,6 +637,8 @@ export default function App() {
           onCancelScheduleEvent={handleCancelScheduleEvent}
           eventNotes={eventNotes}
           onUpdateNote={handleUpdateNote}
+          eventTypeColors={eventTypeColors}
+          onUpdateEventTypeColor={handleUpdateEventTypeColor}
         />
       )}
       {currentPage === 'study' && (

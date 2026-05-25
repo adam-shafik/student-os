@@ -1,12 +1,19 @@
-import { useState, useMemo } from 'react'
-import { ChevronLeft, ChevronRight, Plus, X, ChevronUp, ChevronDown, Check } from 'lucide-react'
+import { useState, useMemo, useRef, useEffect } from 'react'
+import { ChevronLeft, ChevronRight, Plus, X, ChevronUp, ChevronDown, Check, RotateCcw } from 'lucide-react'
 import {
   EVENT_TYPES, TYPE_PRIORITY, MONTHS, WEEKDAYS,
   getCalendarDays, dateKey,
-  resolveTypeLabel, resolveTypeColor,
+  resolveTypeLabel, resolveTypeColor, getTypeColor,
 } from '../utils/calendarEvents'
+import { getDomainIcon } from '../data/domains'
 import { getWeekRowInfo, getAcademicWeek, getBreakForDate } from '../utils/semester'
 import EventDetailModal from '../components/EventDetailModal'
+
+const COLOR_SWATCHES = [
+  '#5b8cff','#a78bfa','#34d399','#fbbf24','#fb7185','#fb923c',
+  '#38bdf8','#e879f9','#4ade80','#f472b6','#22d3ee','#9ca3af',
+  '#ef4444','#f59e0b','#10b981','#6366f1',
+]
 
 const MAX_VISIBLE = 3
 
@@ -22,14 +29,14 @@ function fmtDuration(mins) {
 }
 
 // ─── Event chip ───────────────────────────────────────────────────────────────
-function EventChip({ event, onClick, hasNote }) {
-  const typeColor   = resolveTypeColor(event)
+function EventChip({ event, onClick, hasNote, customColors }) {
+  const typeColor   = resolveTypeColor(event, customColors)
   const typeLabel   = resolveTypeLabel(event)
   const domainColor = event.domainColor || null
   const time        = fmtTime(event.details?.time)
   const duration    = fmtDuration(event.details?.duration)
-  // Show domain name only when it adds info (i.e. the title is NOT already the domain name)
   const showDomain  = event.domainName && event.domainName !== event.title && domainColor
+  const DomainIcon  = event.domainIcon ? getDomainIcon(event.domainIcon) : null
 
   return (
     <div
@@ -52,6 +59,9 @@ function EventChip({ event, onClick, hasNote }) {
         {typeLabel}
       </span>
       <div style={{ display: 'flex', alignItems: 'center', gap: 3, minWidth: 0 }}>
+        {DomainIcon && (
+          <DomainIcon size={9} color={domainColor || typeColor} style={{ flexShrink: 0 }} />
+        )}
         <span style={{ fontSize: 10.5, color: 'var(--text-bright)', lineHeight: 1.3, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', flex: 1 }}>
           {event.title}
         </span>
@@ -102,7 +112,7 @@ function WeekLabelCell({ info }) {
 }
 
 // ─── Day cell ─────────────────────────────────────────────────────────────────
-function DayCell({ day, events, isToday, onEventClick, onAddClick, eventNotes, isBreak, isWeekend }) {
+function DayCell({ day, events, isToday, onEventClick, onAddClick, eventNotes, isBreak, isWeekend, customColors }) {
   const [hovered,  setHovered]  = useState(false)
   const [expanded, setExpanded] = useState(false)
 
@@ -150,7 +160,7 @@ function DayCell({ day, events, isToday, onEventClick, onAddClick, eventNotes, i
       </div>
 
       {visible.map(ev => (
-        <EventChip key={ev.id} event={ev} onClick={onEventClick} hasNote={!!eventNotes?.[ev.id]?.trim()} />
+        <EventChip key={ev.id} event={ev} onClick={onEventClick} hasNote={!!eventNotes?.[ev.id]?.trim()} customColors={customColors} />
       ))}
 
       {overflow > 0 && (
@@ -414,6 +424,62 @@ function Label({ children }) {
   return <div style={{ fontSize: 11, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.5px', marginBottom: 7 }}>{children}</div>
 }
 
+// ─── Type color picker popover ────────────────────────────────────────────────
+function TypeColorPicker({ type, currentColor, defaultColor, onSelect, onReset, onClose }) {
+  const ref = useRef(null)
+  useEffect(() => {
+    function handle(e) { if (ref.current && !ref.current.contains(e.target)) onClose() }
+    document.addEventListener('mousedown', handle)
+    return () => document.removeEventListener('mousedown', handle)
+  }, [onClose])
+
+  return (
+    <div
+      ref={ref}
+      style={{
+        position: 'absolute', top: '100%', left: 0, marginTop: 6, zIndex: 500,
+        background: 'var(--bg-surface)', border: '1px solid var(--border-strong)',
+        borderRadius: 10, padding: '10px 12px', boxShadow: 'var(--shadow-modal)',
+        minWidth: 172,
+      }}
+    >
+      <div style={{ fontSize: 10, fontWeight: 700, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.5px', marginBottom: 8 }}>
+        {type} color
+      </div>
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(8, 1fr)', gap: 5 }}>
+        {COLOR_SWATCHES.map(c => (
+          <button
+            key={c}
+            onClick={() => { onSelect(c); onClose() }}
+            style={{
+              width: 18, height: 18, borderRadius: 4, border: 'none',
+              background: c, cursor: 'pointer', padding: 0,
+              outline: c === currentColor ? '2px solid white' : '2px solid transparent',
+              outlineOffset: 1, transition: 'transform 0.1s',
+            }}
+            onMouseEnter={e => e.currentTarget.style.transform = 'scale(1.2)'}
+            onMouseLeave={e => e.currentTarget.style.transform = 'scale(1)'}
+          />
+        ))}
+      </div>
+      {currentColor !== defaultColor && (
+        <button
+          onClick={() => { onReset(); onClose() }}
+          style={{
+            marginTop: 8, display: 'flex', alignItems: 'center', gap: 4,
+            background: 'none', border: 'none', cursor: 'pointer',
+            color: 'var(--text-muted)', fontSize: 11, padding: '2px 0',
+          }}
+          onMouseEnter={e => e.currentTarget.style.color = 'var(--text-secondary)'}
+          onMouseLeave={e => e.currentTarget.style.color = 'var(--text-muted)'}
+        >
+          <RotateCcw size={10} /> Reset to default
+        </button>
+      )}
+    </div>
+  )
+}
+
 const navBtn = {
   width: 32, height: 32, borderRadius: 7,
   border: '1px solid var(--border-strong)', background: 'var(--bg-surface)',
@@ -422,11 +488,12 @@ const navBtn = {
 }
 
 // ─── Calendar page ────────────────────────────────────────────────────────────
-export default function CalendarPage({ domains = [], domainEvents = [], customEvents = [], onViewDomain, onAddCalendarEvent, onDeleteCalendarEvent, onCancelScheduleEvent, eventNotes = {}, onUpdateNote }) {
+export default function CalendarPage({ domains = [], domainEvents = [], customEvents = [], onViewDomain, onAddCalendarEvent, onDeleteCalendarEvent, onCancelScheduleEvent, eventNotes = {}, onUpdateNote, eventTypeColors = {}, onUpdateEventTypeColor }) {
   const today = new Date()
-  const [viewDate,      setViewDate]      = useState(new Date(today.getFullYear(), today.getMonth(), 1))
-  const [selectedEvent, setSelectedEvent] = useState(null)
-  const [addModalDate,  setAddModalDate]  = useState(null)
+  const [viewDate,         setViewDate]         = useState(new Date(today.getFullYear(), today.getMonth(), 1))
+  const [selectedEvent,    setSelectedEvent]    = useState(null)
+  const [addModalDate,     setAddModalDate]     = useState(null)
+  const [openColorPicker,  setOpenColorPicker]  = useState(null) // type string
 
   const year  = viewDate.getFullYear()
   const month = viewDate.getMonth()
@@ -435,7 +502,11 @@ export default function CalendarPage({ domains = [], domainEvents = [], customEv
   const nextMonth = () => setViewDate(new Date(year, month + 1, 1))
   const goToday   = () => setViewDate(new Date(today.getFullYear(), today.getMonth(), 1))
 
-  const allEvents = useMemo(() => [...domainEvents, ...customEvents], [domainEvents, customEvents])
+  const allEvents    = useMemo(() => [...domainEvents, ...customEvents], [domainEvents, customEvents])
+  const presentTypes = useMemo(() => {
+    const s = new Set(allEvents.map(ev => ev.type))
+    return Object.keys(EVENT_TYPES).filter(k => s.has(k))
+  }, [allEvents])
 
   const eventsMap = useMemo(() => {
     const map = {}
@@ -479,13 +550,44 @@ export default function CalendarPage({ domains = [], domainEvents = [], customEv
         </div>
       </div>
 
-      <div style={{ display: 'flex', gap: 14, marginBottom: 14, flexWrap: 'wrap' }}>
-        {Object.entries(EVENT_TYPES).map(([key, cfg]) => (
-          <div key={key} style={{ display: 'flex', alignItems: 'center', gap: 5 }}>
-            <div style={{ width: 7, height: 7, borderRadius: 2, background: cfg.color }} />
-            <span style={{ fontSize: 11, color: 'var(--text-secondary)' }}>{cfg.label}</span>
-          </div>
-        ))}
+      <div style={{ display: 'flex', gap: 8, marginBottom: 14, flexWrap: 'wrap', alignItems: 'center' }}>
+        {presentTypes.map(key => {
+          const cfg   = EVENT_TYPES[key]
+          const color = getTypeColor(key, eventTypeColors)
+          return (
+            <div key={key} style={{ position: 'relative' }}>
+              <button
+                onClick={() => setOpenColorPicker(p => p === key ? null : key)}
+                title="Click to change color"
+                style={{
+                  display: 'flex', alignItems: 'center', gap: 5,
+                  background: openColorPicker === key ? 'var(--bg-overlay)' : 'none',
+                  border: '1px solid transparent', borderRadius: 6,
+                  padding: '3px 7px 3px 5px', cursor: 'pointer',
+                  transition: 'background 0.12s',
+                }}
+                onMouseEnter={e => e.currentTarget.style.background = 'var(--bg-overlay)'}
+                onMouseLeave={e => { if (openColorPicker !== key) e.currentTarget.style.background = 'none' }}
+              >
+                <div style={{ width: 8, height: 8, borderRadius: 2, background: color, flexShrink: 0 }} />
+                <span style={{ fontSize: 11, color: 'var(--text-secondary)' }}>{cfg.label}</span>
+              </button>
+              {openColorPicker === key && (
+                <TypeColorPicker
+                  type={cfg.label}
+                  currentColor={color}
+                  defaultColor={cfg.color}
+                  onSelect={c => onUpdateEventTypeColor?.(key, c)}
+                  onReset={() => onUpdateEventTypeColor?.(key, cfg.color)}
+                  onClose={() => setOpenColorPicker(null)}
+                />
+              )}
+            </div>
+          )
+        })}
+        {presentTypes.length > 0 && (
+          <span style={{ fontSize: 10, color: 'var(--text-disabled)', marginLeft: 2 }}>· click to change color</span>
+        )}
       </div>
 
       <div style={{
@@ -522,6 +624,7 @@ export default function CalendarPage({ domains = [], domainEvents = [], customEv
                   eventNotes={eventNotes}
                   isBreak={info.isBreak}
                   isWeekend={day.date.getDay() === 0 || day.date.getDay() === 6}
+                  customColors={eventTypeColors}
                 />
               )
             }),

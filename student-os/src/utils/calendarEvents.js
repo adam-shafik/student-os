@@ -36,8 +36,12 @@ export function resolveTypeLabel(event) {
   return EVENT_TYPES[event.type]?.label || 'Event'
 }
 
-export function resolveTypeColor(event) {
-  return EVENT_TYPES[event.type]?.color || '#9ca3af'
+export function resolveTypeColor(event, customColors = {}) {
+  return customColors[event.type] || EVENT_TYPES[event.type]?.color || '#9ca3af'
+}
+
+export function getTypeColor(type, customColors = {}) {
+  return customColors[type] || EVENT_TYPES[type]?.color || '#9ca3af'
 }
 
 // ─── Build schedule events from user's weekly slots + semester config ─────────
@@ -89,6 +93,7 @@ export function buildScheduleEvents(domains, scheduleSlots, config) {
           domainCode: domain.code,
           domainName: domain.name,
           domainColor: domain.color,
+          domainIcon: domain.icon || 'BookOpen',
           details: {
             week: weekNum,
             time: slot.startTime,

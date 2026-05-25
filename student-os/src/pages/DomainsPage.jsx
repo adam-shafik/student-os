@@ -4,15 +4,10 @@ import {
   GitBranch, Database, Code2, Globe, Server, Brain, Monitor, Zap, Users, FileText, Cpu, Network,
   Layers, Shield, Terminal, BarChart2, Wrench, Microscope, Rocket, Star, Building2, Briefcase, FolderOpen,
 } from 'lucide-react'
-import { DOMAIN_CATEGORIES, DOMAIN_COLORS, DOMAIN_ICON_OPTIONS } from '../data/domains'
-
-const ICON_COMPONENT_MAP = {
-  GitBranch, Database, Code2, Globe, Server, Brain, Monitor, Zap, Users, FileText, Cpu, Network,
-  Layers, Shield, Terminal, BarChart2, BookOpen, Wrench, Microscope, FlaskConical, Rocket, Star, Building2, Briefcase,
-}
+import { DOMAIN_CATEGORIES, DOMAIN_COLORS, DOMAIN_ICON_OPTIONS, getDomainIcon } from '../data/domains'
 
 function DomainIcon({ name, size = 14, color }) {
-  const Icon = ICON_COMPONENT_MAP[name]
+  const Icon = getDomainIcon(name)
   if (!Icon) return null
   return <Icon size={size} color={color} />
 }

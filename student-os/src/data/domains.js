@@ -1,11 +1,26 @@
 // ─── Icon key → lucide icon name mapping ─────────────────────────────────────
-// Values are lucide-react component names. Used by DomainIcon in DomainsPage / DomainDetailPage.
+import {
+  GitBranch, Database, Code2, Globe, Server, Brain, Monitor, Zap, Users, FileText, Cpu, Network,
+  Layers, Shield, Terminal, BarChart2, BookOpen, Wrench, Microscope, FlaskConical, Rocket, Star,
+  Building2, Briefcase,
+} from 'lucide-react'
+
 export const DOMAIN_ICON_OPTIONS = [
   'GitBranch', 'Database', 'Code2', 'Globe', 'Server', 'Brain',
   'Monitor', 'Zap', 'Users', 'FileText', 'Cpu', 'Network',
   'Layers', 'Shield', 'Terminal', 'BarChart2', 'BookOpen', 'Wrench',
   'Microscope', 'FlaskConical', 'Rocket', 'Star', 'Building2', 'Briefcase',
 ]
+
+export const ICON_COMPONENT_MAP = {
+  GitBranch, Database, Code2, Globe, Server, Brain, Monitor, Zap, Users, FileText, Cpu, Network,
+  Layers, Shield, Terminal, BarChart2, BookOpen, Wrench, Microscope, FlaskConical, Rocket, Star,
+  Building2, Briefcase,
+}
+
+export function getDomainIcon(name) {
+  return ICON_COMPONENT_MAP[name] || null
+}
 
 // ─── Category config ──────────────────────────────────────────────────────────
 export const DOMAIN_CATEGORIES = {
