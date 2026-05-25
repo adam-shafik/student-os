@@ -332,16 +332,23 @@ export default function App() {
     const note = notes.find(n => n.id === noteId)
     if (!note) return
     const now = new Date().toISOString()
-    await supabase.from('notes').update({
+
+    const { error: updateErr } = await supabase.from('notes').update({
       title: note.title, template: note.template, bg_color: note.bgColor,
       line_spacing: note.lineSpacing, orientation: note.orientation, updated_at: now,
     }).eq('id', noteId)
-    await supabase.from('note_pages').delete().eq('note_id', noteId)
+    if (updateErr) { console.error('notes update failed:', updateErr); throw updateErr }
+
+    const { error: deleteErr } = await supabase.from('note_pages').delete().eq('note_id', noteId)
+    if (deleteErr) { console.error('note_pages delete failed:', deleteErr); throw deleteErr }
+
     if (note.pages.length > 0) {
-      await supabase.from('note_pages').insert(
+      const { error: insertErr } = await supabase.from('note_pages').insert(
         note.pages.map((p, i) => ({ note_id: noteId, page_order: i, strokes: p.strokes }))
       )
+      if (insertErr) { console.error('note_pages insert failed:', insertErr); throw insertErr }
     }
+
     setNotes(prev => prev.map(n => n.id === noteId ? { ...n, updatedAt: now } : n))
   }
 

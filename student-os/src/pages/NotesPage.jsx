@@ -1,7 +1,7 @@
 import { useState, useMemo, useEffect, useRef } from 'react'
 import {
   PenLine, Plus, Trash2, ChevronRight, ChevronDown,
-  BookOpen, FolderOpen, Folder, Pencil, Check, X, MapPin,
+  BookOpen, FolderOpen, Folder, Pencil, Check, X, MapPin, Save,
 } from 'lucide-react'
 import NoteCanvas from '../components/NoteCanvas'
 import { totalTeachingWeeks } from '../utils/semester'
@@ -284,9 +284,22 @@ function NoteLocationPicker({ note, domains, onSave }) {
 }
 
 // ─── Main page ─────────────────────────────────────────────────────────────────
-export default function NotesPage({ notes, domains, noteToOpen, onClearNoteToOpen, onAddNote, onUpdateNote, onDeleteNote }) {
+export default function NotesPage({ notes, domains, noteToOpen, onClearNoteToOpen, onAddNote, onUpdateNote, onDeleteNote, onSaveNote }) {
   const [selectedFolder, setSelectedFolder] = useState({ type: 'all' })
   const [openNoteId, setOpenNoteId] = useState(null)
+  const [saveState, setSaveState] = useState('idle') // 'idle' | 'saving' | 'saved'
+
+  async function handleSave(noteId) {
+    setSaveState('saving')
+    try {
+      await onSaveNote(noteId)
+      setSaveState('saved')
+      setTimeout(() => setSaveState('idle'), 2000)
+    } catch {
+      setSaveState('error')
+      setTimeout(() => setSaveState('idle'), 3000)
+    }
+  }
 
   useEffect(() => {
     if (noteToOpen) {
@@ -478,6 +491,23 @@ export default function NotesPage({ notes, domains, noteToOpen, onClearNoteToOpe
                 <span style={{ fontSize: 11, color: 'var(--text-muted)' }}>
                   {fmt(openNote.updatedAt)}
                 </span>
+                <button
+                  onClick={() => handleSave(openNote.id)}
+                  disabled={saveState === 'saving'}
+                  style={{
+                    display: 'flex', alignItems: 'center', gap: 5, padding: '5px 12px',
+                    borderRadius: 7, border: 'none', cursor: saveState === 'saving' ? 'not-allowed' : 'pointer',
+                    fontSize: 12, fontWeight: 600,
+                    background: saveState === 'saved' ? 'rgba(52,211,153,0.15)' : saveState === 'error' ? 'rgba(251,113,133,0.15)' : 'var(--accent-blue)',
+                    color: saveState === 'saved' ? 'var(--accent-green)' : saveState === 'error' ? 'var(--accent-red)' : '#fff',
+                    transition: 'background 0.2s, color 0.2s',
+                    opacity: saveState === 'saving' ? 0.6 : 1,
+                  }}
+                >
+                  {saveState === 'saved'  ? <><Check size={12} /> Saved</>
+                  : saveState === 'error' ? <><X size={12} /> Failed — check console</>
+                  : <><Save size={12} /> {saveState === 'saving' ? 'Saving…' : 'Save'}</>}
+                </button>
                 <button
                   onClick={() => { onDeleteNote(openNote.id); setOpenNoteId(null) }}
                   style={{ display: 'flex', alignItems: 'center', gap: 5, padding: '5px 10px', borderRadius: 7, border: '1px solid var(--border)', background: 'none', color: 'var(--accent-red)', cursor: 'pointer', fontSize: 12 }}
