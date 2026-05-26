@@ -127,6 +127,8 @@ export default function App() {
         if (data) setTodos(data.map(r => ({
           id: r.id, title: r.title, domainId: r.domain_id, dueDate: r.due_date,
           priority: r.priority, done: r.done, createdAt: r.created_at,
+          studySessionId: r.study_session_id || null, noteId: r.note_id || null,
+          academicWeek: r.academic_week || null,
         })))
       })
 
@@ -350,10 +352,12 @@ export default function App() {
     const id  = crypto.randomUUID()
     const now = new Date().toISOString()
     setTodos(prev => [...prev, { ...todo, id, createdAt: now }])
-    supabase.from('todos').insert({
+    supabase.from('todos').upsert({
       id, user_id: userId, title: todo.title, domain_id: todo.domainId || null,
       due_date: todo.dueDate || null, priority: todo.priority, done: false, created_at: now,
-    })
+      study_session_id: todo.studySessionId || null, note_id: todo.noteId || null,
+      academic_week: todo.academicWeek || null,
+    }, { onConflict: 'id' })
   }
 
   const handleToggleTodo = (id) => {
@@ -367,6 +371,19 @@ export default function App() {
   const handleDeleteTodo = (id) => {
     setTodos(prev => prev.filter(t => t.id !== id))
     supabase.from('todos').delete().eq('id', id)
+  }
+
+  const handleUpdateTodo = (id, updates) => {
+    setTodos(prev => prev.map(t => t.id === id ? { ...t, ...updates } : t))
+    const db = {}
+    if ('title'          in updates) db.title            = updates.title
+    if ('domainId'       in updates) db.domain_id        = updates.domainId || null
+    if ('dueDate'        in updates) db.due_date         = updates.dueDate || null
+    if ('priority'       in updates) db.priority         = updates.priority
+    if ('academicWeek'   in updates) db.academic_week    = updates.academicWeek || null
+    if ('noteId'         in updates) db.note_id          = updates.noteId || null
+    if ('studySessionId' in updates) db.study_session_id = updates.studySessionId || null
+    supabase.from('todos').update(db).eq('id', id)
   }
 
   const [studySessions, setStudySessions] = useState([])
@@ -493,15 +510,15 @@ export default function App() {
     const pageId  = isTyped ? null : crypto.randomUUID()
     const newNote = { ...note, id, pages: isTyped ? [] : [{ id: pageId, strokes: [] }], createdAt: now, updatedAt: now }
     setNotes(prev => [...prev, newNote])
-    supabase.from('notes').insert({
+    supabase.from('notes').upsert({
       id, user_id: userId, title: newNote.title, domain_id: newNote.domainId || null,
       academic_week: newNote.academicWeek || null, event_id: newNote.eventId || null,
       study_session_id: null, template: newNote.template, bg_color: newNote.bgColor,
       line_spacing: newNote.lineSpacing, orientation: newNote.orientation,
       note_type: newNote.type || 'handwritten', content: newNote.content || null,
       created_at: now, updated_at: now,
-    }).then(() => {
-      if (!isTyped && pageId) supabase.from('note_pages').insert({ note_id: id, page_order: 0, strokes: [] })
+    }, { onConflict: 'id' }).then(() => {
+      if (!isTyped && pageId) supabase.from('note_pages').upsert({ note_id: id, page_order: 0, strokes: [] }, { onConflict: 'note_id,page_order' })
     })
   }
 
@@ -558,15 +575,15 @@ export default function App() {
       eventId: meta.eventId || null, studySessionId: null,
     }
     setNotes(prev => [...prev, newNote])
-    supabase.from('notes').insert({
+    supabase.from('notes').upsert({
       id, user_id: userId, title: newNote.title, domain_id: newNote.domainId,
       academic_week: newNote.academicWeek, event_id: newNote.eventId,
       study_session_id: null, template: newNote.template, bg_color: newNote.bgColor,
       line_spacing: newNote.lineSpacing, orientation: newNote.orientation,
       note_type: 'handwritten', content: null,
       created_at: now, updated_at: now,
-    }).then(() => {
-      supabase.from('note_pages').insert({ note_id: id, page_order: 0, strokes: [] })
+    }, { onConflict: 'id' }).then(() => {
+      supabase.from('note_pages').upsert({ note_id: id, page_order: 0, strokes: [] }, { onConflict: 'note_id,page_order' })
     })
     setNoteToOpen(id)
     handleNavigate('notes')
@@ -695,9 +712,13 @@ export default function App() {
         <TodosPage
           todos={todos}
           domains={domains}
+          notes={notes}
+          studySessions={studySessions}
           onAddTodo={handleAddTodo}
           onToggleTodo={handleToggleTodo}
           onDeleteTodo={handleDeleteTodo}
+          onUpdateTodo={handleUpdateTodo}
+          onOpenNote={handleOpenNoteFromSession}
         />
       )}
     </Layout>

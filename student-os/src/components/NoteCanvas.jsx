@@ -177,7 +177,7 @@ function PageTemplate({ pageId, template, bgColor, lineSpacing }) {
 }
 
 // ─── Single page canvas ────────────────────────────────────────────────────────
-function PageCanvas({ page, pageH, onStrokesChange, penColor, penSize, tool, shapeType, opacity, template, bgColor, lineSpacing, eraserMode, eraserRadius, readonly }) {
+function PageCanvas({ page, pageH, onStrokesChange, penColor, penSize, tool, shapeType, opacity, template, bgColor, lineSpacing, eraserMode, eraserRadius, readonly, onUndo }) {
   const svgRef        = useRef()
   const livePathRef   = useRef(null)
   const liveShapeRef  = useRef(null)
@@ -187,8 +187,12 @@ function PageCanvas({ page, pageH, onStrokesChange, penColor, penSize, tool, sha
   const shapeStartRef = useRef(null)
   const lastPtRef     = useRef(null)
   const isErasingRef  = useRef(false)
-  // Keeps the progressively-erased strokes so pointer move never reads stale props
   const erasingRef    = useRef(null)
+  const touchActiveRef = useRef(false)
+  const twoFingerRef  = useRef({ active: false, t0: 0, x1: 0, y1: 0, x2: 0, y2: 0 })
+  const hasStylusRef  = useRef(false)
+  const stylusIdRef   = useRef(null)
+  const stateRef      = useRef({})
 
   const [shapeHeld,       setShapeHeld]       = useState(false)
   const [selRect,         setSelRect]         = useState(null)
@@ -207,9 +211,209 @@ function PageCanvas({ page, pageH, onStrokesChange, penColor, penSize, tool, sha
     isErasingRef.current = false; erasingRef.current = null
   }, [tool])
 
+  useEffect(() => {
+    if (readonly) return
+    const svg = svgRef.current
+    if (!svg) return
+
+    function svgPoint(touch) {
+      const r = svg.getBoundingClientRect()
+      return [touch.clientX - r.left, touch.clientY - r.top, touch.force || 0.5]
+    }
+
+    function beginStroke(touch, state) {
+      touchActiveRef.current = true
+      const pt = svgPoint(touch)
+      lastPtRef.current = pt
+      const { tool, drawColor, penSize, opacity, strokes, eraserMode, eraserRadius } = state
+      if (tool === 'eraser') {
+        isErasingRef.current = true; erasingRef.current = strokes
+        setEraserPos({ x: pt[0], y: pt[1] })
+        const fn = eraserMode === 'stroke' ? applyStrokeErase : applyStandardErase
+        const next = fn(strokes, pt[0], pt[1], eraserRadius)
+        erasingRef.current = next; setErasingStrokes([...next])
+        return
+      }
+      if (tool === 'select') return
+      if (tool === 'shape') {
+        shapeStartRef.current = pt; shapeModeRef.current = false; setShapeHeld(false)
+        holdTimer.current = setTimeout(() => { shapeModeRef.current = true; setShapeHeld(true) }, 450)
+      } else {
+        activeStroke.current = { points: [pt], color: drawColor, size: penSize, opacity }
+        const path = document.createElementNS('http://www.w3.org/2000/svg', 'path')
+        path.setAttribute('fill', drawColor); path.setAttribute('fill-opacity', opacity); path.setAttribute('stroke', 'none')
+        livePathRef.current = path; svg.appendChild(path)
+      }
+    }
+
+    function continueStroke(touch, state) {
+      if (!touchActiveRef.current) return
+      const pt = svgPoint(touch)
+      lastPtRef.current = pt
+      const { tool, penSize, eraserMode, eraserRadius, shapeType } = state
+      if (tool === 'eraser') {
+        setEraserPos({ x: pt[0], y: pt[1] })
+        if (isErasingRef.current) {
+          const fn = eraserMode === 'stroke' ? applyStrokeErase : applyStandardErase
+          const next = fn(erasingRef.current, pt[0], pt[1], eraserRadius)
+          erasingRef.current = next; setErasingStrokes([...next])
+        }
+        return
+      }
+      if (tool === 'select') return
+      if (tool === 'shape') {
+        if (!shapeModeRef.current || !shapeStartRef.current) return
+        const [x1, y1] = shapeStartRef.current
+        const type = classifyShape(x1, y1, pt[0], pt[1], shapeType)
+        const tagMap = { rect: 'rect', ellipse: 'ellipse', line: 'line', triangle: 'polygon' }
+        if (!liveShapeRef.current || liveShapeRef.current.type !== type) {
+          liveShapeRef.current?.el?.remove()
+          const el = document.createElementNS('http://www.w3.org/2000/svg', tagMap[type])
+          const { drawColor, penSize: ps, opacity: op } = state
+          el.setAttribute('stroke', drawColor); el.setAttribute('stroke-width', ps)
+          el.setAttribute('fill', 'none'); el.setAttribute('opacity', op)
+          el.setAttribute('stroke-linecap', 'round'); el.setAttribute('stroke-linejoin', 'round')
+          el.setAttribute('stroke-dasharray', '6 4')
+          if (type === 'rect') el.setAttribute('rx', '3')
+          svg.appendChild(el); liveShapeRef.current = { el, type }
+        }
+        setLiveShapeAttrs(liveShapeRef.current.el, type, x1, y1, pt[0], pt[1])
+      } else {
+        if (!activeStroke.current || !livePathRef.current) return
+        activeStroke.current.points.push(pt)
+        const outline = getStroke(activeStroke.current.points, strokeOpts(penSize, false))
+        livePathRef.current.setAttribute('d', toPath(outline))
+      }
+    }
+
+    function finishStroke(state) {
+      touchActiveRef.current = false
+      clearTimeout(holdTimer.current)
+      const { tool, strokes, onStrokesChange, penSize, shapeType, drawColor, opacity } = state
+      if (tool === 'eraser') {
+        isErasingRef.current = false
+        const final = erasingRef.current; erasingRef.current = null
+        setErasingStrokes(null); setEraserPos(null)
+        if (final !== null) onStrokesChange(final)
+        return
+      }
+      if (tool === 'select') return
+      if (tool === 'shape') {
+        if (shapeModeRef.current && shapeStartRef.current && lastPtRef.current) {
+          const [x1, y1] = shapeStartRef.current, [x2, y2] = lastPtRef.current
+          liveShapeRef.current?.el?.remove(); liveShapeRef.current = null
+          const type = classifyShape(x1, y1, x2, y2, shapeType)
+          if (Math.abs(x2 - x1) > 5 || Math.abs(y2 - y1) > 5)
+            onStrokesChange([...strokes, { shape: type, x1, y1, x2, y2, color: drawColor, size: penSize, opacity }])
+        } else { liveShapeRef.current?.el?.remove(); liveShapeRef.current = null }
+        shapeModeRef.current = false; shapeStartRef.current = null; setShapeHeld(false)
+      } else {
+        if (!activeStroke.current) return
+        livePathRef.current?.remove(); livePathRef.current = null
+        const s = activeStroke.current; activeStroke.current = null
+        if (s.points.length >= 1) {
+          const points = s.points.length === 1 ? [s.points[0], s.points[0]] : s.points
+          onStrokesChange([...strokes, { ...s, points }])
+        }
+      }
+    }
+
+    function onTouchStart(e) {
+      const touches = Array.from(e.touches)
+      const stylus = touches.find(t => t.touchType === 'stylus')
+
+      if (stylus) {
+        hasStylusRef.current = true
+        e.preventDefault()
+        if (touchActiveRef.current) return
+        stylusIdRef.current = stylus.identifier
+        twoFingerRef.current = { active: false }
+        beginStroke(stylus, stateRef.current)
+        return
+      }
+
+      if (hasStylusRef.current) {
+        if (touches.length === 2 && !touchActiveRef.current) {
+          e.preventDefault()
+          const [t1, t2] = touches
+          twoFingerRef.current = { active: true, t0: Date.now(), x1: t1.clientX, y1: t1.clientY, x2: t2.clientX, y2: t2.clientY }
+        }
+        return
+      }
+
+      e.preventDefault()
+      if (touches.length === 2 && !touchActiveRef.current) {
+        const [t1, t2] = touches
+        twoFingerRef.current = { active: true, t0: Date.now(), x1: t1.clientX, y1: t1.clientY, x2: t2.clientX, y2: t2.clientY }
+        return
+      }
+      twoFingerRef.current = { active: false }
+      if (!touchActiveRef.current) {
+        stylusIdRef.current = touches[0].identifier
+        beginStroke(touches[0], stateRef.current)
+      }
+    }
+
+    function onTouchMove(e) {
+      if (twoFingerRef.current.active) {
+        e.preventDefault()
+        const touches = Array.from(e.touches)
+        if (touches.length === 2) {
+          const [t1, t2] = touches
+          const moved = Math.max(
+            Math.abs(t1.clientX - twoFingerRef.current.x1), Math.abs(t1.clientY - twoFingerRef.current.y1),
+            Math.abs(t2.clientX - twoFingerRef.current.x2), Math.abs(t2.clientY - twoFingerRef.current.y2),
+          )
+          if (moved > 12) twoFingerRef.current = { active: false }
+        } else {
+          twoFingerRef.current = { active: false }
+        }
+        return
+      }
+
+      if (!touchActiveRef.current) return
+
+      const touches = Array.from(e.touches)
+      const touch = touches.find(t => t.identifier === stylusIdRef.current)
+      if (!touch) return
+      e.preventDefault()
+      continueStroke(touch, stateRef.current)
+    }
+
+    function onTouchEnd(e) {
+      if (twoFingerRef.current.active) {
+        e.preventDefault()
+        const elapsed = Date.now() - twoFingerRef.current.t0
+        if (elapsed < 400 && e.touches.length <= 1) stateRef.current.onUndo?.()
+        twoFingerRef.current = { active: false }
+        return
+      }
+      if (!touchActiveRef.current) return
+      const changed = Array.from(e.changedTouches)
+      if (!changed.find(t => t.identifier === stylusIdRef.current)) return
+      e.preventDefault()
+      stylusIdRef.current = null
+      finishStroke(stateRef.current)
+    }
+
+    svg.addEventListener('touchstart', onTouchStart, { passive: false })
+    svg.addEventListener('touchmove', onTouchMove, { passive: false })
+    svg.addEventListener('touchend', onTouchEnd, { passive: false })
+    svg.addEventListener('touchcancel', onTouchEnd, { passive: false })
+    return () => {
+      svg.removeEventListener('touchstart', onTouchStart)
+      svg.removeEventListener('touchmove', onTouchMove)
+      svg.removeEventListener('touchend', onTouchEnd)
+      svg.removeEventListener('touchcancel', onTouchEnd)
+    }
+  }, [readonly])
+
+
   const drawColor      = adaptColor(penColor, bgColor)
   const strokes        = page.strokes
   const displayStrokes = erasingStrokes ?? strokes
+
+  stateRef.current = { tool, drawColor, penSize, opacity, shapeType, eraserMode, eraserRadius, strokes, onStrokesChange, onUndo }
 
   function getPoint(e) {
     const r = svgRef.current.getBoundingClientRect()
@@ -260,6 +464,7 @@ function PageCanvas({ page, pageH, onStrokesChange, penColor, penSize, tool, sha
   }
 
   function onPointerDown(e) {
+    if (touchActiveRef.current) return
     if (e.pointerType === 'mouse' && e.button !== 0) return
     e.currentTarget.setPointerCapture(e.pointerId)
     const pt = getPoint(e)
@@ -301,6 +506,7 @@ function PageCanvas({ page, pageH, onStrokesChange, penColor, penSize, tool, sha
   }
 
   function onPointerMove(e) {
+    if (touchActiveRef.current) return
     const pt = getPoint(e)
     lastPtRef.current = pt
 
@@ -328,6 +534,7 @@ function PageCanvas({ page, pageH, onStrokesChange, penColor, penSize, tool, sha
   }
 
   function onPointerUp() {
+    if (touchActiveRef.current) return
     clearTimeout(holdTimer.current)
 
     if (tool === 'eraser') {
@@ -370,7 +577,31 @@ function PageCanvas({ page, pageH, onStrokesChange, penColor, penSize, tool, sha
       if (!activeStroke.current) return
       livePathRef.current?.remove(); livePathRef.current = null
       const s = activeStroke.current; activeStroke.current = null
-      if (s.points.length > 1) onStrokesChange([...strokes, s])
+      if (s.points.length >= 1) {
+        const points = s.points.length === 1 ? [s.points[0], s.points[0]] : s.points
+        onStrokesChange([...strokes, { ...s, points }])
+      }
+    }
+  }
+
+  function onPointerCancel() {
+    clearTimeout(holdTimer.current)
+    clearLiveShape()
+    shapeModeRef.current = false; shapeStartRef.current = null; setShapeHeld(false)
+    if (activeStroke.current) {
+      livePathRef.current?.remove(); livePathRef.current = null
+      const s = activeStroke.current; activeStroke.current = null
+      if (s.points.length >= 1) {
+        const points = s.points.length === 1 ? [s.points[0], s.points[0]] : s.points
+        onStrokesChange([...strokes, { ...s, points }])
+      }
+    }
+    if (isErasingRef.current) {
+      isErasingRef.current = false
+      const final = erasingRef.current
+      erasingRef.current = null
+      setErasingStrokes(null)
+      if (final !== null) onStrokesChange(final)
     }
   }
 
@@ -405,6 +636,7 @@ function PageCanvas({ page, pageH, onStrokesChange, penColor, penSize, tool, sha
         onPointerDown={readonly ? undefined : onPointerDown}
         onPointerMove={readonly ? undefined : onPointerMove}
         onPointerUp={readonly ? undefined : onPointerUp}
+        onPointerCancel={readonly ? undefined : onPointerCancel}
         onPointerLeave={readonly ? undefined : () => { onPointerUp(); setEraserPos(null) }}
         onKeyDown={readonly ? undefined : onKeyDown}
       >
@@ -753,6 +985,7 @@ export default function NoteCanvas({
                 eraserMode={eraserMode}
                 eraserRadius={eraserRadius}
                 readonly={readonly}
+                onUndo={handleUndo}
               />
               <div style={{ textAlign: 'center', marginTop: 8, fontSize: 10, color: 'rgba(255,255,255,0.15)', letterSpacing: '0.5px' }}>
                 {pageIdx + 1}
