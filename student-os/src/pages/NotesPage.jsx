@@ -371,19 +371,23 @@ function NoteLocationPicker({ note, domains, onSave }) {
 export default function NotesPage({ notes, domains, noteToOpen, onClearNoteToOpen, onAddNote, onUpdateNote, onDeleteNote, onSaveNote }) {
   const [selectedFolder,  setSelectedFolder]  = useState({ type: 'all' })
   const [openNoteId,      setOpenNoteId]      = useState(null)
-  const [saveState,       setSaveState]       = useState('idle') // 'idle' | 'saving' | 'saved'
+  const [saveState,       setSaveState]       = useState('idle') // 'idle' | 'saving' | 'saved' | 'error'
+  const [saveError,       setSaveError]       = useState('')
   const [sidebarPicker,   setSidebarPicker]   = useState(false)
   const [mainPicker,      setMainPicker]      = useState(false)
 
   async function handleSave(noteId) {
     setSaveState('saving')
+    setSaveError('')
     try {
       await onSaveNote(noteId)
       setSaveState('saved')
       setTimeout(() => setSaveState('idle'), 2000)
-    } catch {
+    } catch (err) {
+      const msg = err?.message || err?.details || err?.error_description || String(err) || 'Unknown error'
+      setSaveError(msg)
       setSaveState('error')
-      setTimeout(() => setSaveState('idle'), 3000)
+      setTimeout(() => { setSaveState('idle'); setSaveError('') }, 10000)
     }
   }
 
@@ -597,7 +601,7 @@ export default function NotesPage({ notes, domains, noteToOpen, onClearNoteToOpe
                   }}
                 >
                   {saveState === 'saved'  ? <><Check size={12} /> Saved</>
-                  : saveState === 'error' ? <><X size={12} /> Failed — check console</>
+                  : saveState === 'error' ? <><X size={12} /> Failed</>
                   : <><Save size={12} /> {saveState === 'saving' ? 'Saving…' : 'Save'}</>}
                 </button>
                 <button
@@ -608,6 +612,18 @@ export default function NotesPage({ notes, domains, noteToOpen, onClearNoteToOpe
                 </button>
               </div>
             </div>
+
+            {saveState === 'error' && saveError && (
+              <div style={{
+                padding: '10px 24px', flexShrink: 0,
+                background: 'rgba(251,113,133,0.1)', borderBottom: '1px solid rgba(251,113,133,0.25)',
+                fontSize: 12, color: 'var(--accent-red)', lineHeight: 1.5,
+                display: 'flex', alignItems: 'flex-start', gap: 8,
+              }}>
+                <X size={13} style={{ flexShrink: 0, marginTop: 1 }} />
+                <span><strong>Save failed:</strong> {saveError}</span>
+              </div>
+            )}
 
             <div style={{ flex: 1, overflow: 'hidden' }}>
               {openNote.type === 'typed' ? (

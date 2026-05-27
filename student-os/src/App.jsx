@@ -438,9 +438,10 @@ export default function App() {
       supabase.from('notes').insert({
         id: noteId, user_id: userId, title: newNote.title,
         domain_id: newNote.domainId, academic_week: newNote.academicWeek,
-        study_session_id: sessionId, event_id: null,
+        study_session_id: null, event_id: null,
         template: newNote.template, bg_color: newNote.bgColor,
         line_spacing: newNote.lineSpacing, orientation: newNote.orientation,
+        note_type: 'handwritten', content: null,
         created_at: now, updated_at: now,
       }).then(() => {
         supabase.from('note_pages').insert({ note_id: noteId, page_order: 0, strokes: [] })
@@ -476,6 +477,10 @@ export default function App() {
       pomodoro_break: record.pomodoroBreak, total_rounds: record.totalRounds,
       rounds_completed: record.roundsCompleted, note_id: record.noteId,
       status: record.status, started_at: record.startedAt, ended_at: endedAt,
+    }).then(() => {
+      if (activeSession.noteId) {
+        supabase.from('notes').update({ study_session_id: record.id }).eq('id', activeSession.noteId)
+      }
     })
     setActiveSession(null)
   }

@@ -60,7 +60,7 @@ function adaptColor(color, bg) {
   if (!color?.startsWith('#') || !bg?.startsWith('#')) return color
   const lc = hexLuminance(color), lb = hexLuminance(bg)
   const contrast = (Math.max(lc, lb) + 0.05) / (Math.min(lc, lb) + 0.05)
-  if (contrast >= 2.5) return color
+  if (contrast >= 1.3) return color
   return lb > 0.5 ? '#000000' : '#ffffff'
 }
 
@@ -178,7 +178,7 @@ function PageTemplate({ pageId, template, bgColor, lineSpacing }) {
 }
 
 // ─── Single page canvas ────────────────────────────────────────────────────────
-function PageCanvas({ page, pageH, onStrokesChange, penColor, penSize, tool, shapeType, opacity, smoothness, template, bgColor, lineSpacing, eraserMode, eraserRadius, readonly, onUndo }) {
+function PageCanvas({ page, pageH, onStrokesChange, penColor, penSize, tool, shapeType, opacity, smoothness, template, bgColor, lineSpacing, eraserMode, eraserRadius, readonly, onUndo, clipboard, onCopy }) {
   const svgRef        = useRef()
   const livePathRef   = useRef(null)
   const liveShapeRef  = useRef(null)
@@ -200,13 +200,17 @@ function PageCanvas({ page, pageH, onStrokesChange, penColor, penSize, tool, sha
   const [moveOff,         setMoveOff]         = useState({ dx: 0, dy: 0 })
   const [isMoving,        setIsMoving]        = useState(false)
   const [eraserPos,       setEraserPos]       = useState(null)
-  // Snapshot of strokes being actively erased (shown in place of page.strokes during drag)
   const [erasingStrokes,  setErasingStrokes]  = useState(null)
+  const [pasteMenu,       setPasteMenu]       = useState(null) // { x, y } or null
+  const [actionToast,     setActionToast]     = useState(null)
+  const [actionToastKey,  setActionToastKey]  = useState(0)
+  const actionToastTimer = useRef(null)
 
   useEffect(() => {
     setSelectedIndices(new Set()); setSelRect(null)
     setIsMoving(false); setMoveStart(null); setMoveOff({ dx: 0, dy: 0 })
     setEraserPos(null); setErasingStrokes(null)
+    setPasteMenu(null); clearTimeout(holdTimer.current)
     isErasingRef.current = false; erasingRef.current = null
   }, [tool])
 
@@ -310,6 +314,9 @@ function PageCanvas({ page, pageH, onStrokesChange, penColor, penSize, tool, sha
             }
           }
           setSelectedIndices(new Set()); setSelRect({ x1: pt[0], y1: pt[1], x2: pt[0], y2: pt[1] }); setIsMoving(false)
+          if (stateRef.current.clipboard?.length > 0) {
+            holdTimer.current = setTimeout(() => setPasteMenu({ x: pt[0], y: pt[1] }), 600)
+          }
         } else {
           activeStroke.current = { points: [pt], color: drawColor, size: penSize, opacity, smoothing: stateRef.current.smoothness }
           const path = document.createElementNS('http://www.w3.org/2000/svg', 'path')
@@ -376,6 +383,7 @@ function PageCanvas({ page, pageH, onStrokesChange, penColor, penSize, tool, sha
         }
         setLiveShapeAttrs(liveShapeRef.current.el, type, x1, y1, pt[0], pt[1])
       } else if (tool === 'select') {
+        clearTimeout(holdTimer.current); holdTimer.current = null
         const { isMoving: im, moveStart: ms, selRect: sr } = stateRef.current
         if (im && ms) setMoveOff({ dx: pt[0] - ms.x, dy: pt[1] - ms.y })
         else if (sr) setSelRect(prev => ({ ...prev, x2: pt[0], y2: pt[1] }))
@@ -427,7 +435,7 @@ function PageCanvas({ page, pageH, onStrokesChange, penColor, penSize, tool, sha
   const displayStrokes = erasingStrokes ?? strokes
 
   stateRef.current = {
-    tool, drawColor, penSize, opacity, smoothness, shapeType, eraserMode, eraserRadius, strokes, onStrokesChange, onUndo,
+    tool, drawColor, penSize, opacity, smoothness, shapeType, eraserMode, eraserRadius, strokes, onStrokesChange, onUndo, onCopy, clipboard,
     selectedIndices, selRect, isMoving, moveStart, moveOff,
   }
 
@@ -472,6 +480,55 @@ function PageCanvas({ page, pageH, onStrokesChange, penColor, penSize, tool, sha
     }
   }
 
+  function showActionToast(msg) {
+    setActionToast(msg)
+    setActionToastKey(k => k + 1)
+    clearTimeout(actionToastTimer.current)
+    actionToastTimer.current = setTimeout(() => setActionToast(null), 1400)
+  }
+
+  function handleDuplicate() {
+    const OFFSET = 22
+    const dupes = [...selectedIndices].map(i => {
+      const s = strokes[i]
+      if (s.shape) return { ...s, x1: s.x1 + OFFSET, y1: s.y1 + OFFSET, x2: s.x2 + OFFSET, y2: s.y2 + OFFSET }
+      return { ...s, points: s.points.map(p => [p[0] + OFFSET, p[1] + OFFSET, p[2]]) }
+    })
+    const base = strokes.length
+    onStrokesChange([...strokes, ...dupes])
+    setSelectedIndices(new Set())
+    showActionToast('Duplicated')
+  }
+
+  function handleCopySelected() {
+    onCopy?.([...selectedIndices].map(i => strokes[i]))
+    setSelectedIndices(new Set())
+    showActionToast('Copied')
+  }
+
+  function handlePaste(px, py) {
+    if (!clipboard?.length) return
+    let minX = Infinity, maxX = -Infinity, minY = Infinity, maxY = -Infinity
+    for (const s of clipboard) {
+      if (s.shape) {
+        minX = Math.min(minX, s.x1, s.x2); maxX = Math.max(maxX, s.x1, s.x2)
+        minY = Math.min(minY, s.y1, s.y2); maxY = Math.max(maxY, s.y1, s.y2)
+      } else {
+        for (const p of s.points) {
+          if (p[0] < minX) minX = p[0]; if (p[0] > maxX) maxX = p[0]
+          if (p[1] < minY) minY = p[1]; if (p[1] > maxY) maxY = p[1]
+        }
+      }
+    }
+    const dx = px - (minX + maxX) / 2, dy = py - (minY + maxY) / 2
+    const pasted = clipboard.map(s => {
+      if (s.shape) return { ...s, x1: s.x1 + dx, y1: s.y1 + dy, x2: s.x2 + dx, y2: s.y2 + dy }
+      return { ...s, points: s.points.map(p => [p[0] + dx, p[1] + dy, p[2]]) }
+    })
+    onStrokesChange([...strokes, ...pasted])
+    setPasteMenu(null)
+  }
+
   function doErase(cx, cy) {
     const fn = eraserMode === 'stroke' ? applyStrokeErase : applyStandardErase
     erasingRef.current = fn(erasingRef.current, cx, cy, eraserRadius)
@@ -487,6 +544,7 @@ function PageCanvas({ page, pageH, onStrokesChange, penColor, penSize, tool, sha
     if (e.pointerType === 'touch') return
     if (stylusActiveRef.current) return
     if (e.pointerType === 'mouse' && e.button !== 0) return
+    if (pasteMenu) { setPasteMenu(null); return }
     e.currentTarget.setPointerCapture(e.pointerId)
     const pt = getPoint(e)
     lastPtRef.current = pt
@@ -509,6 +567,9 @@ function PageCanvas({ page, pageH, onStrokesChange, penColor, penSize, tool, sha
       setSelectedIndices(new Set())
       setSelRect({ x1: pt[0], y1: pt[1], x2: pt[0], y2: pt[1] })
       setIsMoving(false)
+      if (clipboard?.length > 0) {
+        holdTimer.current = setTimeout(() => setPasteMenu({ x: pt[0], y: pt[1] }), 600)
+      }
       return
     }
 
@@ -539,6 +600,7 @@ function PageCanvas({ page, pageH, onStrokesChange, penColor, penSize, tool, sha
     }
 
     if (tool === 'select') {
+      clearTimeout(holdTimer.current); holdTimer.current = null
       if (isMoving && moveStart) setMoveOff({ dx: pt[0] - moveStart.x, dy: pt[1] - moveStart.y })
       else if (selRect) setSelRect(prev => ({ ...prev, x2: pt[0], y2: pt[1] }))
       return
@@ -656,6 +718,68 @@ function PageCanvas({ page, pageH, onStrokesChange, penColor, penSize, tool, sha
           Shape mode · drag to draw
         </div>
       )}
+
+      {/* Selection context menu */}
+      {(() => {
+        const smb = (tool === 'select' && selectedIndices.size > 0 && !isMoving && !selRect) ? getSelBounds() : null
+        if (!smb) return null
+        const cmBtn = { background: 'none', border: 'none', cursor: 'pointer', fontSize: 12, fontWeight: 500, padding: '4px 8px', borderRadius: 6 }
+        return (
+          <div style={{
+            position: 'absolute',
+            left: ((smb.x1 + smb.x2) / 2) + 'px',
+            top: (smb.y1 > 60 ? smb.y1 - 48 : smb.y2 + 10) + 'px',
+            transform: 'translateX(-50%)', zIndex: 50,
+            display: 'flex', alignItems: 'center', gap: 1,
+            background: 'rgba(18,19,30,0.96)', backdropFilter: 'blur(14px)',
+            border: '1px solid rgba(255,255,255,0.12)', borderRadius: 12,
+            padding: '4px 6px', boxShadow: '0 4px 20px rgba(0,0,0,0.55)',
+          }}>
+            <button onClick={handleDuplicate} style={{ ...cmBtn, color: 'rgba(255,255,255,0.82)' }}>Duplicate</button>
+            <div style={{ width: 1, height: 16, background: 'rgba(255,255,255,0.1)', margin: '0 2px' }} />
+            <button onClick={handleCopySelected} style={{ ...cmBtn, color: 'rgba(255,255,255,0.82)' }}>Copy</button>
+            <div style={{ width: 1, height: 16, background: 'rgba(255,255,255,0.1)', margin: '0 2px' }} />
+            <button onClick={() => { onStrokesChange(strokes.filter((_, i) => !selectedIndices.has(i))); setSelectedIndices(new Set()); showActionToast('Deleted') }}
+              style={{ ...cmBtn, color: '#fb7185' }}>Delete</button>
+          </div>
+        )
+      })()}
+
+      {/* Action toast */}
+      {actionToast && (
+        <div key={actionToastKey} style={{
+          position: 'fixed', bottom: 52, left: '50%',
+          animation: '_undo-pop 1.4s ease forwards',
+          zIndex: 9999, pointerEvents: 'none',
+          background: 'rgba(20,21,32,0.95)', backdropFilter: 'blur(12px)',
+          border: '1px solid rgba(255,255,255,0.12)',
+          borderRadius: 20, padding: '8px 20px',
+          fontSize: 13, color: 'rgba(255,255,255,0.82)',
+          boxShadow: '0 4px 24px rgba(0,0,0,0.6)',
+        }}>
+          {actionToast}
+        </div>
+      )}
+
+      {/* Paste context menu */}
+      {pasteMenu && (
+        <>
+          <div onClick={() => setPasteMenu(null)} style={{ position: 'absolute', inset: 0, zIndex: 48 }} />
+          <div style={{
+            position: 'absolute',
+            left: pasteMenu.x + 'px',
+            top: (pasteMenu.y > 60 ? pasteMenu.y - 50 : pasteMenu.y + 10) + 'px',
+            transform: 'translateX(-50%)', zIndex: 50,
+            background: 'rgba(18,19,30,0.96)', backdropFilter: 'blur(14px)',
+            border: '1px solid rgba(255,255,255,0.12)', borderRadius: 12,
+            padding: '4px 6px', boxShadow: '0 4px 20px rgba(0,0,0,0.55)',
+          }}>
+            <button onClick={() => handlePaste(pasteMenu.x, pasteMenu.y)}
+              style={{ background: 'none', border: 'none', cursor: 'pointer', fontSize: 12, fontWeight: 500, padding: '4px 8px', borderRadius: 6, color: 'rgba(255,255,255,0.82)' }}>Paste</button>
+          </div>
+        </>
+      )}
+
       <svg
         ref={svgRef}
         tabIndex={tool === 'select' && !readonly ? 0 : undefined}
@@ -674,11 +798,12 @@ function PageCanvas({ page, pageH, onStrokesChange, penColor, penSize, tool, sha
           const dx  = sel && isMoving ? moveOff.dx : 0
           const dy  = sel && isMoving ? moveOff.dy : 0
           const tf  = (dx || dy) ? `translate(${dx},${dy})` : undefined
-          if (s.shape) return <g key={i} transform={tf}>{renderShape(s)}</g>
+          const rc = adaptColor(s.color, bgColor)
+          if (s.shape) return <g key={i} transform={tf}>{renderShape({ ...s, color: rc })}</g>
           const outline = getStroke(s.points, strokeOpts(s.size, true, s.smoothing ?? 0.5))
           return (
             <g key={i} transform={tf}>
-              <path fill={s.color} fillOpacity={s.opacity ?? 1} stroke="none" d={toPath(outline)} />
+              <path fill={rc} fillOpacity={s.opacity ?? 1} stroke="none" d={toPath(outline)} />
             </g>
           )
         })}
@@ -735,6 +860,8 @@ export default function NoteCanvas({
   const [showSettings, setShowSettings] = useState(false)
   const [isFullscreen, setIsFullscreen] = useState(false)
   const [undoToast,    setUndoToast]    = useState(false)
+  const [undoToastKey, setUndoToastKey] = useState(0)
+  const [clipboard,    setClipboard]    = useState(null)
   const undoToastTimer = useRef(null)
 
   function handleSetTool(t) {
@@ -759,11 +886,20 @@ export default function NoteCanvas({
     onPagesChange([...pages, { id: `page-${Date.now()}`, strokes: [] }])
   }
 
+  function deletePage(idx) {
+    if (pages.length <= 1) return
+    undoStackRef.current = undoStackRef.current
+      .filter(i => i !== idx)
+      .map(i => i > idx ? i - 1 : i)
+    onPagesChange(pages.filter((_, i) => i !== idx))
+  }
+
   function handleUndo() {
     if (undoStackRef.current.length === 0) return
     const idx = undoStackRef.current.pop()
     onPagesChange(pages.map((p, i) => i === idx ? { ...p, strokes: p.strokes.slice(0, -1) } : p))
     setUndoToast(true)
+    setUndoToastKey(k => k + 1)
     clearTimeout(undoToastTimer.current)
     undoToastTimer.current = setTimeout(() => setUndoToast(false), 1400)
   }
@@ -784,7 +920,7 @@ export default function NoteCanvas({
     return {
       display: 'flex', alignItems: 'center', justifyContent: 'center',
       width: 30, height: 28, borderRadius: 7, border: '1px solid transparent',
-      cursor: 'pointer',
+      cursor: 'pointer', pointerEvents: 'auto',
       background: active ? 'rgba(255,255,255,0.1)' : 'none',
       color: active ? 'rgba(255,255,255,0.9)' : 'rgba(255,255,255,0.6)',
       borderColor: active ? 'rgba(255,255,255,0.15)' : 'transparent',
@@ -919,6 +1055,7 @@ export default function NoteCanvas({
             borderRadius: 16, padding: '7px 14px',
             boxShadow: '0 8px 32px rgba(0,0,0,0.6)',
             maxWidth: 'calc(100% - 28px)',
+            pointerEvents: 'none',
           }}>
             {/* Tool buttons */}
             <div style={{ display: 'flex', gap: 3 }}>
@@ -949,7 +1086,7 @@ export default function NoteCanvas({
                   {ERASER_MODES.map(([m, label]) => (
                     <button key={m} onClick={() => setEraserMode(m)} style={{
                       padding: '4px 9px', borderRadius: 6, border: '1px solid transparent',
-                      cursor: 'pointer', fontSize: 11,
+                      cursor: 'pointer', fontSize: 11, pointerEvents: 'auto',
                       background: eraserMode === m ? 'rgba(255,255,255,0.1)' : 'none',
                       color: eraserMode === m ? 'rgba(255,255,255,0.9)' : 'rgba(255,255,255,0.38)',
                       borderColor: eraserMode === m ? 'rgba(255,255,255,0.18)' : 'transparent',
@@ -969,13 +1106,14 @@ export default function NoteCanvas({
                   <button key={c} onClick={() => setPenColor(c)} style={{
                     width: 16, height: 16, borderRadius: '50%', background: c,
                     border: 'none', cursor: 'pointer', padding: 0, flexShrink: 0,
+                    pointerEvents: 'auto',
                     outline: active ? `2.5px solid ${c}` : '2px solid transparent',
                     outlineOffset: 2, transform: active ? 'scale(1.25)' : 'scale(1)',
                     transition: 'transform 0.12s',
                   }} />
                 )
               })}
-              <div style={{ position: 'relative', width: 16, height: 16, flexShrink: 0 }}>
+              <div style={{ position: 'relative', width: 16, height: 16, flexShrink: 0, pointerEvents: 'auto' }}>
                 <div style={{
                   width: 16, height: 16, borderRadius: '50%',
                   background: 'conic-gradient(red, yellow, lime, cyan, blue, magenta, red)',
@@ -985,7 +1123,7 @@ export default function NoteCanvas({
                 }} />
                 <input type="color" value={customColor}
                   onChange={e => { setCustomColor(e.target.value); setPenColor(e.target.value) }}
-                  style={{ position: 'absolute', inset: 0, opacity: 0, cursor: 'pointer', width: '100%', height: '100%' }} />
+                  style={{ position: 'absolute', inset: 0, opacity: 0, cursor: 'pointer', width: '100%', height: '100%', pointerEvents: 'auto' }} />
               </div>
             </div>
 
@@ -1001,7 +1139,7 @@ export default function NoteCanvas({
                     width: d, height: d, borderRadius: '50%',
                     background: penSize === s ? penColor : 'rgba(255,255,255,0.28)',
                     border: 'none', cursor: 'pointer', padding: 0, flexShrink: 0,
-                    transition: 'background 0.12s',
+                    pointerEvents: 'auto', transition: 'background 0.12s',
                   }} />
                 )
               })}
@@ -1015,7 +1153,7 @@ export default function NoteCanvas({
               <input
                 type="range" min="0" max="1" step="0.05" value={smoothness}
                 onChange={e => setSmoothness(parseFloat(e.target.value))}
-                style={{ width: 68, accentColor: penColor, cursor: 'pointer' }}
+                style={{ width: 68, accentColor: penColor, cursor: 'pointer', pointerEvents: 'auto' }}
               />
               <span style={{ fontSize: 9, color: 'rgba(255,255,255,0.38)', userSelect: 'none' }}>Smooth</span>
             </div>
@@ -1025,18 +1163,18 @@ export default function NoteCanvas({
         {/* Undo toast */}
         <style>{`@keyframes _undo-pop{0%{opacity:0;transform:translateX(-50%) scale(0.88)}12%{opacity:1;transform:translateX(-50%) scale(1)}80%{opacity:1}100%{opacity:0;transform:translateX(-50%) scale(0.95)}}`}</style>
         {undoToast && (
-          <div style={{
-            position: 'absolute', bottom: 28, left: '50%',
+          <div key={undoToastKey} style={{
+            position: 'fixed', bottom: 52, left: '50%',
             animation: '_undo-pop 1.4s ease forwards',
-            zIndex: 200, pointerEvents: 'none',
-            background: 'rgba(20,21,32,0.92)', backdropFilter: 'blur(12px)',
-            border: '1px solid rgba(255,255,255,0.1)',
-            borderRadius: 20, padding: '7px 18px',
+            zIndex: 9999, pointerEvents: 'none',
+            background: 'rgba(20,21,32,0.95)', backdropFilter: 'blur(12px)',
+            border: '1px solid rgba(255,255,255,0.12)',
+            borderRadius: 20, padding: '8px 20px',
             display: 'flex', alignItems: 'center', gap: 7,
-            fontSize: 12, color: 'rgba(255,255,255,0.75)',
-            boxShadow: '0 4px 20px rgba(0,0,0,0.5)',
+            fontSize: 13, color: 'rgba(255,255,255,0.82)',
+            boxShadow: '0 4px 24px rgba(0,0,0,0.6)',
           }}>
-            <Undo2 size={12} style={{ opacity: 0.6 }} /> Undo
+            <Undo2 size={13} style={{ opacity: 0.7 }} /> Undo
           </div>
         )}
 
@@ -1067,9 +1205,19 @@ export default function NoteCanvas({
                   smoothness={smoothness}
                   readonly={readonly}
                   onUndo={handleUndo}
+                  clipboard={clipboard}
+                  onCopy={strokes => setClipboard(strokes)}
                 />
-                <div style={{ textAlign: 'center', marginTop: 8, fontSize: 10, color: 'rgba(255,255,255,0.15)', letterSpacing: '0.5px' }}>
-                  {pageIdx + 1}
+                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', marginTop: 8, gap: 10 }}>
+                  <span style={{ fontSize: 10, color: 'rgba(255,255,255,0.15)', letterSpacing: '0.5px' }}>{pageIdx + 1}</span>
+                  {!readonly && pages.length > 1 && (
+                    <button onClick={() => deletePage(pageIdx)} title="Delete page" style={{
+                      background: 'none', border: 'none', cursor: 'pointer', padding: 2,
+                      color: 'rgba(255,255,255,0.15)', display: 'flex', alignItems: 'center',
+                    }}>
+                      <Trash2 size={11} />
+                    </button>
+                  )}
                 </div>
               </div>
             ))}
