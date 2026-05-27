@@ -7,7 +7,7 @@ import DomainDetailPage from './pages/DomainDetailPage'
 import CalendarPage from './pages/CalendarPage'
 import NotesPage from './pages/NotesPage'
 import TodosPage from './pages/TodosPage'
-import StudyPage, { FloatingTimerWidget, playChime } from './pages/StudyPage'
+import StudyPage, { FloatingTimerWidget, playChime, unlockAudio } from './pages/StudyPage'
 import AuthPage from './pages/AuthPage'
 import OnboardingPage from './pages/OnboardingPage'
 import { supabase } from './lib/supabase'
@@ -419,6 +419,7 @@ export default function App() {
   }, [activeSession?.secondsLeft])
 
   const handleStartSession = ({ domainId, topic, academicWeek, pomodoroWork, pomodoroBreak, totalRounds, withNote }) => {
+    unlockAudio()
     const sessionId = crypto.randomUUID()
     let noteId      = null
     if (withNote) {

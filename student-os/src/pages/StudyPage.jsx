@@ -5,20 +5,39 @@ import {
 } from 'lucide-react'
 
 // ─── Audio ─────────────────────────────────────────────────────────────────────
+let _audioCtx = null
+function getCtx() {
+  if (!_audioCtx) _audioCtx = new (window.AudioContext || window.webkitAudioContext)()
+  return _audioCtx
+}
+
+// Call this from a user-gesture handler (e.g. Start button) to unlock iOS audio
+export function unlockAudio() {
+  try {
+    const ctx = getCtx()
+    ctx.resume()
+    const buf = ctx.createBuffer(1, 1, 22050)
+    const src = ctx.createBufferSource()
+    src.buffer = buf; src.connect(ctx.destination); src.start(0)
+  } catch (_) {}
+}
+
 export function playChime() {
   try {
-    const ctx = new (window.AudioContext || window.webkitAudioContext)()
-    const freqs = [523.25, 659.25, 783.99]
-    freqs.forEach((freq, i) => {
-      const osc = ctx.createOscillator()
-      const gain = ctx.createGain()
-      osc.connect(gain); gain.connect(ctx.destination)
-      osc.type = 'sine'; osc.frequency.value = freq
-      const t = ctx.currentTime + i * 0.18
-      gain.gain.setValueAtTime(0, t)
-      gain.gain.linearRampToValueAtTime(0.28, t + 0.02)
-      gain.gain.exponentialRampToValueAtTime(0.001, t + 0.55)
-      osc.start(t); osc.stop(t + 0.6)
+    const ctx = getCtx()
+    ctx.resume().then(() => {
+      const freqs = [523.25, 659.25, 783.99]
+      freqs.forEach((freq, i) => {
+        const osc = ctx.createOscillator()
+        const gain = ctx.createGain()
+        osc.connect(gain); gain.connect(ctx.destination)
+        osc.type = 'sine'; osc.frequency.value = freq
+        const t = ctx.currentTime + i * 0.18
+        gain.gain.setValueAtTime(0, t)
+        gain.gain.linearRampToValueAtTime(0.28, t + 0.02)
+        gain.gain.exponentialRampToValueAtTime(0.001, t + 0.55)
+        osc.start(t); osc.stop(t + 0.6)
+      })
     })
   } catch (_) {}
 }
