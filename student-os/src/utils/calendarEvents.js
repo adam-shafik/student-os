@@ -49,22 +49,24 @@ export function getTypeColor(type, customColors = {}) {
 // GOOGLE CALENDAR HOOK: In the future, merge this output with events from the Google
 // Calendar API (after OAuth2 auth). The event shape is designed to accommodate external
 // events with domainId: null.
-export function buildScheduleEvents(domains, scheduleSlots, config) {
+export function buildScheduleEvents(domains, scheduleSlots, config, weekStartSunday = false) {
   if (!domains?.length || !scheduleSlots?.length || !config) return []
 
   const { start, end, breaks } = config
-  const events     = []
-  const domainMap  = Object.fromEntries(domains.map(d => [d.id, d]))
-  const d0         = date => { const n = new Date(date); n.setHours(0,0,0,0); return n }
-  const semStart   = d0(start)
-  const semEnd     = d0(end)
+  const events      = []
+  const domainMap   = Object.fromEntries(domains.map(d => [d.id, d]))
+  const d0          = date => { const n = new Date(date); n.setHours(0,0,0,0); return n }
+  const semStart    = d0(start)
+  const semEnd      = d0(end)
+  // Offset from week start to Wednesday: Mon+2=Wed, Sun+3=Wed
+  const probeOffset = weekStartSunday ? 3 : 2
 
-  let weekMonday = new Date(semStart)
-  let weekNum    = 1
+  let weekStart = new Date(semStart)
+  let weekNum   = 1
 
-  while (weekMonday <= semEnd) {
-    const wednesday = new Date(weekMonday)
-    wednesday.setDate(wednesday.getDate() + 2)
+  while (weekStart <= semEnd) {
+    const wednesday = new Date(weekStart)
+    wednesday.setDate(wednesday.getDate() + probeOffset)
 
     const inBreak = breaks.some(b => {
       const bs = d0(b.start)
@@ -79,8 +81,8 @@ export function buildScheduleEvents(domains, scheduleSlots, config) {
         if (slot.weekFrom != null && weekNum < slot.weekFrom) continue
         if (slot.weekTo   != null && weekNum > slot.weekTo)   continue
 
-        const eventDate = new Date(weekMonday)
-        eventDate.setDate(eventDate.getDate() + slot.dayOfWeek) // 0=Mon…4=Fri
+        const eventDate = new Date(weekStart)
+        eventDate.setDate(eventDate.getDate() + slot.dayOfWeek)
 
         if (eventDate > semEnd) continue
 
@@ -106,8 +108,8 @@ export function buildScheduleEvents(domains, scheduleSlots, config) {
       weekNum++
     }
 
-    weekMonday = new Date(weekMonday)
-    weekMonday.setDate(weekMonday.getDate() + 7)
+    weekStart = new Date(weekStart)
+    weekStart.setDate(weekStart.getDate() + 7)
   }
 
   return events
@@ -118,13 +120,16 @@ export function getDomainEvents() { return [] }
 export const getSubjectEvents = getDomainEvents
 
 // ─── Calendar grid helpers ────────────────────────────────────────────────────
-export function getCalendarDays(year, month) {
+export function getCalendarDays(year, month, weekStartSunday = false) {
   const firstDay = new Date(year, month, 1)
   const daysInMonth = new Date(year, month + 1, 0).getDate()
   const prevMonthLastDay = new Date(year, month, 0).getDate()
 
-  // Monday-first offset (0=Mon … 6=Sun)
-  const startOffset = (firstDay.getDay() + 6) % 7
+  // Sunday-first: use getDay() directly (0=Sun…6=Sat)
+  // Monday-first: shift so Mon=0…Sun=6
+  const startOffset = weekStartSunday
+    ? firstDay.getDay()
+    : (firstDay.getDay() + 6) % 7
 
   const days = []
 
@@ -143,4 +148,5 @@ export function getCalendarDays(year, month) {
 }
 
 export const MONTHS = ['January','February','March','April','May','June','July','August','September','October','November','December']
-export const WEEKDAYS = ['Mon','Tue','Wed','Thu','Fri','Sat','Sun']
+export const WEEKDAYS     = ['Mon','Tue','Wed','Thu','Fri','Sat','Sun']
+export const WEEKDAYS_SUN = ['Sun','Mon','Tue','Wed','Thu','Fri','Sat']

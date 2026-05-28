@@ -7,7 +7,8 @@ const GRID_START  = 8
 const GRID_END    = 21
 const CELL_H      = 26
 const TOTAL_SLOTS = (GRID_END - GRID_START) * 2
-const DAYS_SHORT  = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri']
+const DAYS_MON = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri']
+const DAYS_SUN = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu']
 
 // ─── Session type presets ─────────────────────────────────────────────────────
 const SESSION_TYPE_PRESETS = [
@@ -152,7 +153,7 @@ function DateField({ label, value, onChange, required: reqDay, helperText }) {
   const dow             = getDow(value)
   const dowName         = getDowName(value)
   const isValid         = value ? dow === reqDay : true
-  const dayNames        = { 1: 'Monday', 5: 'Friday' }
+  const dayNames        = { 0: 'Sunday', 1: 'Monday', 4: 'Thursday', 5: 'Friday' }
 
   return (
     <div>
@@ -191,6 +192,7 @@ export default function OnboardingPage({ userId, onComplete }) {
   const [firstName,   setFirstName]   = useState('')
   const [university,  setUniversity]  = useState('')
   const [yearOfStudy, setYearOfStudy] = useState('')
+  const [weekStart,   setWeekStart]   = useState('monday') // 'monday' | 'sunday'
 
   // Step 2
   const [semStart, setSemStart] = useState('')
@@ -225,13 +227,20 @@ export default function OnboardingPage({ userId, onComplete }) {
   // Effective session types for slot picker — fall back to all presets if none selected
   const effectiveTypes = sessionTypes.length > 0 ? sessionTypes : SESSION_TYPE_PRESETS
 
+  // Week structure derived values
+  const isSunThu  = weekStart === 'sunday'
+  const DAYS_SHORT = isSunThu ? DAYS_SUN : DAYS_MON
+  const startDay  = isSunThu ? 0 : 1  // 0=Sun, 1=Mon
+  const endDay    = isSunThu ? 4 : 5  // 4=Thu, 5=Fri
+  const breakDay  = isSunThu ? 0 : 1  // first day of break week
+
   // ── Validation ────────────────────────────────────────────────────────────
   const canNext1 = firstName.trim() && yearOfStudy
   const canNext2 = semStart && semEnd
-    && getDow(semStart) === 1 && getDow(semEnd) === 5
+    && getDow(semStart) === startDay && getDow(semEnd) === endDay
     && new Date(semEnd + 'T00:00:00') > new Date(semStart + 'T00:00:00')
     && breaks.every(b => b.name.trim() && b.startMonday && b.returnMonday
-      && getDow(b.startMonday) === 1 && getDow(b.returnMonday) === 1
+      && getDow(b.startMonday) === breakDay && getDow(b.returnMonday) === breakDay
       && new Date(b.returnMonday + 'T00:00:00') > new Date(b.startMonday + 'T00:00:00'))
 
   // ── Break helpers ─────────────────────────────────────────────────────────
@@ -328,6 +337,7 @@ export default function OnboardingPage({ userId, onComplete }) {
           year_of_study:  yearOfStudy,
           semester_start: semStart,
           semester_end:   semEnd,
+          week_start:     weekStart,
         },
         semBreaks: breaks,
         domains:   modules,
@@ -380,6 +390,35 @@ export default function OnboardingPage({ userId, onComplete }) {
             placeholder="e.g. University College London"
           />
         </div>
+
+        <div>
+          <label style={labelStyle()}>Weekly schedule *</label>
+          <div style={{ fontSize: 12, color: MUTED, marginBottom: 10, lineHeight: 1.5 }}>
+            When does your university week run?
+          </div>
+          <div style={{ display: 'flex', gap: 10 }}>
+            {[
+              { id: 'monday', label: 'Monday – Friday', sub: 'Standard week' },
+              { id: 'sunday', label: 'Sunday – Thursday', sub: 'Middle East / Gulf' },
+            ].map(opt => (
+              <button
+                key={opt.id}
+                onClick={() => setWeekStart(opt.id)}
+                style={{
+                  flex: 1, padding: '12px 16px', borderRadius: 10, cursor: 'pointer', textAlign: 'left',
+                  border: `1px solid ${weekStart === opt.id ? ACCENT : BORDER}`,
+                  background: weekStart === opt.id ? 'rgba(91,140,255,0.12)' : 'transparent',
+                  transition: 'all 0.15s',
+                }}
+              >
+                <div style={{ fontSize: 13, fontWeight: weekStart === opt.id ? 700 : 500, color: weekStart === opt.id ? ACCENT : TEXT, marginBottom: 2 }}>
+                  {opt.label}
+                </div>
+                <div style={{ fontSize: 11, color: MUTED }}>{opt.sub}</div>
+              </button>
+            ))}
+          </div>
+        </div>
       </div>
 
       <ContinueBtn disabled={!canNext1} onClick={() => setStep(2)} />
@@ -401,16 +440,16 @@ export default function OnboardingPage({ userId, onComplete }) {
         <div style={{ display: 'flex', flexDirection: 'column', gap: 18, marginTop: 32 }}>
           <DateField
             label="Semester start *"
-            helperText="The first Monday of term — when teaching begins."
-            value={semStart} onChange={setSemStart} required={1}
+            helperText={isSunThu ? 'The first Sunday of term — when teaching begins.' : 'The first Monday of term — when teaching begins.'}
+            value={semStart} onChange={setSemStart} required={startDay}
           />
           <DateField
             label="Semester end *"
-            helperText="The last Friday of term — the final day of teaching."
-            value={semEnd} onChange={setSemEnd} required={5}
+            helperText={isSunThu ? 'The last Thursday of term — the final day of teaching.' : 'The last Friday of term — the final day of teaching.'}
+            value={semEnd} onChange={setSemEnd} required={endDay}
           />
 
-          {semStart && semEnd && getDow(semStart) === 1 && getDow(semEnd) === 5 && (
+          {semStart && semEnd && getDow(semStart) === startDay && getDow(semEnd) === endDay && (
             <div style={{
               padding: '12px 16px', borderRadius: 10,
               background: 'rgba(91,140,255,0.08)', border: `1px solid rgba(91,140,255,0.2)`,
@@ -456,14 +495,14 @@ export default function OnboardingPage({ userId, onComplete }) {
                       <FocusInput value={b.name} onChange={e => updBreak(b.id, 'name', e.target.value)} placeholder="e.g. Easter Break, Reading Week" />
                     </div>
                     <DateField
-                      label="First Monday of break"
-                      helperText="The day teaching stops — the first Monday you're off."
-                      value={b.startMonday} onChange={v => updBreak(b.id, 'startMonday', v)} required={1}
+                      label={isSunThu ? 'First Sunday of break' : 'First Monday of break'}
+                      helperText={isSunThu ? "The day teaching stops — the first Sunday you're off." : "The day teaching stops — the first Monday you're off."}
+                      value={b.startMonday} onChange={v => updBreak(b.id, 'startMonday', v)} required={breakDay}
                     />
                     <DateField
-                      label="First Monday back"
-                      helperText="The Monday lectures resume — set your alarm."
-                      value={b.returnMonday} onChange={v => updBreak(b.id, 'returnMonday', v)} required={1}
+                      label={isSunThu ? 'First Sunday back' : 'First Monday back'}
+                      helperText={isSunThu ? 'The Sunday lectures resume — set your alarm.' : 'The Monday lectures resume — set your alarm.'}
+                      value={b.returnMonday} onChange={v => updBreak(b.id, 'returnMonday', v)} required={breakDay}
                     />
                     {bWeeks !== null && bWeeks > 0 && (
                       <div style={{ fontSize: 12, color: GREEN, fontWeight: 500 }}>→ {bWeeks}-week break</div>

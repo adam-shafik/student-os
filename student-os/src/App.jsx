@@ -232,7 +232,8 @@ export default function App() {
   // Auto-generated domain events from schedule slots + assessments
   const domainEvents = useMemo(() => {
     const domainMap = Object.fromEntries(domains.map(d => [d.id, d]))
-    const schedEvents = buildScheduleEvents(domains, scheduleSlots, semConfig || getSemesterConfig())
+    const weekStartSunday = userProfile?.week_start === 'sunday'
+    const schedEvents = buildScheduleEvents(domains, scheduleSlots, semConfig || getSemesterConfig(), weekStartSunday)
       .filter(ev => !cancelledEventIds.has(ev.id))
     const assessEvents = assessments.map(a => {
       const d = domainMap[a.domainId]
@@ -795,6 +796,7 @@ export default function App() {
           eventTypeColors={eventTypeColors}
           onUpdateEventTypeColor={handleUpdateEventTypeColor}
           isTutorial={tutorialStep !== null}
+          weekStartSunday={userProfile?.week_start === 'sunday'}
         />
       )}
       {currentPage === 'study' && (

@@ -52,10 +52,10 @@ export function totalTeachingWeeks() {
 }
 
 // Given a calendar week row (array of day objects with .date), return display info
-export function getWeekRowInfo(weekDays) {
+export function getWeekRowInfo(weekDays, weekStartSunday = false) {
   const dates = weekDays.map(wd => wd.date)
-  // Use Wednesday (index 2) to characterise the week; fall back to Monday
-  const probe = dates[2] || dates[0]
+  // Wednesday: Mon-first row = index 2, Sun-first row = index 3
+  const probe = dates[weekStartSunday ? 3 : 2] || dates[0]
 
   if (probe) {
     if (isInSemester(probe)) {

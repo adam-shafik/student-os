@@ -1,7 +1,7 @@
 import { useState, useMemo, useRef, useEffect } from 'react'
 import { ChevronLeft, ChevronRight, Plus, X, ChevronUp, ChevronDown, Check, RotateCcw } from 'lucide-react'
 import {
-  EVENT_TYPES, TYPE_PRIORITY, MONTHS, WEEKDAYS,
+  EVENT_TYPES, TYPE_PRIORITY, MONTHS, WEEKDAYS, WEEKDAYS_SUN,
   getCalendarDays, dateKey,
   resolveTypeLabel, resolveTypeColor, getTypeColor,
 } from '../utils/calendarEvents'
@@ -488,7 +488,7 @@ const navBtn = {
 }
 
 // ─── Calendar page ────────────────────────────────────────────────────────────
-export default function CalendarPage({ domains = [], domainEvents = [], customEvents = [], onViewDomain, onAddCalendarEvent, onDeleteCalendarEvent, onCancelScheduleEvent, eventNotes = {}, onUpdateNote, eventTypeColors = {}, onUpdateEventTypeColor, isTutorial = false }) {
+export default function CalendarPage({ domains = [], domainEvents = [], customEvents = [], onViewDomain, onAddCalendarEvent, onDeleteCalendarEvent, onCancelScheduleEvent, eventNotes = {}, onUpdateNote, eventTypeColors = {}, onUpdateEventTypeColor, isTutorial = false, weekStartSunday = false }) {
   const today = new Date()
   const [viewDate,         setViewDate]         = useState(new Date(today.getFullYear(), today.getMonth(), 1))
   const [selectedEvent,    setSelectedEvent]    = useState(null)
@@ -518,7 +518,7 @@ export default function CalendarPage({ domains = [], domainEvents = [], customEv
     return map
   }, [allEvents])
 
-  const days     = useMemo(() => getCalendarDays(year, month), [year, month])
+  const days     = useMemo(() => getCalendarDays(year, month, weekStartSunday), [year, month, weekStartSunday])
   const weekRows = useMemo(() => {
     const rows = []
     for (let i = 0; i < days.length; i += 7) rows.push(days.slice(i, i + 7))
@@ -601,18 +601,22 @@ export default function CalendarPage({ domains = [], domainEvents = [], customEv
         overflow: 'hidden',
       }}>
         <div style={{ background: 'var(--bg-elevated)' }} />
-        {WEEKDAYS.map(day => (
+        {(weekStartSunday ? WEEKDAYS_SUN : WEEKDAYS).map(day => (
           <div key={day} style={{ background: 'var(--bg-elevated)', padding: '9px 0', textAlign: 'center', fontSize: 11, fontWeight: 600, color: 'var(--text-muted)', letterSpacing: '0.5px', textTransform: 'uppercase', minWidth: 0, overflow: 'hidden' }}>
             {day}
           </div>
         ))}
 
         {weekRows.flatMap((week, wi) => {
-          const info = getWeekRowInfo(week)
+          const info = getWeekRowInfo(week, weekStartSunday)
           return [
             <WeekLabelCell key={`wl-${wi}`} info={info} />,
             ...week.map((day, di) => {
               const k = dateKey(day.date)
+              const dow = day.date.getDay()
+              const isWeekend = weekStartSunday
+                ? (dow === 5 || dow === 6)   // Fri + Sat for Sun–Thu schools
+                : (dow === 0 || dow === 6)   // Sun + Sat for Mon–Fri schools
               return (
                 <DayCell
                   key={`${wi}-${di}`}
@@ -623,7 +627,7 @@ export default function CalendarPage({ domains = [], domainEvents = [], customEv
                   onAddClick={setAddModalDate}
                   eventNotes={eventNotes}
                   isBreak={info.isBreak}
-                  isWeekend={day.date.getDay() === 0 || day.date.getDay() === 6}
+                  isWeekend={isWeekend}
                   customColors={eventTypeColors}
                 />
               )
