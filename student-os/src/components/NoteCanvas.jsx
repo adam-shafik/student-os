@@ -289,7 +289,7 @@ function PageCanvas({ page, pageH, pageIdx, totalPages, onStrokesChange, onTrans
       stylusActiveRef.current = false
       stylusId = null
       clearTimeout(holdTimer.current)
-      const { tool, strokes, onStrokesChange, penSize, shapeType, drawColor, opacity, selectedIndices: si, selRect: sr, isMoving: im, moveOff: mo } = stateRef.current
+      const { tool, strokes, onStrokesChange, penSize, shapeType, drawColor, opacity, selRect: sr, isMoving: im, moveOff: mo } = stateRef.current
       if (tool === 'eraser') {
         if (eraserRAFRef.current) { cancelAnimationFrame(eraserRAFRef.current); eraserRAFRef.current = null }
         isErasingRef.current = false
@@ -514,18 +514,21 @@ function PageCanvas({ page, pageH, pageIdx, totalPages, onStrokesChange, onTrans
   }, [strokes]) // eslint-disable-line react-hooks/exhaustive-deps
 
   function commitMove(dx, dy) {
-    const moved    = [...selectedIndices].map(i => shiftStroke(strokes[i], dx, dy))
+    const moved     = [...selectedIndices].map(i => shiftStroke(strokes[i], dx, dy))
     const remaining = strokes.filter((_, i) => !selectedIndices.has(i))
 
     if (moved.length > 0 && onTransferStrokes) {
       const allBounds = moved.map(strokeBounds)
-      const centerY   = (Math.min(...allBounds.map(b => b.y1)) + Math.max(...allBounds.map(b => b.y2))) / 2
-      if (centerY < 0 && pageIdx > 0) {
+      const minY = Math.min(...allBounds.map(b => b.y1))
+      const maxY = Math.max(...allBounds.map(b => b.y2))
+
+      // Only transfer when the entire selection is fully past the page boundary
+      if (maxY < 0 && pageIdx > 0) {
         onTransferStrokes(pageIdx - 1, remaining, moved.map(s => shiftStroke(s, 0, pageH)))
         setIsMoving(false); setMoveStart(null); setMoveOff({ dx: 0, dy: 0 }); setSelectedIndices(new Set())
         return
       }
-      if (centerY > pageH && pageIdx < totalPages - 1) {
+      if (minY > pageH && pageIdx < totalPages - 1) {
         onTransferStrokes(pageIdx + 1, remaining, moved.map(s => shiftStroke(s, 0, -pageH)))
         setIsMoving(false); setMoveStart(null); setMoveOff({ dx: 0, dy: 0 }); setSelectedIndices(new Set())
         return
@@ -896,7 +899,6 @@ function PageCanvas({ page, pageH, pageIdx, totalPages, onStrokesChange, onTrans
       <svg
         ref={svgRef}
         tabIndex={tool === 'select' && !readonly ? 0 : undefined}
-        overflow={isMoving ? 'visible' : undefined}
         style={{ width: '100%', height: pageH, display: 'block', touchAction: 'pan-y', cursor, outline: 'none' }}
         onPointerDown={readonly ? undefined : onPointerDown}
         onPointerMove={readonly ? undefined : onPointerMove}
@@ -993,7 +995,6 @@ export default function NoteCanvas({
   const maxW         = PAGE_MAX_WIDTHS[orientation] ?? 900
   const opacity      = tool === 'highlighter' ? 0.35 : 1
   const eraserRadius = penSize * 4
-  const drawColor    = penColor
   const totalStrokes = pages.reduce((s, p) => s + p.strokes.length, 0)
 
   function addPage() {
