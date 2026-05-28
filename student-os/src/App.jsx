@@ -10,6 +10,7 @@ import TodosPage from './pages/TodosPage'
 import StudyPage, { FloatingTimerWidget, playChime, unlockAudio } from './pages/StudyPage'
 import AuthPage from './pages/AuthPage'
 import OnboardingPage from './pages/OnboardingPage'
+import SettingsPage from './pages/SettingsPage'
 import TutorialOverlay from './components/TutorialOverlay'
 import { supabase } from './lib/supabase'
 import { setSemesterConfig, getSemesterConfig } from './utils/semester'
@@ -694,6 +695,19 @@ export default function App() {
   const linkedEventsFor = (domainId) =>
     customCalendarEvents.filter(ev => ev.domainId === domainId)
 
+  const handleUpdateProfile = async (updates) => {
+    const { error } = await supabase.from('user_profiles').update({
+      ...updates, updated_at: new Date().toISOString(),
+    }).eq('id', userId)
+    if (!error) setUserProfile(prev => ({ ...prev, ...updates }))
+    return { error }
+  }
+
+  const handleChangePassword = async (newPassword) => {
+    const { error } = await supabase.auth.updateUser({ password: newPassword })
+    return { error }
+  }
+
   const handleDevResetOnboarding = async () => {
     if (!userId) return
     await Promise.all([
@@ -706,6 +720,7 @@ export default function App() {
       supabase.from('study_sessions').delete().eq('user_id', userId),
       supabase.from('domain_schedule_slots').delete().eq('user_id', userId),
       supabase.from('semester_breaks').delete().eq('user_id', userId),
+      supabase.from('domain_assessments').delete().eq('user_id', userId),
       supabase.from('domains').delete().eq('user_id', userId),
       supabase.from('user_profiles').delete().eq('id', userId),
       supabase.from('user_preferences').delete().eq('user_id', userId),
@@ -722,6 +737,7 @@ export default function App() {
     setWeekConfidence({})
     setNotes([])
     setEventTypeColors({})
+    setAssessments([])
     setCurrentPage('domains')
   }
 
@@ -732,7 +748,7 @@ export default function App() {
 
   return (
     <>
-    <Layout currentPage={currentPage} onNavigate={handleNavigate} theme={theme} onThemeChange={handleThemeChange} onSignOut={() => supabase.auth.signOut()} onStartTutorial={() => setTutorialStep(0)}>
+    <Layout currentPage={currentPage} onNavigate={handleNavigate} onSignOut={() => supabase.auth.signOut()} onStartTutorial={() => setTutorialStep(0)}>
       {currentPage === 'domains' && (
         <DomainsPage
           domains={domains}
@@ -822,6 +838,17 @@ export default function App() {
           isTutorial={tutorialStep !== null}
         />
       )}
+      {currentPage === 'settings' && (
+        <SettingsPage
+          userProfile={userProfile}
+          userEmail={session?.user?.email || ''}
+          theme={theme}
+          onThemeChange={handleThemeChange}
+          onUpdateProfile={handleUpdateProfile}
+          onChangePassword={handleChangePassword}
+          onResetOnboarding={handleDevResetOnboarding}
+        />
+      )}
     </Layout>
     {activeSession && currentPage !== 'study' && (
       <FloatingTimerWidget
@@ -843,21 +870,6 @@ export default function App() {
         onAdvance={setTutorialStep}
         onClose={() => setTutorialStep(null)}
       />
-    )}
-    {import.meta.env.DEV && (
-      <button
-        onClick={handleDevResetOnboarding}
-        style={{
-          position: 'fixed', bottom: 16, right: 16, zIndex: 9999,
-          padding: '6px 12px', borderRadius: 7,
-          background: '#0f1018', border: '1px solid #fb7185',
-          color: '#fb7185', fontSize: 11, fontWeight: 700,
-          cursor: 'pointer', fontFamily: 'monospace', letterSpacing: '0.3px',
-          boxShadow: '0 2px 12px rgba(0,0,0,0.4)',
-        }}
-      >
-        DEV: Reset Onboarding
-      </button>
     )}
     </>
   )

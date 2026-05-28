@@ -548,5 +548,10 @@ body {
   50%       { opacity: 0.7; }
 }
 
+@keyframes spin {
+  from { transform: rotate(0deg); }
+  to   { transform: rotate(360deg); }
+}
+
 /* Select / option dark overrides (browser-native) */
 html.theme-minimal select option { background: #fff; color: #1a1c2e; }
