@@ -590,7 +590,7 @@ export default function StudyPage({ domains, studySessions, activeSession, onSta
     <div style={{ display: 'flex', flexDirection: 'column', height: '100%', overflow: 'auto' }}>
       <div style={{ padding: '28px 28px 0', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
         <h1 style={{ margin: 0, fontSize: 22, fontWeight: 700, color: 'var(--text-primary)' }}>Study Sessions</h1>
-        <button onClick={() => { setModalDomain(null); setShowModal(true) }} style={{
+        <button data-tutorial-id="study-new-btn" onClick={() => { setModalDomain(null); setShowModal(true) }} style={{
           display: 'flex', alignItems: 'center', gap: 7,
           background: 'var(--accent-blue)', color: 'white', border: 'none',
           borderRadius: 8, padding: '8px 14px', cursor: 'pointer', fontSize: 13, fontWeight: 600,

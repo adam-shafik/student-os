@@ -706,7 +706,7 @@ export default function TodosPage({ todos, domains, onAddTodo, onToggleTodo, onD
             {totalPending === 0 ? 'All caught up' : `${totalPending} task${totalPending !== 1 ? 's' : ''} remaining`}
           </p>
         </div>
-        <button onClick={() => openAdd()} style={{
+        <button data-tutorial-id="todos-new-btn" onClick={() => openAdd()} style={{
           display: 'flex', alignItems: 'center', gap: 6, padding: '9px 16px', borderRadius: 9,
           border: 'none', background: 'var(--accent-blue)', color: 'var(--btn-primary-text)',
           fontSize: 13, fontWeight: 600, cursor: 'pointer', boxShadow: 'var(--glow-blue)',

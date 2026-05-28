@@ -473,6 +473,7 @@ export default function NotesPage({ notes, domains, noteToOpen, onClearNoteToOpe
       }}>
         <div style={{ padding: '16px 10px 10px', position: 'relative' }}>
           <button
+            data-tutorial-id="notes-new-btn"
             onClick={() => setSidebarPicker(v => !v)}
             style={{
               width: '100%', display: 'flex', alignItems: 'center', gap: 8,

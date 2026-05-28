@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import { BookOpen, Calendar, Timer, FileText, CheckSquare, Settings, GraduationCap, Palette, X, Check, LogOut } from 'lucide-react'
+import { BookOpen, Calendar, Timer, FileText, CheckSquare, Settings, GraduationCap, Palette, X, Check, LogOut, HelpCircle } from 'lucide-react'
 import { THEMES } from '../theme'
 
 const navItems = [
@@ -77,7 +77,7 @@ function ThemeSwitcher({ theme, onThemeChange, onClose }) {
   )
 }
 
-export default function Layout({ currentPage, onNavigate, theme, onThemeChange, onSignOut, children }) {
+export default function Layout({ currentPage, onNavigate, theme, onThemeChange, onSignOut, onStartTutorial, children }) {
   const [themeOpen, setThemeOpen] = useState(false)
 
   return (
@@ -160,6 +160,22 @@ export default function Layout({ currentPage, onNavigate, theme, onThemeChange, 
         {/* Bottom */}
         <div style={{ borderTop: '1px solid var(--border)', paddingTop: 12, display: 'flex', flexDirection: 'column', gap: 2 }}>
           <button
+            onClick={onStartTutorial}
+            style={{
+              display: 'flex', alignItems: 'center', gap: 10,
+              padding: '9px 12px', borderRadius: 8, border: 'none',
+              background: 'transparent', color: 'var(--text-secondary)',
+              cursor: 'pointer', width: '100%', fontSize: 14, transition: 'all 0.15s',
+            }}
+            onMouseEnter={e => { e.currentTarget.style.background = 'var(--nav-hover)'; e.currentTarget.style.color = 'var(--text-bright)' }}
+            onMouseLeave={e => { e.currentTarget.style.background = 'transparent'; e.currentTarget.style.color = 'var(--text-secondary)' }}
+          >
+            <HelpCircle size={17} strokeWidth={1.8} />
+            Take a Tour
+          </button>
+
+          <button
+            data-tutorial-id="sidebar-themes"
             onClick={() => setThemeOpen(v => !v)}
             style={{
               display: 'flex', alignItems: 'center', gap: 10,

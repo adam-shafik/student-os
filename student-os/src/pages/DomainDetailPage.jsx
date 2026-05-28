@@ -977,7 +977,7 @@ export default function DomainDetailPage({ domain, linkedEvents, onBack, eventNo
       </div>
 
       {/* Tab bar */}
-      <div style={{ display: 'flex', gap: 4, marginBottom: 20, background: 'var(--bg-surface)', border: '1px solid var(--border)', borderRadius: 10, padding: 4 }}>
+      <div data-tutorial-id="domain-detail-tabs" style={{ display: 'flex', gap: 4, marginBottom: 20, background: 'var(--bg-surface)', border: '1px solid var(--border)', borderRadius: 10, padding: 4 }}>
         {TABS.map(tab => (
           <button
             key={tab}

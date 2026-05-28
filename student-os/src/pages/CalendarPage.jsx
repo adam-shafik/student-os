@@ -590,7 +590,7 @@ export default function CalendarPage({ domains = [], domainEvents = [], customEv
         )}
       </div>
 
-      <div style={{
+      <div data-tutorial-id="calendar-grid" style={{
         display: 'grid',
         gridTemplateColumns: '28px repeat(7, 1fr)',
         gridTemplateRows: `auto repeat(6, minmax(110px, auto))`,

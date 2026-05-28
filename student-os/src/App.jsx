@@ -10,6 +10,7 @@ import TodosPage from './pages/TodosPage'
 import StudyPage, { FloatingTimerWidget, playChime, unlockAudio } from './pages/StudyPage'
 import AuthPage from './pages/AuthPage'
 import OnboardingPage from './pages/OnboardingPage'
+import TutorialOverlay from './components/TutorialOverlay'
 import { supabase } from './lib/supabase'
 import { setSemesterConfig, getSemesterConfig } from './utils/semester'
 import { buildScheduleEvents } from './utils/calendarEvents'
@@ -274,6 +275,7 @@ export default function App() {
     setSemesterConfig(config)
     setSemConfig(config)
     setUserProfile(profile)
+    setTutorialStep(0)
   }
 
   const handleCreateDomain = (domain) => {
@@ -385,6 +387,8 @@ export default function App() {
     if ('studySessionId' in updates) db.study_session_id = updates.studySessionId || null
     supabase.from('todos').update(db).eq('id', id)
   }
+
+  const [tutorialStep, setTutorialStep] = useState(null)
 
   const [studySessions, setStudySessions] = useState([])
   const [activeSession, setActiveSession] = useState(null)
@@ -647,7 +651,7 @@ export default function App() {
 
   return (
     <>
-    <Layout currentPage={currentPage} onNavigate={handleNavigate} theme={theme} onThemeChange={handleThemeChange} onSignOut={() => supabase.auth.signOut()}>
+    <Layout currentPage={currentPage} onNavigate={handleNavigate} theme={theme} onThemeChange={handleThemeChange} onSignOut={() => supabase.auth.signOut()} onStartTutorial={() => setTutorialStep(0)}>
       {currentPage === 'domains' && (
         <DomainsPage
           domains={domains}
@@ -737,6 +741,16 @@ export default function App() {
         onGoToStudy={() => handleNavigate('study')}
         onToggleHidden={handleToggleWidgetHidden}
         onToggleBlurred={handleToggleWidgetBlurred}
+      />
+    )}
+    {tutorialStep !== null && (
+      <TutorialOverlay
+        userName={userProfile?.first_name || ''}
+        stepIndex={tutorialStep}
+        currentPage={currentPage}
+        onNavigate={handleNavigate}
+        onAdvance={setTutorialStep}
+        onClose={() => setTutorialStep(null)}
       />
     )}
     {import.meta.env.DEV && (

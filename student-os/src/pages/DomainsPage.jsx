@@ -417,7 +417,7 @@ export default function DomainsPage({ domains, customCalendarEvents, todos, onOp
     s + (d.assignments || []).filter(a => a.status === 'upcoming').length, 0)
 
   return (
-    <div style={{ padding: '36px 40px', maxWidth: 1100 }}>
+    <div data-tutorial-id="domains-grid" style={{ padding: '36px 40px', maxWidth: 1100 }}>
 
       <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', marginBottom: 28 }}>
         <div>
