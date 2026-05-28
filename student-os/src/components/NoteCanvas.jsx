@@ -267,13 +267,6 @@ function PageCanvas({ page, pageH, onStrokesChange, penColor, penSize, tool, sha
     isErasingRef.current = false; erasingRef.current = null
   }, [tool])
 
-  // Once parent strokes prop updates after an erase, clear the local preview.
-  // We keep erasingStrokes set to `final` until the parent re-renders with the
-  // new strokes, preventing a flash of the old un-erased strokes.
-  useEffect(() => {
-    setErasingStrokes(null)
-  }, [strokes])
-
   useEffect(() => {
     if (readonly) return
     const svg = svgRef.current
@@ -514,6 +507,12 @@ function PageCanvas({ page, pageH, onStrokesChange, penColor, penSize, tool, sha
   const drawColor      = adaptColor(penColor, bgColor)
   const strokes        = page.strokes
   const displayStrokes = erasingStrokes ?? strokes
+
+  // Clear the local erasing preview once the parent strokes prop has updated,
+  // preventing a flash of the old un-erased strokes between the two renders.
+  useEffect(() => {
+    setErasingStrokes(null)
+  }, [strokes]) // eslint-disable-line react-hooks/exhaustive-deps
 
   stateRef.current = {
     tool, drawColor, penSize, opacity, smoothness, shapeType, eraserMode, eraserRadius, strokes, onStrokesChange, onUndo, onCopy, clipboard,
