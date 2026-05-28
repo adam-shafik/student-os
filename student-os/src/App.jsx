@@ -451,12 +451,16 @@ export default function App() {
     }, { onConflict: 'id' })
   }
 
-  const handleToggleTodo = (id) => {
+  const handleToggleTodo = async (id) => {
     const todo = todos.find(t => t.id === id)
     if (!todo) return
     const newDone = !todo.done
     setTodos(prev => prev.map(t => t.id === id ? { ...t, done: newDone } : t))
-    supabase.from('todos').update({ done: newDone }).eq('id', id)
+    const { error } = await supabase.from('todos').update({ done: newDone }).eq('id', id).eq('user_id', userId)
+    if (error) {
+      console.error('todo toggle failed:', error.message, error)
+      setTodos(prev => prev.map(t => t.id === id ? { ...t, done: !newDone } : t))
+    }
   }
 
   const handleDeleteTodo = (id) => {
