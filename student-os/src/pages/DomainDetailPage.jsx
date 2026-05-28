@@ -929,7 +929,7 @@ function EditDomainModal({ domain, onClose, onSave }) {
             </div>
             <div>
               <div style={{ fontSize: 11, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.5px', marginBottom: 7 }}>Code</div>
-              <input style={{ ...inputStyle, textTransform: 'uppercase', fontWeight: 600 }} maxLength={5} value={form.code} onChange={e => set('code', e.target.value)}
+              <input style={{ ...inputStyle, textTransform: 'uppercase', fontWeight: 600 }} value={form.code} onChange={e => set('code', e.target.value)}
                 onFocus={e => e.target.style.borderColor = 'var(--border-focus)'} onBlur={e => e.target.style.borderColor = 'var(--border-strong)'} />
             </div>
           </div>

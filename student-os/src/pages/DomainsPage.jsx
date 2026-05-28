@@ -269,7 +269,7 @@ function CreateDomainModal({ onClose, onSave }) {
             </div>
             <div>
               <FieldLabel>Code</FieldLabel>
-              <input style={{ ...inputStyle, textTransform: 'uppercase', fontWeight: 600 }} placeholder="CODE" maxLength={5} value={form.code} onChange={e => set('code', e.target.value)}
+              <input style={{ ...inputStyle, textTransform: 'uppercase', fontWeight: 600 }} placeholder="CODE" value={form.code} onChange={e => set('code', e.target.value)}
                 onFocus={e => e.target.style.borderColor = 'var(--border-focus)'}
                 onBlur={e => e.target.style.borderColor = 'var(--border-strong)'}
               />
