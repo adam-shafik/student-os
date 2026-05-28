@@ -319,16 +319,20 @@ export default function App() {
     setTutorialStep(0)
   }
 
-  const handleCreateDomain = (domain) => {
+  const handleCreateDomain = async (domain) => {
     const now = new Date().toISOString()
     const withDefaults = { ...domain, lectures:[], labs:[], assignments:[], exams:[] }
     setDomains(prev => [...prev, withDefaults])
-    supabase.from('domains').insert({
+    const { error } = await supabase.from('domains').insert({
       id: domain.id, user_id: userId, name: domain.name, code: domain.code || null,
       category: domain.category, color: domain.color, icon: domain.icon || 'BookOpen',
       professor: domain.professor || null, credits: domain.credits || null,
       progress: 0, created_at: now, updated_at: now,
     })
+    if (error) {
+      console.error('create domain failed:', error.message)
+      setDomains(prev => prev.filter(d => d.id !== domain.id))
+    }
   }
 
   const handleUpdateDomain = (id, updates) => {
@@ -383,36 +387,43 @@ export default function App() {
     return { error }
   }
 
-  const handleDeleteCalendarEvent = (id) => {
+  const handleDeleteCalendarEvent = async (id) => {
     setCustomCalendarEvents(prev => prev.filter(ev => ev.id !== id))
-    supabase.from('custom_calendar_events').delete().eq('id', id)
+    const { error } = await supabase.from('custom_calendar_events').delete().eq('id', id).eq('user_id', userId)
+    if (error) console.error('calendar event delete failed:', error.message)
   }
 
-  const handleCancelScheduleEvent = (eventId) => {
+  const handleCancelScheduleEvent = async (eventId) => {
     setCancelledEventIds(prev => new Set([...prev, eventId]))
-    supabase.from('cancelled_schedule_events').insert({ user_id: userId, event_id: eventId })
+    const { error } = await supabase.from('cancelled_schedule_events').insert({ user_id: userId, event_id: eventId })
+    if (error) {
+      console.error('cancel schedule event failed:', error.message)
+      setCancelledEventIds(prev => { const next = new Set(prev); next.delete(eventId); return next })
+    }
   }
 
   const handleUpdateEventTypeColor = (type, color) => {
-    setEventTypeColors(prev => {
-      const next = { ...prev, [type]: color }
-      supabase.from('user_preferences').upsert(
-        { user_id: userId, event_type_colors: next },
-        { onConflict: 'user_id' }
-      )
-      return next
-    })
+    const next = { ...eventTypeColors, [type]: color }
+    setEventTypeColors(next)
+    supabase.from('user_preferences').upsert(
+      { user_id: userId, event_type_colors: next },
+      { onConflict: 'user_id' }
+    ).then(({ error }) => { if (error) console.error('event type color save failed:', error.message) })
   }
 
-  const handleAddCalendarEvent = (event) => {
+  const handleAddCalendarEvent = async (event) => {
     const id = crypto.randomUUID()
     setCustomCalendarEvents(prev => [...prev, { ...event, id }])
     const d = event.date
     const dateStr = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`
-    supabase.from('custom_calendar_events').insert({
+    const { error } = await supabase.from('custom_calendar_events').insert({
       id, user_id: userId, type: event.type, title: event.title,
       date: dateStr, domain_id: event.domainId || null, academic_week: event.academicWeek || null,
     })
+    if (error) {
+      console.error('add calendar event failed:', error.message)
+      setCustomCalendarEvents(prev => prev.filter(ev => ev.id !== id))
+    }
   }
 
   const handleUpdateNote = (eventId, text) => {
@@ -420,7 +431,7 @@ export default function App() {
     supabase.from('event_notes').upsert(
       { user_id: userId, event_id: eventId, text, updated_at: new Date().toISOString() },
       { onConflict: 'user_id,event_id' }
-    )
+    ).then(({ error }) => { if (error) console.error('event note save failed:', error.message) })
   }
 
   const handleSetWeekConfidence = async (domainId, week, level) => {
@@ -439,16 +450,20 @@ export default function App() {
     }
   }
 
-  const handleAddTodo = (todo) => {
+  const handleAddTodo = async (todo) => {
     const id  = crypto.randomUUID()
     const now = new Date().toISOString()
     setTodos(prev => [...prev, { ...todo, id, createdAt: now }])
-    supabase.from('todos').upsert({
+    const { error } = await supabase.from('todos').insert({
       id, user_id: userId, title: todo.title, domain_id: todo.domainId || null,
       due_date: todo.dueDate || null, priority: todo.priority, done: false, created_at: now,
       study_session_id: todo.studySessionId || null, note_id: todo.noteId || null,
       academic_week: todo.academicWeek || null,
-    }, { onConflict: 'id' })
+    })
+    if (error) {
+      console.error('add todo failed:', error.message)
+      setTodos(prev => prev.filter(t => t.id !== id))
+    }
   }
 
   const handleToggleTodo = async (id) => {
@@ -463,12 +478,18 @@ export default function App() {
     }
   }
 
-  const handleDeleteTodo = (id) => {
+  const handleDeleteTodo = async (id) => {
+    const snapshot = todos.find(t => t.id === id)
     setTodos(prev => prev.filter(t => t.id !== id))
-    supabase.from('todos').delete().eq('id', id)
+    const { error } = await supabase.from('todos').delete().eq('id', id).eq('user_id', userId)
+    if (error) {
+      console.error('delete todo failed:', error.message)
+      if (snapshot) setTodos(prev => [...prev, snapshot])
+    }
   }
 
-  const handleUpdateTodo = (id, updates) => {
+  const handleUpdateTodo = async (id, updates) => {
+    const snapshot = todos.find(t => t.id === id)
     setTodos(prev => prev.map(t => t.id === id ? { ...t, ...updates } : t))
     const db = {}
     if ('title'          in updates) db.title            = updates.title
@@ -478,7 +499,11 @@ export default function App() {
     if ('academicWeek'   in updates) db.academic_week    = updates.academicWeek || null
     if ('noteId'         in updates) db.note_id          = updates.noteId || null
     if ('studySessionId' in updates) db.study_session_id = updates.studySessionId || null
-    supabase.from('todos').update(db).eq('id', id)
+    const { error } = await supabase.from('todos').update(db).eq('id', id).eq('user_id', userId)
+    if (error) {
+      console.error('update todo failed:', error.message)
+      if (snapshot) setTodos(prev => prev.map(t => t.id === id ? snapshot : t))
+    }
   }
 
   const [tutorialStep, setTutorialStep] = useState(null)
@@ -625,12 +650,29 @@ export default function App() {
     })
   }
 
-  const handleUpdateNoteData = (id, updates) =>
-    setNotes(prev => prev.map(n => n.id === id ? { ...n, ...updates, updatedAt: new Date().toISOString() } : n))
+  const handleUpdateNoteData = (id, updates) => {
+    const now = new Date().toISOString()
+    setNotes(prev => prev.map(n => n.id === id ? { ...n, ...updates, updatedAt: now } : n))
+    const db = { updated_at: now }
+    if ('title'        in updates) db.title         = updates.title        || null
+    if ('domainId'     in updates) db.domain_id     = updates.domainId     || null
+    if ('academicWeek' in updates) db.academic_week = updates.academicWeek || null
+    if ('eventId'      in updates) db.event_id      = updates.eventId      || null
+    if (Object.keys(db).length > 1)
+      supabase.from('notes').update(db).eq('id', id).eq('user_id', userId)
+        .then(({ error }) => { if (error) console.error('note metadata update failed:', error.message) })
+  }
 
-  const handleDeleteNote = (id) => {
+  const handleDeleteNote = async (id) => {
     setNotes(prev => prev.filter(n => n.id !== id))
-    supabase.from('notes').delete().eq('id', id)  // note_pages cascade deletes
+    const { error } = await supabase.from('notes').delete().eq('id', id).eq('user_id', userId)
+    if (error) {
+      console.error('note delete failed:', error.message)
+      // restore the note in local state if delete failed
+      supabase.from('notes').select('*').eq('id', id).maybeSingle().then(({ data }) => {
+        if (data) setNotes(prev => [data, ...prev])
+      })
+    }
   }
 
   const handleSaveNote = async (noteId) => {
@@ -638,14 +680,18 @@ export default function App() {
     if (!note) return
     const now = new Date().toISOString()
 
+    const metaFields = {
+      title: note.title, domain_id: note.domainId || null,
+      academic_week: note.academicWeek || null, event_id: note.eventId || null,
+    }
     if (note.type === 'typed') {
       const { error } = await supabase.from('notes').update({
-        title: note.title, content: note.content || null, updated_at: now,
+        ...metaFields, content: note.content || null, updated_at: now,
       }).eq('id', noteId)
       if (error) { console.error('notes update failed:', error); throw error }
     } else {
       const { error: updateErr } = await supabase.from('notes').update({
-        title: note.title, template: note.template, bg_color: note.bgColor,
+        ...metaFields, template: note.template, bg_color: note.bgColor,
         line_spacing: note.lineSpacing, orientation: note.orientation, updated_at: now,
       }).eq('id', noteId)
       if (updateErr) { console.error('notes update failed:', updateErr); throw updateErr }
