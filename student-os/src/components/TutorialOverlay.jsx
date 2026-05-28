@@ -32,7 +32,7 @@ function buildSteps(name) {
       targetId: 'domain-detail-tabs',
       title: 'Inside a domain',
       body: `Everything about this subject lives here — your weekly schedule, progress tracking, linked notes, and study sessions. Use the tabs to explore each section.`,
-      nextLabel: 'Got it →',
+      nextLabel: 'Got it',
       tooltipSide: 'bottom-corner',
     },
     {
@@ -41,19 +41,28 @@ function buildSteps(name) {
       page: 'calendar',
       targetId: 'calendar-grid',
       title: 'Your calendar',
-      body: `Your schedule fills in automatically from your domains — every lecture, lab, and session shows up here without you adding anything manually. Tap any event to see details or add notes.`,
-      nextLabel: 'Got it →',
+      body: `Your schedule fills in automatically from your domains — every lecture, lab, and session shows up here without you adding everything manually. Tap any event to see details or add notes.`,
+      nextLabel: 'Got it',
       tooltipSide: 'bottom-corner',
     },
     {
-      id: 'study',
-      type: 'next',
+      id: 'study-overview',
+      type: 'click',
       page: 'study',
       targetId: 'study-new-btn',
       title: 'Study sessions',
-      body: `Start a focused session from here — pick your domain, set a Pomodoro timer, and optionally open a linked note. Sessions are tracked over time so you can see where your time goes.`,
-      nextLabel: 'Got it →',
+      body: `Track your focus time with Pomodoro sessions, linked to domains and notes. Click New Session to see how it works.`,
       tooltipSide: 'bottom',
+    },
+    {
+      id: 'study-modal',
+      type: 'next',
+      page: null,
+      targetId: 'study-modal-content',
+      title: 'Configure a session',
+      body: `Pick a domain, write your topic, choose a Pomodoro preset or go custom, and optionally open a linked note that saves with the session. All sessions are recorded so you can review your study history.`,
+      nextLabel: 'Got it',
+      tooltipSide: 'bottom-corner',
     },
     {
       id: 'notes',
@@ -62,26 +71,35 @@ function buildSteps(name) {
       targetId: 'notes-new-btn',
       title: 'Notes',
       body: `Create handwritten canvas notes or typed notes, linked to your domains, study sessions, or calendar events. Nothing stays isolated — everything connects back to where it came from.`,
-      nextLabel: 'Got it →',
+      nextLabel: 'Got it',
       tooltipSide: 'bottom',
     },
     {
-      id: 'todos',
-      type: 'next',
+      id: 'todos-overview',
+      type: 'click',
       page: 'todos',
       targetId: 'todos-new-btn',
       title: 'To do',
-      body: `Track tasks with priorities and due dates, link them to your domains, and check them off as you go. You can also add tasks directly from inside a domain.`,
-      nextLabel: 'Got it →',
+      body: `Keep all your tasks here — with priorities, due dates, and domain links. Click New Task to see the options.`,
       tooltipSide: 'bottom',
+    },
+    {
+      id: 'todos-modal',
+      type: 'next',
+      page: null,
+      targetId: 'todos-modal-content',
+      title: 'Create a task',
+      body: `Name the task, set a priority (high / medium / low), link to a domain, and pick a due date. Academic tasks can also be pinned to a specific week. Everything connects back to your domains.`,
+      nextLabel: 'Got it',
+      tooltipSide: 'bottom-corner',
     },
     {
       id: 'done',
       type: 'center',
-      page: null,
+      page: 'domains',
       targetId: null,
       title: `You're all set`,
-      body: `Everything in StudentOS is connected — domains feed your calendar, study sessions link to notes, tasks tie to everything. Explore at your own pace, and you can always retake this tour from the sidebar.`,
+      body: `We built StudentOS for students who are done procrastinating — everything you need, all in one place. Explore at your own pace, and you can always retake this tour from the sidebar.`,
       nextLabel: "Let's go!",
     },
   ]
@@ -130,6 +148,20 @@ export default function TutorialOverlay({ userName, stepIndex, currentPage, onNa
       handleAdvance()
     }
   }, [currentPage, step.type, step.waitForPage, handleAdvance])
+
+  // Click step: advance when the highlighted element is clicked
+  useEffect(() => {
+    if (step.type !== 'click' || !step.targetId) return
+    let el = null
+    const raf = requestAnimationFrame(() => {
+      el = document.querySelector(`[data-tutorial-id="${step.targetId}"]`)
+      if (el) el.addEventListener('click', handleAdvance)
+    })
+    return () => {
+      cancelAnimationFrame(raf)
+      if (el) el.removeEventListener('click', handleAdvance)
+    }
+  }, [step.type, step.targetId, handleAdvance, currentPage])
 
   const isCenter = step.type === 'center'
   const isPageChange = step.type === 'page-change'
@@ -194,14 +226,15 @@ export default function TutorialOverlay({ userName, stepIndex, currentPage, onNa
       <button
         onClick={onClose}
         style={{
-          position:'fixed', top:18, right:20, zIndex:9999,
-          background:'rgba(255,255,255,0.07)', border:'1px solid rgba(255,255,255,0.11)',
-          backdropFilter:'blur(12px)', borderRadius:20,
-          padding:'6px 16px', fontSize:12, color:'rgba(255,255,255,0.42)',
+          position:'fixed', bottom:20, left:10, width:208, zIndex:9999,
+          display:'flex', alignItems:'center', justifyContent:'center',
+          padding:'9px 12px', borderRadius:8, border:'1px solid rgba(255,255,255,0.08)',
+          background:'rgba(255,255,255,0.05)',
+          fontSize:13, color:'rgba(255,255,255,0.38)',
           cursor:'pointer', transition:'all 0.15s',
         }}
-        onMouseEnter={e => { e.currentTarget.style.color='rgba(255,255,255,0.82)'; e.currentTarget.style.background='rgba(255,255,255,0.12)' }}
-        onMouseLeave={e => { e.currentTarget.style.color='rgba(255,255,255,0.42)'; e.currentTarget.style.background='rgba(255,255,255,0.07)' }}
+        onMouseEnter={e => { e.currentTarget.style.color='rgba(255,255,255,0.72)'; e.currentTarget.style.background='rgba(255,255,255,0.09)' }}
+        onMouseLeave={e => { e.currentTarget.style.color='rgba(255,255,255,0.38)'; e.currentTarget.style.background='rgba(255,255,255,0.05)' }}
       >
         Skip tour
       </button>
@@ -249,7 +282,9 @@ export default function TutorialOverlay({ userName, stepIndex, currentPage, onNa
               </div>
             ) : (
               <button
-                onClick={handleAdvance}
+                onClick={step.type === 'click'
+                  ? () => { const el = document.querySelector(`[data-tutorial-id="${step.targetId}"]`); if (el) el.click(); else handleAdvance() }
+                  : handleAdvance}
                 style={{
                   display:'flex', alignItems:'center', gap:7,
                   padding:'10px 22px', borderRadius:12,

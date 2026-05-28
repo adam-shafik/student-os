@@ -48,7 +48,7 @@ function fmtDuration(mins) {
   return h && m ? `${h}h ${m}m` : h ? `${h}h` : `${m}m`
 }
 
-export default function EventDetailModal({ event, onClose, onViewDomain, note, onUpdateNote, onDelete }) {
+export default function EventDetailModal({ event, onClose, onViewDomain, note, onUpdateNote, onDelete, isTutorial = false }) {
   if (!event) return null
   const typeColor = resolveTypeColor(event)
   const typeLabel = resolveTypeLabel(event)
@@ -210,20 +210,20 @@ export default function EventDetailModal({ event, onClose, onViewDomain, note, o
           <div style={{ padding: '12px 22px', borderTop: '1px solid var(--border)', flexShrink: 0, display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 8 }}>
             {onDelete ? (
               <button
-                onClick={onDelete}
-                style={{ display: 'flex', alignItems: 'center', gap: 6, background: 'rgba(251,113,133,0.08)', border: '1px solid rgba(251,113,133,0.2)', borderRadius: 8, padding: '8px 14px', cursor: 'pointer', color: '#fb7185', fontSize: 13, transition: 'all 0.15s' }}
-                onMouseEnter={e => { e.currentTarget.style.background = 'rgba(251,113,133,0.16)'; e.currentTarget.style.borderColor = 'rgba(251,113,133,0.4)' }}
-                onMouseLeave={e => { e.currentTarget.style.background = 'rgba(251,113,133,0.08)'; e.currentTarget.style.borderColor = 'rgba(251,113,133,0.2)' }}
+                onClick={isTutorial ? undefined : onDelete}
+                style={{ display: 'flex', alignItems: 'center', gap: 6, background: 'rgba(251,113,133,0.08)', border: '1px solid rgba(251,113,133,0.2)', borderRadius: 8, padding: '8px 14px', cursor: isTutorial ? 'not-allowed' : 'pointer', color: '#fb7185', fontSize: 13, transition: 'all 0.15s', opacity: isTutorial ? 0.4 : 1 }}
+                onMouseEnter={e => { if (!isTutorial) { e.currentTarget.style.background = 'rgba(251,113,133,0.16)'; e.currentTarget.style.borderColor = 'rgba(251,113,133,0.4)' } }}
+                onMouseLeave={e => { if (!isTutorial) { e.currentTarget.style.background = 'rgba(251,113,133,0.08)'; e.currentTarget.style.borderColor = 'rgba(251,113,133,0.2)' } }}
               >
                 <Trash2 size={13} /> Delete event
               </button>
             ) : <div />}
             {onViewDomain && event.domainId && (
               <button
-                onClick={() => { onViewDomain(event.domainId); onClose() }}
-                style={{ display: 'flex', alignItems: 'center', gap: 7, background: 'none', border: '1px solid var(--border-strong)', borderRadius: 8, padding: '8px 14px', cursor: 'pointer', color: 'var(--text-secondary)', fontSize: 13, transition: 'all 0.15s' }}
-                onMouseEnter={e => { e.currentTarget.style.borderColor = 'var(--accent-blue)'; e.currentTarget.style.color = 'var(--accent-blue)' }}
-                onMouseLeave={e => { e.currentTarget.style.borderColor = 'var(--border-strong)'; e.currentTarget.style.color = 'var(--text-secondary)' }}
+                onClick={isTutorial ? undefined : () => { onViewDomain(event.domainId); onClose() }}
+                style={{ display: 'flex', alignItems: 'center', gap: 7, background: 'none', border: '1px solid var(--border-strong)', borderRadius: 8, padding: '8px 14px', cursor: isTutorial ? 'not-allowed' : 'pointer', color: 'var(--text-secondary)', fontSize: 13, transition: 'all 0.15s', opacity: isTutorial ? 0.4 : 1 }}
+                onMouseEnter={e => { if (!isTutorial) { e.currentTarget.style.borderColor = 'var(--accent-blue)'; e.currentTarget.style.color = 'var(--accent-blue)' } }}
+                onMouseLeave={e => { if (!isTutorial) { e.currentTarget.style.borderColor = 'var(--border-strong)'; e.currentTarget.style.color = 'var(--text-secondary)' } }}
               >
                 <ExternalLink size={13} /> View in Domains
               </button>

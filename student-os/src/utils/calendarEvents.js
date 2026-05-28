@@ -99,6 +99,7 @@ export function buildScheduleEvents(domains, scheduleSlots, config) {
             time: slot.startTime,
             duration: slot.durationMinutes,
             status: 'upcoming',
+            location: slot.location || null,
           },
         })
       }

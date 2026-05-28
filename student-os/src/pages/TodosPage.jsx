@@ -65,7 +65,7 @@ function Label({ children }) {
 }
 
 // ─── Add task modal ────────────────────────────────────────────────────────────
-function AddTaskModal({ domains, onClose, onSave, initialDomainId, defaultDueDate }) {
+function AddTaskModal({ domains, onClose, onSave, initialDomainId, defaultDueDate, isTutorial }) {
   const [form, setForm] = useState({
     title: '', domainId: initialDomainId || '', dueDate: defaultDueDate || '', priority: 'medium', academicWeek: '',
   })
@@ -97,7 +97,7 @@ function AddTaskModal({ domains, onClose, onSave, initialDomainId, defaultDueDat
 
   return (
     <div onClick={onClose} style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.65)', zIndex: 1000, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-      <div onClick={e => e.stopPropagation()} style={{ background: 'var(--bg-surface)', border: '1px solid var(--border-strong)', borderRadius: 16, width: 460, maxWidth: '92vw', boxShadow: 'var(--shadow-modal)', overflow: 'hidden' }}>
+      <div onClick={e => e.stopPropagation()} data-tutorial-id="todos-modal-content" style={{ background: 'var(--bg-surface)', border: '1px solid var(--border-strong)', borderRadius: 16, width: 460, maxWidth: '92vw', boxShadow: 'var(--shadow-modal)', overflow: 'hidden' }}>
 
         <div style={{ padding: '18px 22px', borderBottom: '1px solid var(--border)', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
           <span style={{ fontSize: 15, fontWeight: 600, color: 'var(--text-primary)' }}>New Task</span>
@@ -174,11 +174,11 @@ function AddTaskModal({ domains, onClose, onSave, initialDomainId, defaultDueDat
 
         <div style={{ padding: '14px 22px', borderTop: '1px solid var(--border)', display: 'flex', justifyContent: 'flex-end', gap: 8 }}>
           <button onClick={onClose} style={{ padding: '8px 16px', borderRadius: 8, border: '1px solid var(--border-strong)', background: 'none', color: 'var(--text-secondary)', cursor: 'pointer', fontSize: 13 }}>Cancel</button>
-          <button onClick={handleSave} disabled={!canSave} style={{
+          <button onClick={handleSave} disabled={!canSave || isTutorial} style={{
             padding: '8px 18px', borderRadius: 8, border: 'none', fontSize: 13, fontWeight: 600,
-            background: canSave ? 'var(--accent-blue)' : 'var(--border)',
-            color: canSave ? 'var(--btn-primary-text)' : 'var(--text-muted)',
-            cursor: canSave ? 'pointer' : 'default', transition: 'all 0.15s',
+            background: canSave && !isTutorial ? 'var(--accent-blue)' : 'var(--border)',
+            color: canSave && !isTutorial ? 'var(--btn-primary-text)' : 'var(--text-muted)',
+            cursor: canSave && !isTutorial ? 'pointer' : 'default', transition: 'all 0.15s',
           }}>Add Task</button>
         </div>
       </div>
@@ -611,7 +611,7 @@ function DomainSection({ domain, tasks, domainMap, onToggle, onDelete, onOpenNot
 }
 
 // ─── Main page ─────────────────────────────────────────────────────────────────
-export default function TodosPage({ todos, domains, onAddTodo, onToggleTodo, onDeleteTodo, onUpdateTodo, notes, studySessions, onOpenNote }) {
+export default function TodosPage({ todos, domains, onAddTodo, onToggleTodo, onDeleteTodo, onUpdateTodo, notes, studySessions, onOpenNote, isTutorial }) {
   const [view,         setView]         = useState('plan')
   const [showAdd,      setShowAdd]      = useState(false)
   const [addForDomain, setAddForDomain] = useState(null)
@@ -840,6 +840,7 @@ export default function TodosPage({ todos, domains, onAddTodo, onToggleTodo, onD
           defaultDueDate={addForDate}
           onClose={() => { setShowAdd(false); setAddForDomain(null); setAddForDate(null) }}
           onSave={handleSave}
+          isTutorial={isTutorial}
         />
       )}
 

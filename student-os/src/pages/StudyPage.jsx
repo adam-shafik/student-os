@@ -219,7 +219,7 @@ function ActiveTimerView({ session, domain, onPauseResume, onSkipPhase, onEndSes
 }
 
 // ─── Start session modal ──────────────────────────────────────────────────────
-function StartSessionModal({ initialDomain, domains, onClose, onStart }) {
+function StartSessionModal({ initialDomain, domains, onClose, onStart, isTutorial }) {
   const [domainId,    setDomainId]    = useState(initialDomain?.id ?? '')
   const [topic,       setTopic]       = useState('')
   const [week,        setWeek]        = useState('')
@@ -268,7 +268,7 @@ function StartSessionModal({ initialDomain, domains, onClose, onStart }) {
       }}
       onClick={e => { if (e.target === e.currentTarget) onClose() }}
     >
-      <div style={{
+      <div data-tutorial-id="study-modal-content" style={{
         background: 'var(--bg-elevated)', border: '1px solid var(--border)',
         borderRadius: 14, width: 480, maxWidth: '94vw', maxHeight: '90vh',
         overflowY: 'auto', padding: '24px', display: 'flex', flexDirection: 'column', gap: 20,
@@ -394,11 +394,11 @@ function StartSessionModal({ initialDomain, domains, onClose, onStart }) {
         </div>
 
         {/* Start button */}
-        <button onClick={handleStart} disabled={!topic.trim()} style={{
-          background: topic.trim() ? 'var(--accent-blue)' : 'var(--bg-surface)',
-          color: topic.trim() ? 'white' : 'var(--text-muted)',
+        <button onClick={handleStart} disabled={!topic.trim() || isTutorial} style={{
+          background: topic.trim() && !isTutorial ? 'var(--accent-blue)' : 'var(--bg-surface)',
+          color: topic.trim() && !isTutorial ? 'white' : 'var(--text-muted)',
           border: 'none', borderRadius: 9, padding: '12px',
-          cursor: topic.trim() ? 'pointer' : 'not-allowed',
+          cursor: topic.trim() && !isTutorial ? 'pointer' : 'not-allowed',
           fontSize: 14, fontWeight: 600,
           display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8,
         }}>
@@ -566,7 +566,7 @@ function SessionRow({ session, domain, onOpenNote }) {
 }
 
 // ─── Main page ────────────────────────────────────────────────────────────────
-export default function StudyPage({ domains, studySessions, activeSession, onStartSession, onEndSession, onPauseResume, onSkipPhase, soundEnabled, onToggleSound, onOpenNote }) {
+export default function StudyPage({ domains, studySessions, activeSession, onStartSession, onEndSession, onPauseResume, onSkipPhase, soundEnabled, onToggleSound, onOpenNote, isTutorial }) {
   const [modalDomain, setModalDomain] = useState(null)
   const [showModal,   setShowModal]   = useState(false)
 
@@ -662,7 +662,7 @@ export default function StudyPage({ domains, studySessions, activeSession, onSta
       </div>
 
       {showModal && (
-        <StartSessionModal
+        <StartSessionModal isTutorial={isTutorial}
           initialDomain={modalDomain}
           domains={domains}
           onClose={() => setShowModal(false)}

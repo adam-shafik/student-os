@@ -488,7 +488,7 @@ const navBtn = {
 }
 
 // ─── Calendar page ────────────────────────────────────────────────────────────
-export default function CalendarPage({ domains = [], domainEvents = [], customEvents = [], onViewDomain, onAddCalendarEvent, onDeleteCalendarEvent, onCancelScheduleEvent, eventNotes = {}, onUpdateNote, eventTypeColors = {}, onUpdateEventTypeColor }) {
+export default function CalendarPage({ domains = [], domainEvents = [], customEvents = [], onViewDomain, onAddCalendarEvent, onDeleteCalendarEvent, onCancelScheduleEvent, eventNotes = {}, onUpdateNote, eventTypeColors = {}, onUpdateEventTypeColor, isTutorial = false }) {
   const today = new Date()
   const [viewDate,         setViewDate]         = useState(new Date(today.getFullYear(), today.getMonth(), 1))
   const [selectedEvent,    setSelectedEvent]    = useState(null)
@@ -647,6 +647,7 @@ export default function CalendarPage({ domains = [], domainEvents = [], customEv
             }
             setSelectedEvent(null)
           }}
+          isTutorial={isTutorial}
         />
       )}
       {addModalDate && (

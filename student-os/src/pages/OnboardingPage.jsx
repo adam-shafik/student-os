@@ -216,6 +216,7 @@ export default function OnboardingPage({ userId, onComplete }) {
   const [pickDuration,  setPickDuration]  = useState(60)
   const [pickWeekFrom,  setPickWeekFrom]  = useState(null)
   const [pickWeekTo,    setPickWeekTo]    = useState(null)
+  const [pickLocation,  setPickLocation]  = useState('')
 
   const hasModules = modules.length > 0
   const totalSteps = hasModules ? 4 : 3
@@ -285,6 +286,7 @@ export default function OnboardingPage({ userId, onComplete }) {
     setPickDuration(60)
     setPickWeekFrom(null)
     setPickWeekTo(null)
+    setPickLocation('')
   }
   function confirmSlot() {
     if (!pendingSlot || !pickDomainId) return
@@ -308,6 +310,7 @@ export default function OnboardingPage({ userId, onComplete }) {
       slotType: pickType,
       weekFrom: pickWeekFrom || null,
       weekTo:   pickWeekTo   || null,
+      location: pickLocation.trim() || null,
     }])
     setPendingSlot(null)
   }
@@ -919,6 +922,20 @@ export default function OnboardingPage({ userId, onComplete }) {
                       Runs {pickWeekTo - pickWeekFrom + 1} weeks (W{pickWeekFrom} to W{pickWeekTo})
                     </div>
                   )}
+                </div>
+
+                <div>
+                  <label style={labelStyle()}>
+                    Location{' '}
+                    <span style={{ fontWeight: 400, textTransform: 'none', letterSpacing: 0, fontSize: 11 }}>(optional)</span>
+                  </label>
+                  <input
+                    type="text"
+                    value={pickLocation}
+                    onChange={e => setPickLocation(e.target.value)}
+                    placeholder="e.g. Room B1.01, Online, Lab 3"
+                    style={{ width: '100%', padding: '9px 12px', background: BG, border: `1px solid ${BORDER}`, borderRadius: 8, color: TEXT, fontSize: 13, outline: 'none', boxSizing: 'border-box' }}
+                  />
                 </div>
 
                 <div style={{ display: 'flex', gap: 8, marginTop: 2 }}>

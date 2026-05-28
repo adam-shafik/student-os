@@ -120,6 +120,7 @@ export default function App() {
           startTime: r.start_time?.substring(0, 5) || r.start_time,
           durationMinutes: r.duration_minutes, slotType: r.slot_type,
           weekFrom: r.week_from ?? null, weekTo: r.week_to ?? null,
+          location: r.location || null,
         })))
       })
 
@@ -262,6 +263,7 @@ export default function App() {
           day_of_week: s.dayOfWeek, start_time: s.startTime,
           duration_minutes: s.durationMinutes, slot_type: s.slotType,
           week_from: s.weekFrom ?? null, week_to: s.weekTo ?? null,
+          location: s.location || null,
         }))
       )
       if (slotErr) throw slotErr
@@ -690,6 +692,7 @@ export default function App() {
           onUpdateNote={handleUpdateNote}
           eventTypeColors={eventTypeColors}
           onUpdateEventTypeColor={handleUpdateEventTypeColor}
+          isTutorial={tutorialStep !== null}
         />
       )}
       {currentPage === 'study' && (
@@ -704,6 +707,7 @@ export default function App() {
           soundEnabled={soundEnabled}
           onToggleSound={() => setSoundEnabled(v => !v)}
           onOpenNote={handleOpenNoteFromSession}
+          isTutorial={tutorialStep !== null}
         />
       )}
       {currentPage === 'notes' && (
@@ -729,6 +733,7 @@ export default function App() {
           onDeleteTodo={handleDeleteTodo}
           onUpdateTodo={handleUpdateTodo}
           onOpenNote={handleOpenNoteFromSession}
+          isTutorial={tutorialStep !== null}
         />
       )}
     </Layout>
