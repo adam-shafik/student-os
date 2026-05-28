@@ -398,7 +398,7 @@ function FieldLabel({ children }) {
 }
 
 // ─── Main page ─────────────────────────────────────────────────────────────────
-export default function DomainsPage({ domains, customCalendarEvents, todos, onOpenDomain, onCreateDomain }) {
+export default function DomainsPage({ domains, customCalendarEvents, todos, assessments = [], onOpenDomain, onCreateDomain }) {
   const [showCreate,   setShowCreate]   = useState(false)
   const [academicOpen, setAcademicOpen] = useState(true)
   const [otherOpen,    setOtherOpen]    = useState(true)
@@ -410,11 +410,23 @@ export default function DomainsPage({ domains, customCalendarEvents, todos, onOp
   const pendingTasks = (domainId) => (todos || []).filter(t => t.domainId === domainId && !t.done).length
 
   const totalCredits = academic.reduce((s, d) => s + (d.credits || 0), 0)
-  const avgProgress  = academic.length
-    ? Math.round(academic.reduce((s, d) => s + (d.progress || 0), 0) / academic.length)
-    : 0
-  const totalPending = academic.reduce((s, d) =>
-    s + (d.assignments || []).filter(a => a.status === 'upcoming').length, 0)
+
+  const domainRunningGrades = academic.map(d => {
+    const graded = assessments.filter(a => a.domainId === d.id && a.grade != null)
+    const totalWeight = graded.reduce((s, a) => s + (a.weight || 0), 0)
+    return totalWeight > 0 ? graded.reduce((s, a) => s + a.grade * (a.weight || 0), 0) / totalWeight : null
+  }).filter(v => v != null)
+  const avgRunningGrade = domainRunningGrades.length > 0
+    ? Math.round(domainRunningGrades.reduce((s, v) => s + v, 0) / domainRunningGrades.length)
+    : null
+
+  const domainRemainingWeights = academic.map(d => {
+    const all = assessments.filter(a => a.domainId === d.id)
+    return all.length > 0 ? all.filter(a => a.grade == null).reduce((s, a) => s + (a.weight || 0), 0) : null
+  }).filter(v => v != null)
+  const avgRemaining = domainRemainingWeights.length > 0
+    ? Math.round(domainRemainingWeights.reduce((s, v) => s + v, 0) / domainRemainingWeights.length)
+    : null
 
   return (
     <div data-tutorial-id="domains-grid" style={{ padding: '36px 40px', maxWidth: 1100 }}>
@@ -437,10 +449,10 @@ export default function DomainsPage({ domains, customCalendarEvents, todos, onOp
       {academic.length > 0 && (
         <div style={{ display: 'flex', gap: 12, marginBottom: 28 }}>
           {[
-            { label: 'Modules',       value: academic.length,   color: 'var(--accent-blue)'   },
-            { label: 'Total Credits', value: totalCredits,       color: 'var(--accent-green)'  },
-            { label: 'Avg Progress',  value: `${avgProgress}%`, color: 'var(--accent-purple)'  },
-            { label: 'Pending Work',  value: totalPending,      color: 'var(--accent-amber)'   },
+            { label: 'Modules',        value: academic.length,                                    color: 'var(--accent-blue)'   },
+            { label: 'Total Credits', value: totalCredits,                                        color: 'var(--accent-green)'  },
+            { label: 'Running Grade', value: avgRunningGrade != null ? `${avgRunningGrade}%` : '—', color: 'var(--accent-purple)' },
+            { label: 'Grade Left',    value: avgRemaining    != null ? `${avgRemaining}%`    : '—', color: 'var(--accent-amber)'  },
           ].map(s => (
             <div key={s.label} style={{ flex: 1, background: 'var(--bg-surface)', border: '1px solid var(--border)', borderRadius: 10, padding: '12px 16px' }}>
               <div style={{ fontSize: 20, fontWeight: 700, color: s.color, marginBottom: 2 }}>{s.value}</div>
