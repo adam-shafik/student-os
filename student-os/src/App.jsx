@@ -423,12 +423,20 @@ export default function App() {
     )
   }
 
-  const handleSetWeekConfidence = (domainId, week, level) => {
+  const handleSetWeekConfidence = async (domainId, week, level) => {
+    const prev_level = weekConfidence[domainId]?.[week] ?? null
     setWeekConfidence(prev => ({ ...prev, [domainId]: { ...(prev[domainId] || {}), [week]: level } }))
-    supabase.from('week_confidence').upsert(
+    const { error } = await supabase.from('week_confidence').upsert(
       { user_id: userId, domain_id: domainId, week, status: level },
       { onConflict: 'user_id,domain_id,week' }
     )
+    if (error) {
+      console.error('week_confidence save failed:', error.message)
+      setWeekConfidence(prev => ({
+        ...prev,
+        [domainId]: { ...(prev[domainId] || {}), [week]: prev_level },
+      }))
+    }
   }
 
   const handleAddTodo = (todo) => {
@@ -444,11 +452,11 @@ export default function App() {
   }
 
   const handleToggleTodo = (id) => {
-    setTodos(prev => prev.map(t => {
-      if (t.id !== id) return t
-      supabase.from('todos').update({ done: !t.done }).eq('id', id)
-      return { ...t, done: !t.done }
-    }))
+    const todo = todos.find(t => t.id === id)
+    if (!todo) return
+    const newDone = !todo.done
+    setTodos(prev => prev.map(t => t.id === id ? { ...t, done: newDone } : t))
+    supabase.from('todos').update({ done: newDone }).eq('id', id)
   }
 
   const handleDeleteTodo = (id) => {

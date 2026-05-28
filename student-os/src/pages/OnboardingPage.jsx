@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import { GraduationCap, Plus, X, ChevronRight, ChevronLeft, Check, Trash2 } from 'lucide-react'
+import { GraduationCap, Plus, X, ChevronRight, ChevronLeft, Check, Trash2, Pencil } from 'lucide-react'
 import { DOMAIN_COLORS } from '../data/domains'
 
 // ─── Schedule grid constants ──────────────────────────────────────────────────
@@ -206,9 +206,10 @@ export default function OnboardingPage({ userId, onComplete }) {
   const [customTypeInput, setCustomTypeInput] = useState('')
 
   // Step 3 — modules
-  const [modules,    setModules]    = useState([])
-  const [showAddMod, setShowAddMod] = useState(false)
-  const [newMod,     setNewMod]     = useState({ name: '', code: '', professor: '', color: DOMAIN_COLORS[0], category: 'academic' })
+  const [modules,      setModules]      = useState([])
+  const [showAddMod,   setShowAddMod]   = useState(false)
+  const [editingModId, setEditingModId] = useState(null)
+  const [newMod,       setNewMod]       = useState({ name: '', code: '', professor: '', color: DOMAIN_COLORS[0], category: 'academic' })
 
   // Step 4
   const [scheduleSlots, setScheduleSlots] = useState([])
@@ -270,11 +271,21 @@ export default function OnboardingPage({ userId, onComplete }) {
   // ── Module helpers ────────────────────────────────────────────────────────
   function confirmAddModule() {
     if (!newMod.name.trim()) return
-    const id = crypto.randomUUID()
-    setModules(p => [...p, { ...newMod, id, icon: 'BookOpen', credits: null, progress: 0 }])
-    const nextColor = DOMAIN_COLORS[(modules.length + 1) % DOMAIN_COLORS.length]
-    setNewMod({ name: '', code: '', professor: '', color: nextColor, category: 'academic' })
+    if (editingModId) {
+      setModules(p => p.map(m => m.id === editingModId ? { ...m, ...newMod } : m))
+      setEditingModId(null)
+    } else {
+      const id = crypto.randomUUID()
+      setModules(p => [...p, { ...newMod, id, icon: 'BookOpen', credits: null, progress: 0 }])
+      const nextColor = DOMAIN_COLORS[(modules.length + 1) % DOMAIN_COLORS.length]
+      setNewMod({ name: '', code: '', professor: '', color: nextColor, category: 'academic' })
+    }
     setShowAddMod(false)
+  }
+  function editModule(m) {
+    setEditingModId(m.id)
+    setNewMod({ name: m.name, code: m.code || '', professor: m.professor || '', color: m.color, category: m.category })
+    setShowAddMod(true)
   }
   function delModule(id) {
     setModules(p => p.filter(m => m.id !== id))
@@ -621,7 +632,10 @@ export default function OnboardingPage({ userId, onComplete }) {
                     {[m.code && `${m.code}`, m.professor].filter(Boolean).join(' · ') || m.category}
                   </div>
                 </div>
-                <button onClick={() => delModule(m.id)} style={{ background: 'none', border: 'none', cursor: 'pointer', color: MUTED, display: 'flex', padding: 4 }}>
+                <button onClick={() => editModule(m)} title="Edit" style={{ background: 'none', border: 'none', cursor: 'pointer', color: MUTED, display: 'flex', padding: 4 }}>
+                  <Pencil size={13} />
+                </button>
+                <button onClick={() => delModule(m.id)} title="Delete" style={{ background: 'none', border: 'none', cursor: 'pointer', color: MUTED, display: 'flex', padding: 4 }}>
                   <Trash2 size={14} />
                 </button>
               </div>
@@ -678,15 +692,15 @@ export default function OnboardingPage({ userId, onComplete }) {
                     background: newMod.name.trim() ? ACCENT : BORDER,
                     color: newMod.name.trim() ? 'white' : MUTED,
                     fontSize: 13, fontWeight: 600, cursor: newMod.name.trim() ? 'pointer' : 'not-allowed',
-                  }}>Add module</button>
-                  <button onClick={() => setShowAddMod(false)} style={{
+                  }}>{editingModId ? 'Save changes' : 'Add module'}</button>
+                  <button onClick={() => { setShowAddMod(false); setEditingModId(null) }} style={{
                     padding: '10px 16px', borderRadius: 9, border: `1px solid ${BORDER}`,
                     background: 'transparent', color: MUTED, fontSize: 13, cursor: 'pointer',
                   }}>Cancel</button>
                 </div>
               </div>
             ) : (
-              <button onClick={() => setShowAddMod(true)} style={{
+              <button onClick={() => { setEditingModId(null); setNewMod({ name: '', code: '', professor: '', color: DOMAIN_COLORS[modules.length % DOMAIN_COLORS.length], category: 'academic' }); setShowAddMod(true) }} style={{
                 display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8,
                 padding: '12px', borderRadius: 10, border: `1px dashed ${BORDER}`,
                 background: 'transparent', color: MUTED, fontSize: 13, cursor: 'pointer',
