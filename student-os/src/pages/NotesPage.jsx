@@ -444,7 +444,7 @@ export default function NotesPage({ notes, domains, noteToOpen, onClearNoteToOpe
     onAddNote({
       id, title: 'Untitled Note', type, content: '',
       pages: type === 'handwritten' ? [{ id: `page-${Date.now()}`, strokes: [] }] : [],
-      template: 'blank', bgColor: '#f8f7f2', lineSpacing: 32, orientation: 'portrait',
+      template: type === 'handwritten' ? 'lined' : 'blank', bgColor: '#f8f7f2', lineSpacing: type === 'handwritten' ? 48 : 32, orientation: 'portrait',
       createdAt: new Date().toISOString(),
       updatedAt: new Date().toISOString(),
       domainId: meta.domainId || null,

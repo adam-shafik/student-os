@@ -211,7 +211,7 @@ function CreateDomainModal({ onClose, onSave }) {
   const handleSave = () => {
     if (!canSave) return
     onSave({
-      id: `domain-${Date.now()}`,
+      id: crypto.randomUUID(),
       code: form.code.trim().toUpperCase(),
       name: form.name.trim(),
       category: form.category,

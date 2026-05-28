@@ -189,7 +189,8 @@ function PageCanvas({ page, pageH, onStrokesChange, penColor, penSize, tool, sha
   const lastPtRef     = useRef(null)
   const isErasingRef  = useRef(false)
   const erasingRef    = useRef(null)
-  const eraserRAFRef    = useRef(null)
+  const eraserRAFRef  = useRef(null)
+  const drawRAFRef    = useRef(null)
   const stylusActiveRef = useRef(false)
   const stateRef        = useRef({})
 
@@ -263,6 +264,7 @@ function PageCanvas({ page, pageH, onStrokesChange, penColor, penSize, tool, sha
         }
       } else {
         if (!activeStroke.current) return
+        if (drawRAFRef.current) { cancelAnimationFrame(drawRAFRef.current); drawRAFRef.current = null }
         livePathRef.current?.remove(); livePathRef.current = null
         const s = activeStroke.current; activeStroke.current = null
         if (s.points.length >= 1) {
@@ -390,8 +392,16 @@ function PageCanvas({ page, pageH, onStrokesChange, penColor, penSize, tool, sha
       } else {
         if (!activeStroke.current || !livePathRef.current) return
         activeStroke.current.points.push(pt)
-        const outline = getStroke(activeStroke.current.points, strokeOpts(penSize, false, stateRef.current.smoothness))
-        livePathRef.current.setAttribute('d', toPath(outline))
+        if (!drawRAFRef.current) {
+          drawRAFRef.current = requestAnimationFrame(() => {
+            if (activeStroke.current && livePathRef.current) {
+              const { penSize, smoothness } = stateRef.current
+              const outline = getStroke(activeStroke.current.points, strokeOpts(penSize, false, smoothness))
+              livePathRef.current.setAttribute('d', toPath(outline))
+            }
+            drawRAFRef.current = null
+          })
+        }
       }
     }
 
@@ -612,8 +622,15 @@ function PageCanvas({ page, pageH, onStrokesChange, penColor, penSize, tool, sha
     } else {
       if (!activeStroke.current || !livePathRef.current) return
       activeStroke.current.points.push(pt)
-      const outline = getStroke(activeStroke.current.points, strokeOpts(penSize, false, smoothness))
-      livePathRef.current.setAttribute('d', toPath(outline))
+      if (!drawRAFRef.current) {
+        drawRAFRef.current = requestAnimationFrame(() => {
+          if (activeStroke.current && livePathRef.current) {
+            const outline = getStroke(activeStroke.current.points, strokeOpts(penSize, false, smoothness))
+            livePathRef.current.setAttribute('d', toPath(outline))
+          }
+          drawRAFRef.current = null
+        })
+      }
     }
   }
 
@@ -661,6 +678,7 @@ function PageCanvas({ page, pageH, onStrokesChange, penColor, penSize, tool, sha
       shapeModeRef.current = false; shapeStartRef.current = null; setShapeHeld(false)
     } else {
       if (!activeStroke.current) return
+      if (drawRAFRef.current) { cancelAnimationFrame(drawRAFRef.current); drawRAFRef.current = null }
       livePathRef.current?.remove(); livePathRef.current = null
       const s = activeStroke.current; activeStroke.current = null
       if (s.points.length >= 1) {
@@ -674,6 +692,7 @@ function PageCanvas({ page, pageH, onStrokesChange, penColor, penSize, tool, sha
     if (e?.pointerType === 'touch') return
     if (stylusActiveRef.current) return
     if (eraserRAFRef.current) { cancelAnimationFrame(eraserRAFRef.current); eraserRAFRef.current = null }
+    if (drawRAFRef.current) { cancelAnimationFrame(drawRAFRef.current); drawRAFRef.current = null }
     clearTimeout(holdTimer.current)
     clearLiveShape()
     shapeModeRef.current = false; shapeStartRef.current = null; setShapeHeld(false)
