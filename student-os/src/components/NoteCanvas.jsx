@@ -65,21 +65,72 @@ function adaptColor(color, bg) {
 }
 
 // ─── Eraser logic ──────────────────────────────────────────────────────────────
-function shapeNearPoint(s, cx, cy, r2) {
-  const bx1 = Math.min(s.x1, s.x2), by1 = Math.min(s.y1, s.y2)
-  const bx2 = Math.max(s.x1, s.x2), by2 = Math.max(s.y1, s.y2)
-  const nx = Math.max(bx1, Math.min(cx, bx2))
-  const ny = Math.max(by1, Math.min(cy, by2))
-  const dx = cx - nx, dy = cy - ny
-  return dx * dx + dy * dy <= r2
+function distToSegment(px, py, ax, ay, bx, by) {
+  const dx = bx - ax, dy = by - ay
+  const lenSq = dx * dx + dy * dy
+  if (lenSq === 0) return Math.hypot(px - ax, py - ay)
+  const t = Math.max(0, Math.min(1, ((px - ax) * dx + (py - ay) * dy) / lenSq))
+  return Math.hypot(px - ax - t * dx, py - ay - t * dy)
+}
+
+// Split a line shape at an eraser circle; returns 0–2 line segments
+function splitLineAtCircle(s, cx, cy, radius) {
+  const { x1, y1, x2, y2 } = s
+  const dx = x2 - x1, dy = y2 - y1
+  const fx = x1 - cx, fy = y1 - cy
+  const a = dx * dx + dy * dy
+  if (a < 1) return [s]
+  const b = 2 * (fx * dx + fy * dy)
+  const c = fx * fx + fy * fy - radius * radius
+  const disc = b * b - 4 * a * c
+  if (disc < 0) return [s]
+  const sq = Math.sqrt(disc)
+  const t1 = Math.max(0, Math.min(1, (-b - sq) / (2 * a)))
+  const t2 = Math.max(0, Math.min(1, (-b + sq) / (2 * a)))
+  if (t2 - t1 < 0.005) return [s]
+  const result = []
+  if (t1 > 0.005) result.push({ ...s, x2: x1 + t1 * dx, y2: y1 + t1 * dy })
+  if (t2 < 0.995) result.push({ ...s, x1: x1 + t2 * dx, y1: y1 + t2 * dy })
+  return result
+}
+
+// Check if eraser touches the actual drawn border of a closed shape (not just bounding box)
+function closedShapeTouched(s, cx, cy, radius) {
+  const minX = Math.min(s.x1, s.x2), minY = Math.min(s.y1, s.y2)
+  const maxX = Math.max(s.x1, s.x2), maxY = Math.max(s.y1, s.y2)
+  const r = radius + s.size / 2
+  if (s.shape === 'rect') {
+    return distToSegment(cx, cy, minX, minY, maxX, minY) <= r ||
+           distToSegment(cx, cy, minX, maxY, maxX, maxY) <= r ||
+           distToSegment(cx, cy, minX, minY, minX, maxY) <= r ||
+           distToSegment(cx, cy, maxX, minY, maxX, maxY) <= r
+  }
+  if (s.shape === 'ellipse') {
+    const ecx = (s.x1 + s.x2) / 2, ecy = (s.y1 + s.y2) / 2
+    const rx = (maxX - minX) / 2, ry = (maxY - minY) / 2
+    if (rx < 1 || ry < 1) return false
+    const nx = (cx - ecx) / rx, ny = (cy - ecy) / ry
+    return Math.abs(Math.sqrt(nx * nx + ny * ny) - 1) * Math.min(rx, ry) <= r
+  }
+  if (s.shape === 'triangle') {
+    const topX = (s.x1 + s.x2) / 2
+    return distToSegment(cx, cy, topX, minY, minX, maxY) <= r ||
+           distToSegment(cx, cy, minX, maxY, maxX, maxY) <= r ||
+           distToSegment(cx, cy, maxX, maxY, topX, minY) <= r
+  }
+  return false
 }
 
 function applyStandardErase(strokes, cx, cy, radius) {
   const r2 = radius * radius
   const result = []
   for (const s of strokes) {
-    if (s.shape) {
-      if (!shapeNearPoint(s, cx, cy, r2)) result.push(s)
+    if (s.shape === 'line') {
+      // Lines can be split — erase only the touched segment
+      result.push(...splitLineAtCircle(s, cx, cy, radius))
+    } else if (s.shape) {
+      // Closed shapes: erase whole shape only if eraser touches the actual border
+      if (!closedShapeTouched(s, cx, cy, radius)) result.push(s)
     } else {
       let current = []
       for (const p of s.points) {
@@ -100,7 +151,8 @@ function applyStandardErase(strokes, cx, cy, radius) {
 function applyStrokeErase(strokes, cx, cy, radius) {
   const r2 = radius * radius
   return strokes.filter(s => {
-    if (s.shape) return !shapeNearPoint(s, cx, cy, r2)
+    if (s.shape === 'line') return distToSegment(cx, cy, s.x1, s.y1, s.x2, s.y2) > radius
+    if (s.shape) return !closedShapeTouched(s, cx, cy, radius)
     return !s.points.some(p => {
       const dx = p[0] - cx, dy = p[1] - cy
       return dx * dx + dy * dy <= r2
@@ -215,6 +267,13 @@ function PageCanvas({ page, pageH, onStrokesChange, penColor, penSize, tool, sha
     isErasingRef.current = false; erasingRef.current = null
   }, [tool])
 
+  // Once parent strokes prop updates after an erase, clear the local preview.
+  // We keep erasingStrokes set to `final` until the parent re-renders with the
+  // new strokes, preventing a flash of the old un-erased strokes.
+  useEffect(() => {
+    setErasingStrokes(null)
+  }, [strokes])
+
   useEffect(() => {
     if (readonly) return
     const svg = svgRef.current
@@ -237,8 +296,13 @@ function PageCanvas({ page, pageH, onStrokesChange, penColor, penSize, tool, sha
         if (eraserRAFRef.current) { cancelAnimationFrame(eraserRAFRef.current); eraserRAFRef.current = null }
         isErasingRef.current = false
         const final = erasingRef.current; erasingRef.current = null
-        setErasingStrokes(null); setEraserPos(null)
-        if (final !== null) onStrokesChange(final)
+        setEraserPos(null)
+        if (final !== null) {
+          setErasingStrokes(final) // hold preview until parent re-renders; effect clears it
+          onStrokesChange(final)
+        } else {
+          setErasingStrokes(null)
+        }
       } else if (tool === 'shape') {
         if (shapeModeRef.current && shapeStartRef.current && lastPtRef.current) {
           const [x1, y1] = shapeStartRef.current, [x2, y2] = lastPtRef.current
@@ -416,6 +480,13 @@ function PageCanvas({ page, pageH, onStrokesChange, penColor, penSize, tool, sha
         if (e.touches.length === 0) t2 = null
       }
       if (!stylusActiveRef.current) return
+      // Safety fallback: if no stylus touches remain, finish regardless of identifier match
+      const stylusStillPresent = Array.from(e.touches).some(t => t.touchType === 'stylus')
+      if (!stylusStillPresent) {
+        e.preventDefault()
+        finishStylusStroke()
+        return
+      }
       const changed = Array.from(e.changedTouches)
       if (!changed.find(t => t.identifier === stylusId)) return
       e.preventDefault()
@@ -506,7 +577,7 @@ function PageCanvas({ page, pageH, onStrokesChange, penColor, penSize, tool, sha
     })
     const base = strokes.length
     onStrokesChange([...strokes, ...dupes])
-    setSelectedIndices(new Set())
+    setSelectedIndices(new Set(dupes.map((_, i) => base + i)))
     showActionToast('Duplicated')
   }
 
@@ -535,7 +606,9 @@ function PageCanvas({ page, pageH, onStrokesChange, penColor, penSize, tool, sha
       if (s.shape) return { ...s, x1: s.x1 + dx, y1: s.y1 + dy, x2: s.x2 + dx, y2: s.y2 + dy }
       return { ...s, points: s.points.map(p => [p[0] + dx, p[1] + dy, p[2]]) }
     })
+    const base = strokes.length
     onStrokesChange([...strokes, ...pasted])
+    setSelectedIndices(new Set(pasted.map((_, i) => base + i)))
     setPasteMenu(null)
   }
 
@@ -644,8 +717,13 @@ function PageCanvas({ page, pageH, onStrokesChange, penColor, penSize, tool, sha
       isErasingRef.current = false
       const final = erasingRef.current
       erasingRef.current = null
-      setErasingStrokes(null)
-      if (final !== null) onStrokesChange(final)
+      setEraserPos(null)
+      if (final !== null) {
+        setErasingStrokes(final) // hold preview until parent re-renders; effect clears it
+        onStrokesChange(final)
+      } else {
+        setErasingStrokes(null)
+      }
       return
     }
 
@@ -708,8 +786,13 @@ function PageCanvas({ page, pageH, onStrokesChange, penColor, penSize, tool, sha
       isErasingRef.current = false
       const final = erasingRef.current
       erasingRef.current = null
-      setErasingStrokes(null)
-      if (final !== null) onStrokesChange(final)
+      setEraserPos(null)
+      if (final !== null) {
+        setErasingStrokes(final)
+        onStrokesChange(final)
+      } else {
+        setErasingStrokes(null)
+      }
     }
   }
 
@@ -908,15 +991,15 @@ export default function NoteCanvas({
   function deletePage(idx) {
     if (pages.length <= 1) return
     undoStackRef.current = undoStackRef.current
-      .filter(i => i !== idx)
-      .map(i => i > idx ? i - 1 : i)
+      .filter(e => e.pageIdx !== idx)
+      .map(e => e.pageIdx > idx ? { ...e, pageIdx: e.pageIdx - 1 } : e)
     onPagesChange(pages.filter((_, i) => i !== idx))
   }
 
   function handleUndo() {
     if (undoStackRef.current.length === 0) return
-    const idx = undoStackRef.current.pop()
-    onPagesChange(pages.map((p, i) => i === idx ? { ...p, strokes: p.strokes.slice(0, -1) } : p))
+    const { pageIdx, strokes } = undoStackRef.current.pop()
+    onPagesChange(pages.map((p, i) => i === pageIdx ? { ...p, strokes } : p))
     setUndoToast(true)
     setUndoToastKey(k => k + 1)
     clearTimeout(undoToastTimer.current)
@@ -965,8 +1048,8 @@ export default function NoteCanvas({
             <button onClick={handleUndo} style={{
               display: 'flex', alignItems: 'center', gap: 5, padding: '5px 11px',
               borderRadius: 7, border: '1px solid var(--border)', background: 'none',
-              color: totalStrokes === 0 ? 'var(--text-muted)' : 'var(--text-secondary)',
-              cursor: totalStrokes === 0 ? 'not-allowed' : 'pointer', fontSize: 12,
+              color: undoStackRef.current.length === 0 ? 'var(--text-muted)' : 'var(--text-secondary)',
+              cursor: undoStackRef.current.length === 0 ? 'not-allowed' : 'pointer', fontSize: 12,
             }}>
               <Undo2 size={12} /> Undo
             </button>
@@ -1206,9 +1289,7 @@ export default function NoteCanvas({
                   page={page}
                   pageH={pageH}
                   onStrokesChange={newStrokes => {
-                    if (newStrokes.length === pages[pageIdx].strokes.length + 1) {
-                      undoStackRef.current.push(pageIdx)
-                    }
+                    undoStackRef.current.push({ pageIdx, strokes: pages[pageIdx].strokes })
                     onPagesChange(pages.map((p, i) => i === pageIdx ? { ...p, strokes: newStrokes } : p))
                   }}
                   penColor={penColor}
