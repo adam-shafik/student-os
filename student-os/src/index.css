@@ -1,4 +1,5 @@
 @import "tailwindcss";
+@import url('https://fonts.googleapis.com/css2?family=DM+Sans:ital,opsz,wght@0,9..40,300;0,9..40,400;0,9..40,500;0,9..40,600;0,9..40,700&family=JetBrains+Mono:wght@300;400;500;600;700&family=Lora:ital,wght@0,400;0,500;0,600;0,700;1,400&family=Nunito:wght@300;400;500;600;700&display=swap');
 
 @theme {
   --color-bg-base: #0b0c13;
@@ -62,6 +63,10 @@
 
   --btn-primary-text:  #fff;
   --row-hover:         rgba(91,140,255,0.04);
+
+  --font-family:       system-ui, -apple-system, 'Segoe UI', sans-serif;
+  --letter-spacing:    normal;
+  --line-height:       1.5;
 }
 
 /* ── Midnight Neon ───────────────────────────────────────────────────────────── */
@@ -214,57 +219,6 @@ html.theme-cyberpunk {
   --row-hover:         rgba(0,229,255,0.05);
 }
 
-/* ── Late Night Study ────────────────────────────────────────────────────────── */
-html.theme-latenight {
-  --bg-page:           #0c0c0f;
-  --bg-surface:        #131318;
-  --bg-elevated:       #0f0f13;
-  --bg-hover:          #1a1a22;
-  --bg-overlay:        #18181f;
-  --bg-overlay-hover:  #222230;
-  --bg-input:          #0f0f13;
-  --bg-body-image:     radial-gradient(ellipse at 50% 100%, rgba(245,158,11,0.04) 0%, transparent 60%),
-                       radial-gradient(ellipse at 80% 20%, rgba(251,146,60,0.03) 0%, transparent 50%);
-
-  --nav-hover:         rgba(245,158,11,0.05);
-  --nav-active:        rgba(245,158,11,0.09);
-
-  --border:            #1e1e28;
-  --border-strong:     #2a2a38;
-  --border-focus:      rgba(245,158,11,0.5);
-
-  --text-primary:      #eeeef5;
-  --text-bright:       #d4d4e0;
-  --text-secondary:    #7878a0;
-  --text-muted:        #48485e;
-  --text-disabled:     #2c2c3a;
-
-  --accent-blue:       #7eb4d4;
-  --accent-purple:     #b094e0;
-  --accent-amber:      #f59e0b;
-  --accent-green:      #4ade80;
-  --accent-red:        #f87171;
-
-  --shadow-card:       0 8px 28px rgba(0,0,0,0.55), 0 0 0 1px rgba(245,158,11,0.03);
-  --shadow-modal:      0 24px 64px rgba(0,0,0,0.7), 0 0 0 1px rgba(245,158,11,0.06);
-
-  --glow-blue:         0 0 18px rgba(245,158,11,0.28), 0 0 48px rgba(245,158,11,0.1);
-  --glow-purple:       0 0 18px rgba(176,148,224,0.3);
-  --glow-green:        0 0 18px rgba(74,222,128,0.28);
-  --glow-red:          0 0 18px rgba(248,113,113,0.28);
-  --glass-blur:        blur(5px);
-
-  --progress-track:    #1e1e28;
-  --progress-gradient: linear-gradient(90deg, #f59e0b, #fb923c, #fbbf24, #f59e0b);
-  --progress-anim:     aurora-shift 5s linear infinite;
-
-  --scrollbar-thumb:       #2a2a38;
-  --scrollbar-thumb-hover: #363648;
-
-  --btn-primary-text:  #0c0c0f;
-  --row-hover:         rgba(245,158,11,0.04);
-}
-
 /* ── Aurora Gradient ─────────────────────────────────────────────────────────── */
 html.theme-aurora {
   --bg-page:           #060412;
@@ -317,6 +271,244 @@ html.theme-aurora {
   --row-hover:         rgba(100,200,255,0.06);
 }
 
+/* ── Sakura Glass ────────────────────────────────────────────────────────────── */
+html.theme-sakura {
+  --bg-page:           #130a18;
+  --bg-surface:        rgba(42,16,58,0.88);
+  --bg-elevated:       rgba(26,10,36,0.94);
+  --bg-hover:          rgba(62,24,84,0.9);
+  --bg-overlay:        rgba(50,18,70,0.72);
+  --bg-overlay-hover:  rgba(72,28,98,0.84);
+  --bg-input:          rgba(26,10,36,0.94);
+  --bg-body-image:     radial-gradient(ellipse at 20% 0%, rgba(244,114,182,0.22) 0%, transparent 50%),
+                       radial-gradient(ellipse at 85% 90%, rgba(192,132,252,0.16) 0%, transparent 48%),
+                       radial-gradient(ellipse at 55% 45%, rgba(168,85,247,0.08) 0%, transparent 60%);
+
+  --nav-hover:         rgba(244,114,182,0.09);
+  --nav-active:        rgba(244,114,182,0.16);
+
+  --border:            rgba(244,114,182,0.16);
+  --border-strong:     rgba(244,114,182,0.3);
+  --border-focus:      rgba(244,114,182,0.62);
+
+  --text-primary:      #fdf2f8;
+  --text-bright:       #fce7f3;
+  --text-secondary:    #d8a0c0;
+  --text-muted:        #9d6080;
+  --text-disabled:     #4a2840;
+
+  --accent-blue:       #f472b6;
+  --accent-purple:     #c084fc;
+  --accent-amber:      #fbbf24;
+  --accent-green:      #86efac;
+  --accent-red:        #fda4af;
+
+  --shadow-card:       0 8px 32px rgba(0,0,0,0.65), 0 0 30px rgba(244,114,182,0.07);
+  --shadow-modal:      0 24px 80px rgba(0,0,0,0.82), 0 0 60px rgba(192,132,252,0.12);
+
+  --glow-blue:         0 0 22px rgba(244,114,182,0.55), 0 0 60px rgba(244,114,182,0.2);
+  --glow-purple:       0 0 22px rgba(192,132,252,0.5);
+  --glow-green:        0 0 22px rgba(134,239,172,0.4);
+  --glow-red:          0 0 22px rgba(253,164,175,0.45);
+  --glass-blur:        blur(10px);
+
+  --progress-track:    rgba(244,114,182,0.1);
+  --progress-gradient: linear-gradient(90deg, #f472b6, #c084fc, #fda4af, #f472b6);
+  --progress-anim:     aurora-shift 6s linear infinite;
+
+  --scrollbar-thumb:       rgba(244,114,182,0.22);
+  --scrollbar-thumb-hover: rgba(244,114,182,0.42);
+
+  --btn-primary-text:  #fff;
+  --row-hover:         rgba(244,114,182,0.06);
+
+  --font-family:       'DM Sans', system-ui, sans-serif;
+  --letter-spacing:    0.012em;
+  --line-height:       1.6;
+}
+
+/* ── Icy Frost ───────────────────────────────────────────────────────────────── */
+html.theme-frost {
+  --bg-page:           #04101e;
+  --bg-surface:        rgba(8,22,44,0.86);
+  --bg-elevated:       rgba(4,14,30,0.93);
+  --bg-hover:          rgba(12,28,56,0.9);
+  --bg-overlay:        rgba(10,24,50,0.74);
+  --bg-overlay-hover:  rgba(16,36,68,0.84);
+  --bg-input:          rgba(4,14,30,0.93);
+  --bg-body-image:     radial-gradient(ellipse at 30% 0%, rgba(125,211,252,0.14) 0%, transparent 55%),
+                       radial-gradient(ellipse at 75% 95%, rgba(99,179,237,0.1) 0%, transparent 50%),
+                       radial-gradient(ellipse at 55% 50%, rgba(186,230,253,0.05) 0%, transparent 60%);
+
+  --nav-hover:         rgba(186,230,253,0.07);
+  --nav-active:        rgba(186,230,253,0.12);
+
+  --border:            rgba(147,216,255,0.14);
+  --border-strong:     rgba(147,216,255,0.26);
+  --border-focus:      rgba(147,216,255,0.62);
+
+  --text-primary:      #e8f4ff;
+  --text-bright:       #c8e4f8;
+  --text-secondary:    #78b0cc;
+  --text-muted:        #38647c;
+  --text-disabled:     #1a3248;
+
+  --accent-blue:       #7dd3fc;
+  --accent-purple:     #a5b4fc;
+  --accent-amber:      #fde68a;
+  --accent-green:      #6ee7b7;
+  --accent-red:        #fca5a5;
+
+  --shadow-card:       0 8px 32px rgba(0,0,0,0.72), 0 0 30px rgba(125,211,252,0.06);
+  --shadow-modal:      0 24px 80px rgba(0,0,0,0.88), 0 0 60px rgba(125,211,252,0.1);
+
+  --glow-blue:         0 0 22px rgba(125,211,252,0.52), 0 0 55px rgba(125,211,252,0.18);
+  --glow-purple:       0 0 22px rgba(165,180,252,0.46);
+  --glow-green:        0 0 22px rgba(110,231,183,0.4);
+  --glow-red:          0 0 22px rgba(252,165,165,0.4);
+  --glass-blur:        blur(12px);
+
+  --progress-track:    rgba(125,211,252,0.09);
+  --progress-gradient: linear-gradient(90deg, #7dd3fc, #a5b4fc, #6ee7b7, #7dd3fc);
+  --progress-anim:     aurora-shift 7s linear infinite;
+
+  --scrollbar-thumb:       rgba(125,211,252,0.18);
+  --scrollbar-thumb-hover: rgba(125,211,252,0.36);
+
+  --btn-primary-text:  #04101e;
+  --row-hover:         rgba(125,211,252,0.05);
+
+  --font-family:       'Nunito', system-ui, sans-serif;
+  --letter-spacing:    0.006em;
+  --line-height:       1.6;
+}
+
+/* ── Forest Nature ───────────────────────────────────────────────────────────── */
+html.theme-forest {
+  --bg-page:           #080e08;
+  --bg-surface:        #0d160d;
+  --bg-elevated:       #090f09;
+  --bg-hover:          #121d11;
+  --bg-overlay:        #101810;
+  --bg-overlay-hover:  #182418;
+  --bg-input:          #090f09;
+  --bg-body-image:     radial-gradient(ellipse at 50% 0%, rgba(34,90,34,0.14) 0%, transparent 55%),
+                       radial-gradient(ellipse at 15% 85%, rgba(20,65,20,0.1) 0%, transparent 50%);
+
+  --nav-hover:         rgba(90,160,90,0.07);
+  --nav-active:        rgba(90,160,90,0.12);
+
+  --border:            rgba(80,140,80,0.2);
+  --border-strong:     rgba(80,140,80,0.34);
+  --border-focus:      rgba(100,180,100,0.58);
+
+  --text-primary:      #e6ede2;
+  --text-bright:       #ccd6c6;
+  --text-secondary:    #7a9470;
+  --text-muted:        #485e40;
+  --text-disabled:     #283820;
+
+  --accent-blue:       #6aab6a;
+  --accent-purple:     #8cb88c;
+  --accent-amber:      #c8a44a;
+  --accent-green:      #4ade80;
+  --accent-red:        #d47070;
+
+  --shadow-card:       0 8px 28px rgba(0,0,0,0.58), 0 2px 8px rgba(0,0,0,0.3);
+  --shadow-modal:      0 24px 64px rgba(0,0,0,0.72), 0 4px 20px rgba(0,0,0,0.4);
+
+  --glow-blue:         none;
+  --glow-purple:       none;
+  --glow-green:        0 0 18px rgba(74,222,128,0.32);
+  --glow-red:          none;
+  --glass-blur:        none;
+
+  --progress-track:    rgba(80,140,80,0.12);
+  --progress-gradient: linear-gradient(90deg, #4a8c4a, #6aab6a, #8cb88c, #4a8c4a);
+  --progress-anim:     aurora-shift 8s linear infinite;
+
+  --scrollbar-thumb:       rgba(80,140,80,0.22);
+  --scrollbar-thumb-hover: rgba(80,140,80,0.4);
+
+  --btn-primary-text:  #eef5ec;
+  --row-hover:         rgba(80,140,80,0.05);
+
+  --font-family:       'Lora', Georgia, serif;
+  --letter-spacing:    0.01em;
+  --line-height:       1.65;
+}
+
+/* ── Terminal Hacker ─────────────────────────────────────────────────────────── */
+html.theme-terminal {
+  --bg-page:           #020402;
+  --bg-surface:        #050a05;
+  --bg-elevated:       #030703;
+  --bg-hover:          #0a130a;
+  --bg-overlay:        #07100a;
+  --bg-overlay-hover:  #0d190d;
+  --bg-input:          #030703;
+  --bg-body-image:     radial-gradient(ellipse at 50% 0%, rgba(0,180,0,0.06) 0%, transparent 55%),
+                       radial-gradient(ellipse at 100% 100%, rgba(0,120,0,0.04) 0%, transparent 50%);
+
+  --nav-hover:         rgba(0,220,0,0.06);
+  --nav-active:        rgba(0,220,0,0.11);
+
+  --border:            rgba(0,200,0,0.18);
+  --border-strong:     rgba(0,200,0,0.32);
+  --border-focus:      rgba(0,255,0,0.58);
+
+  --text-primary:      #b8f0a0;
+  --text-bright:       #a0e080;
+  --text-secondary:    #56a040;
+  --text-muted:        #2c5820;
+  --text-disabled:     #162c10;
+
+  --accent-blue:       #00cc00;
+  --accent-purple:     #88cc00;
+  --accent-amber:      #ffbb00;
+  --accent-green:      #00ff44;
+  --accent-red:        #ff4444;
+
+  --shadow-card:       0 8px 24px rgba(0,0,0,0.92), 0 0 0 1px rgba(0,200,0,0.07);
+  --shadow-modal:      0 24px 60px rgba(0,0,0,0.96), 0 0 40px rgba(0,200,0,0.08);
+
+  --glow-blue:         0 0 20px rgba(0,204,0,0.62), 0 0 50px rgba(0,204,0,0.2);
+  --glow-purple:       0 0 20px rgba(136,204,0,0.5);
+  --glow-green:        0 0 20px rgba(0,255,68,0.62);
+  --glow-red:          0 0 20px rgba(255,68,68,0.52);
+  --glass-blur:        none;
+
+  --progress-track:    rgba(0,200,0,0.08);
+  --progress-gradient: linear-gradient(90deg, #00cc00, #00ff44, #88cc00, #00cc00);
+  --progress-anim:     aurora-shift 3s linear infinite;
+
+  --scrollbar-thumb:       rgba(0,200,0,0.22);
+  --scrollbar-thumb-hover: rgba(0,200,0,0.42);
+
+  --btn-primary-text:  #020402;
+  --row-hover:         rgba(0,200,0,0.04);
+
+  --font-family:       'JetBrains Mono', 'Fira Code', 'Courier New', monospace;
+  --letter-spacing:    0.04em;
+  --line-height:       1.55;
+}
+
+/* terminal scanline overlay */
+html.theme-terminal body::after {
+  content: '';
+  position: fixed;
+  inset: 0;
+  background-image: repeating-linear-gradient(
+    0deg,
+    transparent,
+    transparent 3px,
+    rgba(0, 0, 0, 0.06) 3px,
+    rgba(0, 0, 0, 0.06) 4px
+  );
+  pointer-events: none;
+  z-index: 9999;
+}
+
 /* ── Global resets ───────────────────────────────────────────────────────────── */
 * { box-sizing: border-box; }
 
@@ -324,7 +516,9 @@ body {
   margin: 0;
   background: var(--bg-page);
   color: var(--text-primary);
-  font-family: system-ui, -apple-system, 'Segoe UI', sans-serif;
+  font-family: var(--font-family, system-ui, -apple-system, 'Segoe UI', sans-serif);
+  letter-spacing: var(--letter-spacing, normal);
+  line-height: var(--line-height, 1.5);
   -webkit-font-smoothing: antialiased;
 }
 

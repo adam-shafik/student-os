@@ -38,11 +38,16 @@ function CategoryBadge({ category }) {
 }
 
 // ─── Academic domain card ─────────────────────────────────────────────────────
-function AcademicCard({ domain, pendingTasks, onClick }) {
+function AcademicCard({ domain, pendingTasks, domainEvents = [], assessments = [], onClick }) {
   const [hovered, setHovered] = useState(false)
-  const completedLectures  = (domain.lectures  || []).filter(l => l.status === 'completed').length
-  const pendingAssignments = (domain.assignments || []).filter(a => a.status === 'upcoming' || a.status === 'submitted').length
-  const completedLabs      = (domain.labs || []).filter(l => l.status === 'completed').length
+  const today = new Date()
+  const schedEvs = domainEvents.filter(e => e.type !== 'exam' && e.type !== 'assignment')
+  const lectures = schedEvs.filter(e => e.type === 'lecture')
+  const labs     = schedEvs.filter(e => e.type === 'lab')
+  const completedLectures  = lectures.filter(e => e.date < today).length
+  const completedLabs      = labs.filter(e => e.date < today).length
+  const pendingAssignments = assessments.filter(a => a.grade == null).length
+  const calculatedProgress = schedEvs.length > 0 ? Math.round(schedEvs.filter(e => e.date < today).length / schedEvs.length * 100) : (domain.progress || 0)
 
   return (
     <div
@@ -80,17 +85,17 @@ function AcademicCard({ domain, pendingTasks, onClick }) {
       <div style={{ marginBottom: 16 }}>
         <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 5 }}>
           <span style={{ fontSize: 11, color: 'var(--text-muted)' }}>Progress</span>
-          <span style={{ fontSize: 11, fontWeight: 600, color: domain.color }}>{domain.progress}%</span>
+          <span style={{ fontSize: 11, fontWeight: 600, color: domain.color }}>{calculatedProgress}%</span>
         </div>
-        <ProgressBar progress={domain.progress} color={domain.color} />
+        <ProgressBar progress={calculatedProgress} color={domain.color} />
       </div>
 
       <div style={{ display: 'flex', borderTop: '1px solid var(--border)', paddingTop: 12, gap: 0 }}>
         {[
-          { icon: <BookOpen size={11} />, val: `${completedLectures}/${(domain.lectures||[]).length}`, label: 'Lectures' },
+          { icon: <BookOpen size={11} />, val: `${completedLectures}/${lectures.length}`, label: 'Lectures' },
           { icon: <FileCheck size={11} />, val: pendingAssignments, label: 'Pending', warn: pendingAssignments > 0 },
           { icon: <CheckSquare size={11} />, val: pendingTasks || 0, label: 'Tasks', warn: pendingTasks > 0 },
-          { icon: <FlaskConical size={11} />, val: `${completedLabs}/${(domain.labs||[]).length}`, label: 'Labs' },
+          { icon: <FlaskConical size={11} />, val: `${completedLabs}/${labs.length}`, label: 'Labs' },
         ].map(s => (
           <div key={s.label} style={{ flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 3 }}>
             <div style={{ display: 'flex', alignItems: 'center', gap: 3, color: s.warn ? 'var(--accent-amber)' : 'var(--text-secondary)' }}>
@@ -398,7 +403,7 @@ function FieldLabel({ children }) {
 }
 
 // ─── Main page ─────────────────────────────────────────────────────────────────
-export default function DomainsPage({ domains, customCalendarEvents, todos, assessments = [], onOpenDomain, onCreateDomain }) {
+export default function DomainsPage({ domains, customCalendarEvents, todos, assessments = [], domainEvents = [], onOpenDomain, onCreateDomain }) {
   const [showCreate,   setShowCreate]   = useState(false)
   const [academicOpen, setAcademicOpen] = useState(true)
   const [otherOpen,    setOtherOpen]    = useState(true)
@@ -467,7 +472,7 @@ export default function DomainsPage({ domains, customCalendarEvents, todos, asse
           <SectionHeader label="Academic" count={academic.length} collapsed={!academicOpen} onToggle={() => setAcademicOpen(v => !v)} />
           {academicOpen && (
             <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(300px, 1fr))', gap: 14 }}>
-              {academic.map(d => <AcademicCard key={d.id} domain={d} pendingTasks={pendingTasks(d.id)} onClick={() => onOpenDomain(d)} />)}
+              {academic.map(d => <AcademicCard key={d.id} domain={d} pendingTasks={pendingTasks(d.id)} domainEvents={domainEvents.filter(e => e.domainId === d.id)} assessments={assessments.filter(a => a.domainId === d.id)} onClick={() => onOpenDomain(d)} />)}
             </div>
           )}
         </div>

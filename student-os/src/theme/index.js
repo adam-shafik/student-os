@@ -24,16 +24,34 @@ export const THEMES = [
     preview: ['#00e5ff', '#ff00aa', '#00ff88'],
   },
   {
-    id: 'latenight',
-    name: 'Late Night Study',
-    description: 'Warm amber tones, easy on the eyes',
-    preview: ['#f59e0b', '#fb923c', '#131318'],
-  },
-  {
     id: 'aurora',
     name: 'Aurora Gradient',
     description: 'Vibrant gradients, animated accents',
     preview: ['#64c8ff', '#9b7fff', '#4fffb0'],
+  },
+  {
+    id: 'sakura',
+    name: 'Sakura Glass',
+    description: 'Elegant pink glassmorphism, deep plum luxury',
+    preview: ['#f472b6', '#c084fc', '#130a18'],
+  },
+  {
+    id: 'frost',
+    name: 'Icy Frost',
+    description: 'Frosted glass, crisp arctic blues',
+    preview: ['#7dd3fc', '#a5b4fc', '#04101e'],
+  },
+  {
+    id: 'forest',
+    name: 'Forest Nature',
+    description: 'Earthy greens, organic serif, calming study vibes',
+    preview: ['#6aab6a', '#8cb88c', '#080e08'],
+  },
+  {
+    id: 'terminal',
+    name: 'Terminal Hacker',
+    description: 'Monospace matrix green, scanlines, dev aesthetic',
+    preview: ['#00cc00', '#00ff44', '#020402'],
   },
 ]
 

@@ -739,6 +739,7 @@ export default function App() {
           customCalendarEvents={customCalendarEvents}
           todos={todos}
           assessments={assessments}
+          domainEvents={domainEvents}
           onOpenDomain={handleOpenDomain}
           onCreateDomain={handleCreateDomain}
         />

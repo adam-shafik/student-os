@@ -120,7 +120,7 @@ function NoteButton({ onNewNote, meta, label = 'Note' }) {
 }
 
 // ─── Overview tab ─────────────────────────────────────────────────────────────
-function OverviewTab({ domain, domainEvents, assessments }) {
+function OverviewTab({ domain, domainEvents, assessments, calculatedProgress }) {
   const today     = new Date()
   const schedEvs  = domainEvents.filter(e => e.type !== 'exam' && e.type !== 'assignment')
   const completed = schedEvs.filter(e => e.date < today).length
@@ -225,11 +225,11 @@ function OverviewTab({ domain, domainEvents, assessments }) {
             </div>
             <div style={{ padding: '18px 20px' }}>
               <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 10 }}>
-                <span style={{ fontSize: 13, color: 'var(--text-secondary)' }}>Overall completion</span>
-                <span style={{ fontSize: 13, fontWeight: 700, color: domain.color }}>{domain.progress}%</span>
+                <span style={{ fontSize: 13, color: 'var(--text-secondary)' }}>Sessions completed</span>
+                <span style={{ fontSize: 13, fontWeight: 700, color: domain.color }}>{calculatedProgress}%</span>
               </div>
               <div style={{ height: 6, background: 'var(--progress-track)', borderRadius: 3, overflow: 'hidden' }}>
-                <div style={{ height: '100%', width: `${domain.progress}%`, borderRadius: 3,
+                <div style={{ height: '100%', width: `${calculatedProgress}%`, borderRadius: 3,
                   background: `var(--progress-gradient, ${domain.color})` }} />
               </div>
               {weightedAvg != null && (
@@ -1032,6 +1032,12 @@ export default function DomainDetailPage({
   const [openEvent, setOpenEvent] = useState(null)
   const [showEdit,  setShowEdit]  = useState(false)
 
+  const _today = new Date()
+  const _schedEvs = domainEvents.filter(e => e.type !== 'exam' && e.type !== 'assignment')
+  const calculatedProgress = _schedEvs.length > 0
+    ? Math.round(_schedEvs.filter(e => e.date < _today).length / _schedEvs.length * 100)
+    : 0
+
   const catCfg = DOMAIN_CATEGORIES[domain.category] || DOMAIN_CATEGORIES.other
 
   return (
@@ -1079,11 +1085,11 @@ export default function DomainDetailPage({
             </div>
           </div>
 
-          {domain.progress != null && (
+          {isAcademic && (
             <div style={{ textAlign: 'center', flexShrink: 0 }}>
-              <div style={{ width: 72, height: 72, borderRadius: '50%', background: `conic-gradient(${domain.color} ${domain.progress * 3.6}deg, var(--progress-track) 0deg)`, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+              <div style={{ width: 72, height: 72, borderRadius: '50%', background: `conic-gradient(${domain.color} ${calculatedProgress * 3.6}deg, var(--progress-track) 0deg)`, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
                 <div style={{ width: 54, height: 54, borderRadius: '50%', background: 'var(--bg-surface)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-                  <span style={{ fontSize: 13, fontWeight: 700, color: domain.color }}>{domain.progress}%</span>
+                  <span style={{ fontSize: 13, fontWeight: 700, color: domain.color }}>{calculatedProgress}%</span>
                 </div>
               </div>
               <span style={{ fontSize: 10, color: 'var(--text-muted)', marginTop: 6, display: 'block', textTransform: 'uppercase', letterSpacing: '0.4px' }}>Progress</span>
@@ -1111,7 +1117,7 @@ export default function DomainDetailPage({
 
       {isAcademic ? (
         <>
-          {activeTab === 'Overview'    && <OverviewTab    domain={domain} domainEvents={domainEvents} assessments={assessments} />}
+          {activeTab === 'Overview'    && <OverviewTab    domain={domain} domainEvents={domainEvents} assessments={assessments} calculatedProgress={calculatedProgress} />}
           {activeTab === 'Schedule'    && <ScheduleTab    domain={domain} domainEvents={domainEvents} onNewNote={onNewNote} notes={notes} eventNotes={eventNotes} />}
           {activeTab === 'Assessments' && <AssessmentsTab domain={domain} assessments={assessments} onAddAssessment={onAddAssessment} onUpdateAssessment={onUpdateAssessment} onDeleteAssessment={onDeleteAssessment} />}
           {activeTab === 'Study'       && <StudyTab       domain={domain} studySessions={studySessions} notes={notes} weekConfidence={weekConfidence} onSetWeekConfidence={onSetWeekConfidence} onNewNote={onNewNote} onOpenNote={onOpenNote} />}
