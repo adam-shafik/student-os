@@ -185,6 +185,11 @@ function setLiveShapeAttrs(el, type, x1, y1, x2, y2) {
 }
 
 // ─── Selection utils ───────────────────────────────────────────────────────────
+function shiftStroke(s, dx, dy) {
+  if (s.shape) return { ...s, x1: s.x1 + dx, y1: s.y1 + dy, x2: s.x2 + dx, y2: s.y2 + dy }
+  return { ...s, points: s.points.map(p => [p[0] + dx, p[1] + dy, p[2]]) }
+}
+
 function strokeBounds(s) {
   if (s.shape) return { x1: Math.min(s.x1, s.x2), y1: Math.min(s.y1, s.y2), x2: Math.max(s.x1, s.x2), y2: Math.max(s.y1, s.y2) }
   const xs = s.points.map(p => p[0]), ys = s.points.map(p => p[1])
@@ -230,7 +235,7 @@ function PageTemplate({ pageId, template, bgColor, lineSpacing }) {
 }
 
 // ─── Single page canvas ────────────────────────────────────────────────────────
-function PageCanvas({ page, pageH, onStrokesChange, penColor, penSize, tool, shapeType, opacity, smoothness, template, bgColor, lineSpacing, eraserMode, eraserRadius, readonly, onUndo, clipboard, onCopy }) {
+function PageCanvas({ page, pageH, pageIdx, totalPages, onStrokesChange, onTransferStrokes, penColor, penSize, tool, shapeType, opacity, smoothness, template, bgColor, lineSpacing, eraserMode, eraserRadius, readonly, onUndo, clipboard, onCopy }) {
   const svgRef        = useRef()
   const livePathRef   = useRef(null)
   const liveShapeRef  = useRef(null)
@@ -307,13 +312,7 @@ function PageCanvas({ page, pageH, onStrokesChange, penColor, penSize, tool, sha
         shapeModeRef.current = false; shapeStartRef.current = null; setShapeHeld(false)
       } else if (tool === 'select') {
         if (im) {
-          const { dx, dy } = mo
-          onStrokesChange(strokes.map((s, i) => {
-            if (!si.has(i)) return s
-            if (s.shape) return { ...s, x1: s.x1 + dx, y1: s.y1 + dy, x2: s.x2 + dx, y2: s.y2 + dy }
-            return { ...s, points: s.points.map(p => [p[0] + dx, p[1] + dy, p[2]]) }
-          }))
-          setIsMoving(false); setMoveStart(null); setMoveOff({ dx: 0, dy: 0 })
+          stateRef.current.commitMove(mo.dx, mo.dy)
         } else if (sr) {
           const hits = new Set()
           strokes.forEach((s, i) => { if (rectsIntersect(sr, strokeBounds(s))) hits.add(i) })
@@ -514,9 +513,33 @@ function PageCanvas({ page, pageH, onStrokesChange, penColor, penSize, tool, sha
     setErasingStrokes(null)
   }, [strokes]) // eslint-disable-line react-hooks/exhaustive-deps
 
+  function commitMove(dx, dy) {
+    const moved    = [...selectedIndices].map(i => shiftStroke(strokes[i], dx, dy))
+    const remaining = strokes.filter((_, i) => !selectedIndices.has(i))
+
+    if (moved.length > 0 && onTransferStrokes) {
+      const allBounds = moved.map(strokeBounds)
+      const centerY   = (Math.min(...allBounds.map(b => b.y1)) + Math.max(...allBounds.map(b => b.y2))) / 2
+      if (centerY < 0 && pageIdx > 0) {
+        onTransferStrokes(pageIdx - 1, remaining, moved.map(s => shiftStroke(s, 0, pageH)))
+        setIsMoving(false); setMoveStart(null); setMoveOff({ dx: 0, dy: 0 }); setSelectedIndices(new Set())
+        return
+      }
+      if (centerY > pageH && pageIdx < totalPages - 1) {
+        onTransferStrokes(pageIdx + 1, remaining, moved.map(s => shiftStroke(s, 0, -pageH)))
+        setIsMoving(false); setMoveStart(null); setMoveOff({ dx: 0, dy: 0 }); setSelectedIndices(new Set())
+        return
+      }
+    }
+
+    onStrokesChange(strokes.map((s, i) => selectedIndices.has(i) ? shiftStroke(s, dx, dy) : s))
+    setIsMoving(false); setMoveStart(null); setMoveOff({ dx: 0, dy: 0 })
+  }
+
   stateRef.current = {
     tool, drawColor, penSize, opacity, smoothness, shapeType, eraserMode, eraserRadius, strokes, onStrokesChange, onUndo, onCopy, clipboard,
     selectedIndices, selRect, isMoving, moveStart, moveOff,
+    commitMove, pageIdx, totalPages, onTransferStrokes, pageH,
   }
 
   function getPoint(e) {
@@ -569,11 +592,7 @@ function PageCanvas({ page, pageH, onStrokesChange, penColor, penSize, tool, sha
 
   function handleDuplicate() {
     const OFFSET = 22
-    const dupes = [...selectedIndices].map(i => {
-      const s = strokes[i]
-      if (s.shape) return { ...s, x1: s.x1 + OFFSET, y1: s.y1 + OFFSET, x2: s.x2 + OFFSET, y2: s.y2 + OFFSET }
-      return { ...s, points: s.points.map(p => [p[0] + OFFSET, p[1] + OFFSET, p[2]]) }
-    })
+    const dupes = [...selectedIndices].map(i => shiftStroke(strokes[i], OFFSET, OFFSET))
     const base = strokes.length
     onStrokesChange([...strokes, ...dupes])
     setSelectedIndices(new Set(dupes.map((_, i) => base + i)))
@@ -728,14 +747,7 @@ function PageCanvas({ page, pageH, onStrokesChange, penColor, penSize, tool, sha
 
     if (tool === 'select') {
       if (isMoving) {
-        const { dx, dy } = moveOff
-        const newStrokes = strokes.map((s, i) => {
-          if (!selectedIndices.has(i)) return s
-          if (s.shape) return { ...s, x1: s.x1 + dx, y1: s.y1 + dy, x2: s.x2 + dx, y2: s.y2 + dy }
-          return { ...s, points: s.points.map(p => [p[0] + dx, p[1] + dy, p[2]]) }
-        })
-        onStrokesChange(newStrokes)
-        setIsMoving(false); setMoveStart(null); setMoveOff({ dx: 0, dy: 0 })
+        commitMove(moveOff.dx, moveOff.dy)
       } else if (selRect) {
         const hits = new Set()
         strokes.forEach((s, i) => { if (rectsIntersect(selRect, strokeBounds(s))) hits.add(i) })
@@ -884,6 +896,7 @@ function PageCanvas({ page, pageH, onStrokesChange, penColor, penSize, tool, sha
       <svg
         ref={svgRef}
         tabIndex={tool === 'select' && !readonly ? 0 : undefined}
+        overflow={isMoving ? 'visible' : undefined}
         style={{ width: '100%', height: pageH, display: 'block', touchAction: 'pan-y', cursor, outline: 'none' }}
         onPointerDown={readonly ? undefined : onPointerDown}
         onPointerMove={readonly ? undefined : onPointerMove}
@@ -990,19 +1003,40 @@ export default function NoteCanvas({
   function deletePage(idx) {
     if (pages.length <= 1) return
     undoStackRef.current = undoStackRef.current
-      .filter(e => e.pageIdx !== idx)
-      .map(e => e.pageIdx > idx ? { ...e, pageIdx: e.pageIdx - 1 } : e)
+      .map(entry => {
+        const snaps = Array.isArray(entry) ? entry : [entry]
+        const kept  = snaps.filter(s => s.pageIdx !== idx).map(s => s.pageIdx > idx ? { ...s, pageIdx: s.pageIdx - 1 } : s)
+        if (kept.length === 0) return null
+        return kept.length === 1 ? kept[0] : kept
+      })
+      .filter(Boolean)
     onPagesChange(pages.filter((_, i) => i !== idx))
   }
 
   function handleUndo() {
     if (undoStackRef.current.length === 0) return
-    const { pageIdx, strokes } = undoStackRef.current.pop()
-    onPagesChange(pages.map((p, i) => i === pageIdx ? { ...p, strokes } : p))
+    const entry = undoStackRef.current.pop()
+    const snaps = Array.isArray(entry) ? entry : [entry]
+    onPagesChange(pages.map((p, i) => {
+      const snap = snaps.find(s => s.pageIdx === i)
+      return snap ? { ...p, strokes: snap.strokes } : p
+    }))
     setUndoToast(true)
     setUndoToastKey(k => k + 1)
     clearTimeout(undoToastTimer.current)
     undoToastTimer.current = setTimeout(() => setUndoToast(false), 1400)
+  }
+
+  function handleTransferStrokes(fromPageIdx, fromRemaining, toPageIdx, transferred) {
+    undoStackRef.current.push([
+      { pageIdx: fromPageIdx, strokes: pages[fromPageIdx].strokes },
+      { pageIdx: toPageIdx,   strokes: pages[toPageIdx].strokes },
+    ])
+    onPagesChange(pages.map((p, i) => {
+      if (i === fromPageIdx) return { ...p, strokes: fromRemaining }
+      if (i === toPageIdx)   return { ...p, strokes: [...p.strokes, ...transferred] }
+      return p
+    }))
   }
 
   function onScroll(e) {
@@ -1302,6 +1336,9 @@ export default function NoteCanvas({
                   eraserMode={eraserMode}
                   eraserRadius={eraserRadius}
                   smoothness={smoothness}
+                  pageIdx={pageIdx}
+                  totalPages={pages.length}
+                  onTransferStrokes={handleTransferStrokes}
                   readonly={readonly}
                   onUndo={handleUndo}
                   clipboard={clipboard}
