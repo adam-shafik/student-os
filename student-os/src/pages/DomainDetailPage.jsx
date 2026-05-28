@@ -1,21 +1,21 @@
-import { useState } from 'react'
+import { useState, useRef, useEffect } from 'react'
 import {
   ArrowLeft, User, Award, BookOpen, FileText, FlaskConical,
-  GraduationCap, CheckCircle2, Clock, Circle, ChevronDown,
+  GraduationCap, CheckCircle2, Clock, ChevronDown,
   ChevronRight, StickyNote, Calendar, MapPin, TrendingUp,
   AlertCircle, ExternalLink, Tag, PenLine, Pencil, X,
+  Plus, Trash2, Edit2, Check, BarChart2, Layers,
 } from 'lucide-react'
 import { DOMAIN_CATEGORIES, DOMAIN_COLORS, DOMAIN_ICON_GROUPS, getDomainIcon } from '../data/domains'
+import { EVENT_TYPES, resolveTypeLabel, resolveTypeColor } from '../utils/calendarEvents'
+import { totalTeachingWeeks } from '../utils/semester'
+import EventDetailModal from '../components/EventDetailModal'
 
 function DomainIcon({ name, size = 16, color }) {
   const Icon = getDomainIcon(name)
   if (!Icon) return null
   return <Icon size={size} color={color} />
 }
-
-import { resolveTypeLabel, resolveTypeColor, parseSubjectDate } from '../utils/calendarEvents'
-import { totalTeachingWeeks } from '../utils/semester'
-import EventDetailModal from '../components/EventDetailModal'
 
 const TOTAL_WEEKS = totalTeachingWeeks()
 const CONF_LEVELS = [
@@ -24,59 +24,11 @@ const CONF_LEVELS = [
   { key: 'confident',   label: 'Confident',   color: '#34d399', bg: 'rgba(52,211,153,0.12)' },
 ]
 
-function lectureEvent(domain, lecture, idx) {
-  return {
-    id: `${domain.id}-lecture-w${lecture.week}-${idx}`,
-    type: 'lecture', title: lecture.title,
-    date: parseSubjectDate(lecture.date),
-    domainId: domain.id, domainCode: domain.code,
-    domainName: domain.name, domainColor: domain.color,
-    details: { week: lecture.week, status: lecture.status, hasNotes: lecture.hasNotes },
-  }
-}
-function labEvent(domain, lab) {
-  return {
-    id: `${domain.id}-${lab.id}`, type: 'lab', title: lab.title,
-    date: parseSubjectDate(lab.date),
-    domainId: domain.id, domainCode: domain.code,
-    domainName: domain.name, domainColor: domain.color,
-    details: { week: lab.week, status: lab.status },
-  }
-}
-function assignmentEvent(domain, assignment) {
-  return {
-    id: `${domain.id}-${assignment.id}`, type: 'assignment', title: assignment.title,
-    date: parseSubjectDate(assignment.dueDate),
-    domainId: domain.id, domainCode: domain.code,
-    domainName: domain.name, domainColor: domain.color,
-    details: { weight: assignment.weight, status: assignment.status, grade: assignment.grade },
-  }
-}
-function examEvent(domain, exam) {
-  return {
-    id: `${domain.id}-${exam.id}`, type: 'exam', title: exam.title,
-    date: parseSubjectDate(exam.date),
-    domainId: domain.id, domainCode: domain.code,
-    domainName: domain.name, domainColor: domain.color,
-    details: { time: exam.time, location: exam.location, weight: exam.weight, status: exam.status },
-  }
-}
-
 // ─── Shared helpers ────────────────────────────────────────────────────────────
-const STATUS_CFG = {
-  completed:     { label: 'Completed',   color: '#34d399', bg: 'rgba(52,211,153,0.12)'  },
-  'in-progress': { label: 'In Progress', color: '#5b8cff', bg: 'rgba(91,140,255,0.12)'  },
-  upcoming:      { label: 'Upcoming',    color: '#7c7e96', bg: 'rgba(74,76,96,0.15)'     },
-  submitted:     { label: 'Submitted',   color: '#fbbf24', bg: 'rgba(251,191,36,0.12)'  },
-  graded:        { label: 'Graded',      color: '#34d399', bg: 'rgba(52,211,153,0.12)'  },
-}
-function StatusBadge({ status }) {
-  const cfg = STATUS_CFG[status] || STATUS_CFG.upcoming
-  return <span style={{ fontSize: 11, fontWeight: 600, padding: '3px 8px', borderRadius: 5, background: cfg.bg, color: cfg.color }}>{cfg.label}</span>
-}
 function SectionCard({ children, style }) {
   return <div style={{ background: 'var(--bg-surface)', border: '1px solid var(--border)', borderRadius: 12, overflow: 'hidden', ...style }}>{children}</div>
 }
+
 function Stat({ label, value, color }) {
   return (
     <div>
@@ -89,41 +41,114 @@ function Stat({ label, value, color }) {
 function ClickableRow({ onClick, children, style }) {
   const [hovered, setHovered] = useState(false)
   return (
-    <div
-      onClick={onClick}
-      onMouseEnter={() => setHovered(true)}
-      onMouseLeave={() => setHovered(false)}
-      style={{ cursor: 'pointer', background: hovered ? 'var(--row-hover)' : 'transparent', transition: 'background 0.12s', ...style }}
-    >
+    <div onClick={onClick} onMouseEnter={() => setHovered(true)} onMouseLeave={() => setHovered(false)}
+      style={{ cursor: 'pointer', background: hovered ? 'var(--row-hover)' : 'transparent', transition: 'background 0.12s', ...style }}>
       {children}
     </div>
   )
 }
 
-// ─── Academic tabs ─────────────────────────────────────────────────────────────
-function OverviewTab({ domain, onOpenEvent }) {
-  const completedLectures = (domain.lectures  || []).filter(l => l.status === 'completed').length
-  const completedLabs     = (domain.labs      || []).filter(l => l.status === 'completed').length
-  const gradedAssignments = (domain.assignments || []).filter(a => a.grade !== null)
-  const avgGrade = gradedAssignments.length
-    ? Math.round(gradedAssignments.reduce((s, a) => s + a.grade, 0) / gradedAssignments.length)
+function EventRow({ event, isLast, onClick }) {
+  const [hovered, setHovered] = useState(false)
+  const typeColor = resolveTypeColor(event)
+  const typeLabel = resolveTypeLabel(event)
+  return (
+    <div onClick={onClick} onMouseEnter={() => setHovered(true)} onMouseLeave={() => setHovered(false)}
+      style={{ display: 'flex', alignItems: 'center', gap: 14, padding: '12px 20px',
+        borderBottom: isLast ? 'none' : '1px solid var(--border)',
+        cursor: 'pointer', background: hovered ? 'var(--row-hover)' : 'transparent', transition: 'background 0.12s' }}>
+      <div style={{ width: 32, height: 32, borderRadius: 8, background: `${typeColor}15`, display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+        <div style={{ width: 8, height: 8, borderRadius: 2, background: typeColor }} />
+      </div>
+      <div style={{ flex: 1, minWidth: 0 }}>
+        <div style={{ fontSize: 13, fontWeight: 500, color: 'var(--text-primary)', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{event.title}</div>
+        <div style={{ fontSize: 11, color: 'var(--text-muted)', marginTop: 2 }}>
+          <span style={{ color: typeColor, fontWeight: 600 }}>{typeLabel}</span>
+          {' · '}{event.date.toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' })}
+          {event.details?.time && ` · ${event.details.time}`}
+        </div>
+      </div>
+    </div>
+  )
+}
+
+// ─── Note type picker (inline popover) ────────────────────────────────────────
+function NoteButton({ onNewNote, meta, label = 'Note' }) {
+  const [open, setOpen] = useState(false)
+  const ref = useRef()
+  useEffect(() => {
+    if (!open) return
+    const handler = e => { if (!ref.current?.contains(e.target)) setOpen(false) }
+    document.addEventListener('mousedown', handler)
+    return () => document.removeEventListener('mousedown', handler)
+  }, [open])
+  return (
+    <div ref={ref} style={{ position: 'relative', flexShrink: 0 }}>
+      <button
+        onClick={e => { e.stopPropagation(); setOpen(v => !v) }}
+        style={{ display: 'flex', alignItems: 'center', gap: 4, padding: '4px 9px', borderRadius: 6,
+          border: '1px solid var(--border)', background: 'none', color: 'var(--text-muted)',
+          cursor: 'pointer', fontSize: 11, whiteSpace: 'nowrap' }}
+        onMouseEnter={e => { e.currentTarget.style.color = 'var(--accent-purple)'; e.currentTarget.style.borderColor = 'var(--accent-purple)' }}
+        onMouseLeave={e => { e.currentTarget.style.color = 'var(--text-muted)'; e.currentTarget.style.borderColor = 'var(--border)' }}
+      >
+        <PenLine size={11} /> {label}
+      </button>
+      {open && (
+        <div style={{ position: 'absolute', top: '100%', right: 0, marginTop: 4, zIndex: 200,
+          background: 'var(--bg-surface)', border: '1px solid var(--border-strong)', borderRadius: 9,
+          boxShadow: 'var(--shadow-modal)', overflow: 'hidden', minWidth: 140 }}>
+          {[
+            { type: 'handwritten', label: 'Handwritten', Icon: PenLine },
+            { type: 'typed',       label: 'Typed',       Icon: FileText },
+          ].map(opt => (
+            <button key={opt.type}
+              onClick={e => { e.stopPropagation(); setOpen(false); onNewNote({ ...meta, noteType: opt.type }) }}
+              style={{ width: '100%', display: 'flex', alignItems: 'center', gap: 8, padding: '10px 14px',
+                background: 'none', border: 'none', cursor: 'pointer', fontSize: 12,
+                color: 'var(--text-primary)', textAlign: 'left' }}
+              onMouseEnter={e => { e.currentTarget.style.background = 'var(--nav-hover)' }}
+              onMouseLeave={e => { e.currentTarget.style.background = 'none' }}
+            >
+              <opt.Icon size={12} />{opt.label}
+            </button>
+          ))}
+        </div>
+      )}
+    </div>
+  )
+}
+
+// ─── Overview tab ─────────────────────────────────────────────────────────────
+function OverviewTab({ domain, domainEvents, assessments }) {
+  const today     = new Date()
+  const schedEvs  = domainEvents.filter(e => e.type !== 'exam' && e.type !== 'assignment')
+  const completed = schedEvs.filter(e => e.date < today).length
+  const upcoming  = schedEvs.filter(e => e.date >= today).length
+  const total     = schedEvs.length
+
+  const graded = assessments.filter(a => a.grade != null)
+  const totalWeight = graded.reduce((s, a) => s + (a.weight || 0), 0)
+  const weightedAvg = totalWeight > 0
+    ? Math.round(graded.reduce((s, a) => s + (a.grade * a.weight), 0) / totalWeight)
     : null
-  const upcoming = [
-    ...(domain.assignments || []).filter(a => a.status === 'upcoming').map(a => ({ type: 'Assignment', title: a.title, date: a.dueDate, color: 'var(--accent-amber)', ev: assignmentEvent(domain, a) })),
-    ...(domain.exams       || []).filter(e => e.status === 'upcoming').map(e => ({ type: 'Exam',       title: e.title, date: e.date,    color: 'var(--accent-red)',   ev: examEvent(domain, e) })),
-    ...(domain.labs        || []).filter(l => l.status === 'upcoming').map(l => ({ type: 'Lab',        title: l.title, date: l.date,    color: 'var(--accent-purple)', ev: labEvent(domain, l) })),
-  ].slice(0, 4)
-  const nextLecture = (domain.lectures || []).find(l => l.status === 'in-progress' || l.status === 'upcoming')
-  const nextLectureIdx = nextLecture ? (domain.lectures || []).indexOf(nextLecture) : -1
+  const ungradedCount = assessments.filter(a => a.grade == null).length
+
+  const upcomingAssessments = assessments
+    .filter(a => a.date && new Date(a.date + 'T12:00:00') >= today)
+    .sort((a, b) => new Date(a.date) - new Date(b.date))
+    .slice(0, 4)
+
+  const nextEvent = schedEvs.filter(e => e.date >= today).sort((a, b) => a.date - b.date)[0]
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 12 }}>
         {[
-          { label: 'Lectures Done', value: `${completedLectures}/${(domain.lectures||[]).length}`, icon: BookOpen,    color: 'var(--accent-blue)'   },
-          { label: 'Labs Done',     value: `${completedLabs}/${(domain.labs||[]).length}`,         icon: FlaskConical, color: 'var(--accent-purple)' },
-          { label: 'Avg Grade',     value: avgGrade ? `${avgGrade}%` : '—',                        icon: TrendingUp,   color: 'var(--accent-green)'  },
-          { label: 'Pending Tasks', value: (domain.assignments||[]).filter(a => a.status === 'upcoming').length, icon: AlertCircle, color: 'var(--accent-amber)' },
+          { label: 'Attended',      value: `${completed}/${total}`, icon: CheckCircle2, color: 'var(--accent-green)'  },
+          { label: 'Upcoming',      value: upcoming,                icon: Clock,         color: 'var(--accent-blue)'   },
+          { label: 'Avg Grade',     value: weightedAvg ? `${weightedAvg}%` : '—', icon: TrendingUp, color: 'var(--accent-green)' },
+          { label: 'Not Marked',    value: ungradedCount,           icon: AlertCircle,   color: 'var(--accent-amber)'  },
         ].map(s => {
           const Icon = s.icon
           return (
@@ -143,33 +168,55 @@ function OverviewTab({ domain, onOpenEvent }) {
       <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 16 }}>
         <SectionCard>
           <div style={{ padding: '14px 20px', borderBottom: '1px solid var(--border)' }}>
-            <span style={{ fontSize: 13, fontWeight: 600, color: 'var(--text-primary)' }}>Upcoming Deadlines</span>
+            <span style={{ fontSize: 13, fontWeight: 600, color: 'var(--text-primary)' }}>Upcoming Assessments</span>
           </div>
           <div style={{ padding: '8px 0' }}>
-            {upcoming.length === 0
+            {upcomingAssessments.length === 0
               ? <p style={{ padding: '12px 20px', color: 'var(--text-muted)', fontSize: 13, margin: 0 }}>No upcoming deadlines</p>
-              : upcoming.map((item, i) => (
-                <ClickableRow key={i} onClick={() => onOpenEvent(item.ev)} style={{ display: 'flex', alignItems: 'center', gap: 12, padding: '10px 20px', borderBottom: i < upcoming.length - 1 ? '1px solid var(--border)' : 'none' }}>
-                  <div style={{ width: 6, height: 6, borderRadius: '50%', background: item.color, flexShrink: 0 }} />
-                  <div style={{ flex: 1, minWidth: 0 }}>
-                    <div style={{ fontSize: 13, color: 'var(--text-primary)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{item.title}</div>
-                    <div style={{ fontSize: 11, color: 'var(--text-muted)', marginTop: 2 }}>{item.type} · {item.date}</div>
+              : upcomingAssessments.map((a, i) => {
+                const isExam = a.type === 'exam'
+                const color  = isExam ? '#fb7185' : '#fbbf24'
+                return (
+                  <div key={a.id} style={{ display: 'flex', alignItems: 'center', gap: 12, padding: '10px 20px', borderBottom: i < upcomingAssessments.length - 1 ? '1px solid var(--border)' : 'none' }}>
+                    <div style={{ width: 6, height: 6, borderRadius: '50%', background: color, flexShrink: 0 }} />
+                    <div style={{ flex: 1, minWidth: 0 }}>
+                      <div style={{ fontSize: 13, color: 'var(--text-primary)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{a.title}</div>
+                      <div style={{ fontSize: 11, color: 'var(--text-muted)', marginTop: 2 }}>
+                        {isExam ? 'Exam' : 'Assignment'} · {a.date} · {a.weight}%
+                      </div>
+                    </div>
                   </div>
-                </ClickableRow>
-              ))}
+                )
+              })}
           </div>
         </SectionCard>
 
         <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
-          {nextLecture && (
+          {nextEvent && (
             <SectionCard>
               <div style={{ padding: '14px 20px', borderBottom: '1px solid var(--border)' }}>
-                <span style={{ fontSize: 13, fontWeight: 600, color: 'var(--text-primary)' }}>Next Lecture</span>
+                <span style={{ fontSize: 13, fontWeight: 600, color: 'var(--text-primary)' }}>Next Session</span>
               </div>
-              <ClickableRow onClick={() => onOpenEvent(lectureEvent(domain, nextLecture, nextLectureIdx))} style={{ padding: '14px 20px' }}>
-                <div style={{ fontSize: 14, fontWeight: 500, color: 'var(--text-primary)', marginBottom: 4 }}>{nextLecture.title}</div>
-                <div style={{ fontSize: 12, color: 'var(--text-muted)' }}>Week {nextLecture.week} · {nextLecture.date}</div>
-              </ClickableRow>
+              <div style={{ padding: '14px 20px' }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 6 }}>
+                  <span style={{ fontSize: 11, fontWeight: 700, padding: '2px 7px', borderRadius: 4,
+                    background: `${resolveTypeColor(nextEvent)}18`, color: resolveTypeColor(nextEvent) }}>
+                    {resolveTypeLabel(nextEvent).toUpperCase()}
+                  </span>
+                  {nextEvent.details?.week && (
+                    <span style={{ fontSize: 11, color: 'var(--text-muted)' }}>Week {nextEvent.details.week}</span>
+                  )}
+                </div>
+                <div style={{ fontSize: 13, color: 'var(--text-secondary)' }}>
+                  {nextEvent.date.toLocaleDateString('en-GB', { weekday: 'short', day: 'numeric', month: 'short' })}
+                  {nextEvent.details?.time && ` · ${nextEvent.details.time}`}
+                </div>
+                {nextEvent.details?.location && (
+                  <div style={{ fontSize: 12, color: 'var(--text-muted)', marginTop: 4, display: 'flex', alignItems: 'center', gap: 4 }}>
+                    <MapPin size={11} />{nextEvent.details.location}
+                  </div>
+                )}
+              </div>
             </SectionCard>
           )}
           <SectionCard>
@@ -182,13 +229,15 @@ function OverviewTab({ domain, onOpenEvent }) {
                 <span style={{ fontSize: 13, fontWeight: 700, color: domain.color }}>{domain.progress}%</span>
               </div>
               <div style={{ height: 6, background: 'var(--progress-track)', borderRadius: 3, overflow: 'hidden' }}>
-                <div style={{
-                  height: '100%', width: `${domain.progress}%`, borderRadius: 3,
-                  background: `var(--progress-gradient, ${domain.color})`,
-                  backgroundSize: '200% 100%',
-                  animation: 'var(--progress-anim)',
-                }} />
+                <div style={{ height: '100%', width: `${domain.progress}%`, borderRadius: 3,
+                  background: `var(--progress-gradient, ${domain.color})` }} />
               </div>
+              {weightedAvg != null && (
+                <div style={{ marginTop: 12, fontSize: 12, color: 'var(--text-muted)' }}>
+                  Weighted avg from {graded.length} graded item{graded.length !== 1 ? 's' : ''}
+                  {ungradedCount > 0 && ` · ${ungradedCount} not yet marked`}
+                </div>
+              )}
             </div>
           </SectionCard>
         </div>
@@ -197,234 +246,151 @@ function OverviewTab({ domain, onOpenEvent }) {
   )
 }
 
-function LecturesTab({ domain, onOpenEvent, eventNotes, onNewNote }) {
+// ─── Schedule tab (lectures, labs, tutorials, seminars, etc.) ─────────────────
+function ScheduleTab({ domain, domainEvents, onNewNote, notes, eventNotes }) {
+  const [sortBy,    setSortBy]    = useState('week')
   const [openWeeks, setOpenWeeks] = useState(() => {
     const o = {}
-    ;(domain.lectures || []).forEach(l => { o[l.week] = true })
+    domainEvents.forEach(e => { if (e.details?.week) o[e.details.week] = true })
     return o
   })
-  const byWeek = (domain.lectures || []).reduce((acc, l, i) => {
-    if (!acc[l.week]) acc[l.week] = []
-    acc[l.week].push({ ...l, _idx: i })
-    return acc
-  }, {})
 
-  return (
-    <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
-      {Object.entries(byWeek).map(([week, lectures]) => {
-        const isOpen    = openWeeks[week]
-        const allDone   = lectures.every(l => l.status === 'completed')
-        const hasActive = lectures.some(l => l.status === 'in-progress')
-        const wColor    = allDone ? 'var(--accent-green)' : hasActive ? 'var(--accent-blue)' : 'var(--text-muted)'
-        const wColorHex = allDone ? '#34d399' : hasActive ? '#5b8cff' : '#4a4c60'
-        return (
-          <SectionCard key={week}>
-            <div style={{ display: 'flex', alignItems: 'center' }}>
-              <button onClick={() => setOpenWeeks(prev => ({ ...prev, [week]: !prev[week] }))} style={{ flex: 1, display: 'flex', alignItems: 'center', gap: 12, padding: '14px 20px', background: 'none', border: 'none', cursor: 'pointer', textAlign: 'left' }}>
-                <div style={{ width: 28, height: 28, borderRadius: 7, background: `${wColorHex}18`, display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
-                  <span style={{ fontSize: 11, fontWeight: 700, color: wColor }}>W{week}</span>
-                </div>
-                <div style={{ flex: 1 }}>
-                  <span style={{ fontSize: 13, fontWeight: 500, color: 'var(--text-primary)' }}>Week {week}</span>
-                  <span style={{ fontSize: 12, color: 'var(--text-muted)', marginLeft: 8 }}>
-                    {lectures.length} lecture{lectures.length > 1 ? 's' : ''}
-                    {allDone ? <span style={{ color: 'var(--accent-green)' }}> · Done</span> : hasActive ? <span style={{ color: 'var(--accent-blue)' }}> · In Progress</span> : ''}
-                  </span>
-                </div>
-                {isOpen ? <ChevronDown size={15} color="var(--text-muted)" /> : <ChevronRight size={15} color="var(--text-muted)" />}
-              </button>
-              {onNewNote && (
-                <button
-                  onClick={e => { e.stopPropagation(); onNewNote({ domainId: domain.id, academicWeek: Number(week) }) }}
-                  title="New handwritten note for this week"
-                  style={{ display: 'flex', alignItems: 'center', gap: 5, margin: '0 14px', padding: '5px 10px', borderRadius: 7, border: '1px solid var(--border)', background: 'none', color: 'var(--text-muted)', cursor: 'pointer', fontSize: 11, whiteSpace: 'nowrap', flexShrink: 0 }}
-                  onMouseEnter={e => { e.currentTarget.style.color = 'var(--accent-purple)'; e.currentTarget.style.borderColor = 'var(--accent-purple)' }}
-                  onMouseLeave={e => { e.currentTarget.style.color = 'var(--text-muted)'; e.currentTarget.style.borderColor = 'var(--border)' }}
-                >
-                  <PenLine size={12} /> Note
-                </button>
-              )}
+  const today    = new Date()
+  const schedEvs = domainEvents
+    .filter(e => e.type !== 'exam' && e.type !== 'assignment')
+    .sort((a, b) => a.date - b.date)
+
+  if (schedEvs.length === 0) {
+    return (
+      <div style={{ textAlign: 'center', padding: '60px 0', color: 'var(--text-muted)' }}>
+        <Calendar size={32} color="var(--border-strong)" style={{ marginBottom: 12 }} />
+        <p style={{ margin: 0, fontSize: 14 }}>No scheduled sessions yet.</p>
+        <p style={{ margin: '6px 0 0', fontSize: 12 }}>Add schedule slots during onboarding or in settings.</p>
+      </div>
+    )
+  }
+
+  function noteTitle(event) {
+    const week = event.details?.week
+    const type = resolveTypeLabel(event)
+    return week ? `Week ${week} – ${type}` : type
+  }
+
+  function EventItem({ event, isLast }) {
+    const isPast     = event.date < today
+    const typeColor  = EVENT_TYPES[event.type]?.color || '#9ca3af'
+    const typeLabel  = resolveTypeLabel(event)
+    const linkedNotes = (notes || []).filter(n => n.eventId === event.id)
+    const hasEvNote  = !!eventNotes?.[event.id]?.trim()
+    return (
+      <div style={{ display: 'flex', alignItems: 'center', gap: 12, padding: '11px 20px',
+        borderBottom: isLast ? 'none' : '1px solid var(--border)',
+        opacity: isPast ? 0.65 : 1 }}>
+        <div style={{ width: 8, height: 8, borderRadius: 2, background: typeColor, flexShrink: 0 }} />
+        <div style={{ flex: 1, minWidth: 0 }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 2 }}>
+            <span style={{ fontSize: 10, fontWeight: 700, padding: '1px 6px', borderRadius: 3,
+              background: `${typeColor}18`, color: typeColor }}>{typeLabel.toUpperCase()}</span>
+            {isPast && <span style={{ fontSize: 10, color: 'var(--accent-green)', fontWeight: 600 }}>✓ Attended</span>}
+          </div>
+          <div style={{ fontSize: 12, color: 'var(--text-secondary)' }}>
+            {event.date.toLocaleDateString('en-GB', { weekday: 'short', day: 'numeric', month: 'short' })}
+            {event.details?.time && ` · ${event.details.time}`}
+            {event.details?.duration && ` · ${event.details.duration}min`}
+          </div>
+          {event.details?.location && (
+            <div style={{ fontSize: 11, color: 'var(--text-muted)', marginTop: 2, display: 'flex', alignItems: 'center', gap: 3 }}>
+              <MapPin size={10} />{event.details.location}
             </div>
-            {isOpen && (
-              <div style={{ borderTop: '1px solid var(--border)' }}>
-                {lectures.map((l, i) => {
-                  const ev = lectureEvent(domain, l, l._idx)
-                  const hasNote = !!eventNotes?.[ev.id]?.trim()
-                  return (
-                    <ClickableRow key={i} onClick={() => onOpenEvent(ev)} style={{ display: 'flex', alignItems: 'center', gap: 12, padding: '11px 20px', borderBottom: i < lectures.length - 1 ? '1px solid var(--border)' : 'none', opacity: l.status === 'upcoming' ? 0.6 : 1 }}>
-                      {l.status === 'completed' ? <CheckCircle2 size={14} color="var(--accent-green)" /> : l.status === 'in-progress' ? <Clock size={14} color="var(--accent-blue)" /> : <Circle size={14} color="var(--text-muted)" />}
-                      <div style={{ flex: 1 }}>
-                        <div style={{ fontSize: 13, color: 'var(--text-primary)', fontWeight: 500 }}>{l.title}</div>
-                        <div style={{ fontSize: 11, color: 'var(--text-muted)', marginTop: 2 }}>{l.date}</div>
-                      </div>
-                      <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
-                        {hasNote && (
-                          <span title="Has notes" style={{ fontSize: 10, color: 'var(--accent-purple)', background: 'rgba(167,139,250,0.12)', padding: '2px 7px', borderRadius: 4, display: 'flex', alignItems: 'center', gap: 3 }}>
-                            <StickyNote size={9} /> Notes
-                          </span>
-                        )}
-                        {l.hasNotes && !hasNote && (
-                          <div style={{ fontSize: 11, color: 'var(--text-secondary)', background: 'var(--border)', padding: '3px 7px', borderRadius: 5, display: 'flex', alignItems: 'center', gap: 4 }}>
-                            <FileText size={10} /> Materials
-                          </div>
-                        )}
-                        <StatusBadge status={l.status} />
-                      </div>
-                    </ClickableRow>
-                  )
-                })}
-              </div>
-            )}
-          </SectionCard>
-        )
-      })}
-    </div>
-  )
-}
+          )}
+        </div>
+        <div style={{ display: 'flex', gap: 6, alignItems: 'center', flexShrink: 0 }}>
+          {linkedNotes.map(n => (
+            <span key={n.id} style={{ fontSize: 10, color: 'var(--accent-purple)', background: 'rgba(167,139,250,0.12)',
+              padding: '2px 7px', borderRadius: 4 }}><PenLine size={9} style={{ display:'inline', marginRight:3 }} />{n.title || 'Note'}</span>
+          ))}
+          {hasEvNote && <span style={{ fontSize: 10, color: 'var(--accent-purple)', background: 'rgba(167,139,250,0.12)', padding: '2px 7px', borderRadius: 4 }}><StickyNote size={9} style={{ display:'inline', marginRight:3 }} />Notes</span>}
+          <NoteButton
+            onNewNote={onNewNote}
+            meta={{ domainId: domain.id, academicWeek: event.details?.week || null, eventId: event.id, title: noteTitle(event) }}
+          />
+        </div>
+      </div>
+    )
+  }
 
-function AssignmentsTab({ domain, onOpenEvent, eventNotes }) {
-  return (
-    <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
-      {(domain.assignments || []).map(a => {
-        const ev = assignmentEvent(domain, a)
-        const hasNote = !!eventNotes?.[ev.id]?.trim()
-        const barColor = a.status === 'graded' ? 'var(--accent-green)' : a.status === 'submitted' ? 'var(--accent-amber)' : 'var(--text-muted)'
-        const barHex   = a.status === 'graded' ? '#34d399' : a.status === 'submitted' ? '#fbbf24' : '#4a4c60'
-        return (
-          <SectionCard key={a.id}>
-            <ClickableRow onClick={() => onOpenEvent(ev)} style={{ padding: '18px 22px', display: 'flex', alignItems: 'center', gap: 16 }}>
-              <div style={{ width: 3, height: 44, borderRadius: 2, flexShrink: 0, background: barHex }} />
-              <div style={{ flex: 1 }}>
-                <div style={{ fontSize: 14, fontWeight: 500, color: 'var(--text-primary)', marginBottom: 4 }}>{a.title}</div>
-                <div style={{ display: 'flex', gap: 14, alignItems: 'center' }}>
-                  <span style={{ fontSize: 12, color: 'var(--text-muted)', display: 'flex', alignItems: 'center', gap: 4 }}><Calendar size={11} />Due {a.dueDate}</span>
-                  <span style={{ fontSize: 12, color: 'var(--text-muted)' }}>Weight: <span style={{ color: 'var(--text-secondary)', fontWeight: 500 }}>{a.weight}%</span></span>
-                </div>
-              </div>
-              <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
-                {hasNote && (
-                  <span title="Has notes" style={{ fontSize: 10, color: 'var(--accent-purple)', background: 'rgba(167,139,250,0.12)', padding: '3px 7px', borderRadius: 4, display: 'flex', alignItems: 'center', gap: 3 }}>
-                    <StickyNote size={9} /> Notes
-                  </span>
-                )}
-                {a.grade !== null && (
-                  <div style={{ background: a.grade >= 70 ? 'rgba(52,211,153,0.12)' : 'rgba(251,113,133,0.12)', color: a.grade >= 70 ? 'var(--accent-green)' : 'var(--accent-red)', fontSize: 16, fontWeight: 700, padding: '6px 14px', borderRadius: 8 }}>
-                    {a.grade}%
-                  </div>
-                )}
-                <StatusBadge status={a.status} />
-              </div>
-            </ClickableRow>
-          </SectionCard>
-        )
-      })}
-    </div>
-  )
-}
+  if (sortBy === 'date') {
+    return (
+      <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+        <div style={{ display: 'flex', gap: 6, marginBottom: 4 }}>
+          <SortBtn active={sortBy === 'week'} onClick={() => setSortBy('week')} label="By Week" />
+          <SortBtn active={sortBy === 'date'} onClick={() => setSortBy('date')} label="By Date" />
+        </div>
+        <SectionCard>
+          {schedEvs.map((ev, i) => <EventItem key={ev.id} event={ev} isLast={i === schedEvs.length - 1} />)}
+        </SectionCard>
+      </div>
+    )
+  }
 
-function LabsTab({ domain, onOpenEvent, eventNotes, onNewNote, notes, onOpenNote }) {
-  const [openWeeks, setOpenWeeks] = useState(() => {
-    const o = {}
-    ;(domain.labs || []).forEach(l => { o[l.week] = true })
-    return o
+  // group by week
+  const byWeek = {}
+  schedEvs.forEach(e => {
+    const w = e.details?.week ?? 0
+    if (!byWeek[w]) byWeek[w] = []
+    byWeek[w].push(e)
   })
-  const byWeek = (domain.labs || []).reduce((acc, lab) => {
-    if (!acc[lab.week]) acc[lab.week] = []
-    acc[lab.week].push(lab)
-    return acc
-  }, {})
+  const sortedWeeks = Object.keys(byWeek).sort((a, b) => Number(a) - Number(b))
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
-      {Object.entries(byWeek).sort(([a], [b]) => Number(a) - Number(b)).map(([week, labs]) => {
-        const isOpen    = openWeeks[week]
-        const allDone   = labs.every(l => l.status === 'completed')
-        const hasActive = labs.some(l  => l.status === 'in-progress')
-        const wColor    = allDone ? 'var(--accent-green)' : hasActive ? 'var(--accent-blue)' : 'var(--text-muted)'
-        const wColorHex = allDone ? '#34d399' : hasActive ? '#5b8cff' : '#4a4c60'
+      <div style={{ display: 'flex', gap: 6, marginBottom: 4 }}>
+        <SortBtn active={sortBy === 'week'} onClick={() => setSortBy('week')} label="By Week" />
+        <SortBtn active={sortBy === 'date'} onClick={() => setSortBy('date')} label="By Date" />
+      </div>
+      {sortedWeeks.map(week => {
+        const evs      = byWeek[week]
+        const allPast  = evs.every(e => e.date < today)
+        const anyFuture = evs.some(e => e.date >= today)
+        const wNum     = Number(week)
+        const wColor   = allPast ? '#34d399' : anyFuture ? '#5b8cff' : '#4a4c60'
+        const isOpen   = openWeeks[week]
+
         return (
           <SectionCard key={week}>
             <div style={{ display: 'flex', alignItems: 'center' }}>
               <button
                 onClick={() => setOpenWeeks(prev => ({ ...prev, [week]: !prev[week] }))}
-                style={{ flex: 1, display: 'flex', alignItems: 'center', gap: 12, padding: '14px 20px', background: 'none', border: 'none', cursor: 'pointer', textAlign: 'left' }}
+                style={{ flex: 1, display: 'flex', alignItems: 'center', gap: 12, padding: '13px 20px',
+                  background: 'none', border: 'none', cursor: 'pointer', textAlign: 'left' }}
               >
-                <div style={{ width: 28, height: 28, borderRadius: 7, background: `${wColorHex}18`, display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
-                  <span style={{ fontSize: 11, fontWeight: 700, color: wColor }}>W{week}</span>
+                <div style={{ width: 30, height: 30, borderRadius: 7, background: `${wColor}18`,
+                  display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+                  {wNum > 0
+                    ? <span style={{ fontSize: 10, fontWeight: 700, color: wColor }}>W{week}</span>
+                    : <Calendar size={13} color={wColor} />}
                 </div>
                 <div style={{ flex: 1 }}>
-                  <span style={{ fontSize: 13, fontWeight: 500, color: 'var(--text-primary)' }}>Week {week}</span>
+                  <span style={{ fontSize: 13, fontWeight: 500, color: 'var(--text-primary)' }}>
+                    {wNum > 0 ? `Week ${week}` : 'No week'}
+                  </span>
                   <span style={{ fontSize: 12, color: 'var(--text-muted)', marginLeft: 8 }}>
-                    {labs.length} lab{labs.length > 1 ? 's' : ''}
-                    {allDone ? <span style={{ color: 'var(--accent-green)' }}> · Done</span> : hasActive ? <span style={{ color: 'var(--accent-blue)' }}> · In Progress</span> : ''}
+                    {evs.length} session{evs.length > 1 ? 's' : ''}
+                    {allPast && <span style={{ color: 'var(--accent-green)' }}> · All attended</span>}
                   </span>
                 </div>
-                {isOpen ? <ChevronDown size={15} color="var(--text-muted)" /> : <ChevronRight size={15} color="var(--text-muted)" />}
+                {isOpen ? <ChevronDown size={14} color="var(--text-muted)" /> : <ChevronRight size={14} color="var(--text-muted)" />}
               </button>
-              {onNewNote && (
-                <button
-                  onClick={e => { e.stopPropagation(); onNewNote({ domainId: domain.id, academicWeek: Number(week) }) }}
-                  title="New note for this week's labs"
-                  style={{ display: 'flex', alignItems: 'center', gap: 5, margin: '0 14px', padding: '5px 10px', borderRadius: 7, border: '1px solid var(--border)', background: 'none', color: 'var(--text-muted)', cursor: 'pointer', fontSize: 11, whiteSpace: 'nowrap', flexShrink: 0 }}
-                  onMouseEnter={e => { e.currentTarget.style.color = 'var(--accent-purple)'; e.currentTarget.style.borderColor = 'var(--accent-purple)' }}
-                  onMouseLeave={e => { e.currentTarget.style.color = 'var(--text-muted)'; e.currentTarget.style.borderColor = 'var(--border)' }}
-                >
-                  <PenLine size={12} /> Note
-                </button>
-              )}
+              <NoteButton
+                onNewNote={onNewNote}
+                meta={{ domainId: domain.id, academicWeek: wNum > 0 ? wNum : null, title: wNum > 0 ? `Week ${week} Notes` : 'Notes' }}
+                label="Week Note"
+              />
+              <div style={{ width: 14 }} />
             </div>
             {isOpen && (
               <div style={{ borderTop: '1px solid var(--border)' }}>
-                {labs.map((lab, i) => {
-                  const ev           = labEvent(domain, lab)
-                  const labNotes     = (notes || []).filter(n => n.eventId === ev.id)
-                  const hasEventNote = !!eventNotes?.[ev.id]?.trim()
-                  const iconBg    = lab.status === 'completed' ? 'rgba(52,211,153,0.1)' : lab.status === 'in-progress' ? 'rgba(91,140,255,0.1)' : 'var(--bg-overlay)'
-                  const iconColor = lab.status === 'completed' ? 'var(--accent-green)' : lab.status === 'in-progress' ? 'var(--accent-blue)' : 'var(--text-muted)'
-                  return (
-                    <div key={lab.id} style={{ borderBottom: i < labs.length - 1 ? '1px solid var(--border)' : 'none' }}>
-                      <ClickableRow onClick={() => onOpenEvent(ev)} style={{ padding: '13px 20px', display: 'flex', alignItems: 'center', gap: 14 }}>
-                        <div style={{ width: 34, height: 34, borderRadius: 9, flexShrink: 0, background: iconBg, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-                          <FlaskConical size={15} color={iconColor} />
-                        </div>
-                        <div style={{ flex: 1 }}>
-                          <div style={{ fontSize: 13, fontWeight: 500, color: 'var(--text-primary)', marginBottom: 2 }}>{lab.title}</div>
-                          <div style={{ fontSize: 11, color: 'var(--text-muted)', display: 'flex', alignItems: 'center', gap: 4 }}>
-                            <Calendar size={10} />{lab.date}
-                          </div>
-                        </div>
-                        <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
-                          {labNotes.map(n => (
-                            <button
-                              key={n.id}
-                              onClick={e => { e.stopPropagation(); onOpenNote?.(n.id) }}
-                              style={{ display: 'flex', alignItems: 'center', gap: 4, padding: '3px 8px', borderRadius: 5, border: '1px solid rgba(167,139,250,0.3)', background: 'rgba(167,139,250,0.08)', color: 'var(--accent-purple)', cursor: 'pointer', fontSize: 10 }}
-                            >
-                              <PenLine size={9} />{n.title || 'Note'}
-                            </button>
-                          ))}
-                          {hasEventNote && (
-                            <span style={{ fontSize: 10, color: 'var(--accent-purple)', background: 'rgba(167,139,250,0.12)', padding: '2px 7px', borderRadius: 4, display: 'flex', alignItems: 'center', gap: 3 }}>
-                              <StickyNote size={9} /> Notes
-                            </span>
-                          )}
-                          {onNewNote && (
-                            <button
-                              onClick={e => { e.stopPropagation(); onNewNote({ domainId: domain.id, academicWeek: lab.week, eventId: ev.id }) }}
-                              title="New handwritten note for this lab"
-                              style={{ display: 'flex', alignItems: 'center', gap: 4, padding: '3px 8px', borderRadius: 5, border: '1px solid var(--border)', background: 'none', color: 'var(--text-muted)', cursor: 'pointer', fontSize: 10 }}
-                              onMouseEnter={e => { e.currentTarget.style.color = 'var(--accent-purple)'; e.currentTarget.style.borderColor = 'var(--accent-purple)' }}
-                              onMouseLeave={e => { e.currentTarget.style.color = 'var(--text-muted)'; e.currentTarget.style.borderColor = 'var(--border)' }}
-                            >
-                              <PenLine size={9} /> Note
-                            </button>
-                          )}
-                          <StatusBadge status={lab.status} />
-                        </div>
-                      </ClickableRow>
-                    </div>
-                  )
-                })}
+                {evs.map((ev, i) => <EventItem key={ev.id} event={ev} isLast={i === evs.length - 1} />)}
               </div>
             )}
           </SectionCard>
@@ -434,6 +400,273 @@ function LabsTab({ domain, onOpenEvent, eventNotes, onNewNote, notes, onOpenNote
   )
 }
 
+function SortBtn({ active, onClick, label }) {
+  return (
+    <button onClick={onClick} style={{
+      padding: '5px 12px', borderRadius: 6, border: `1px solid ${active ? 'var(--accent-blue)' : 'var(--border)'}`,
+      background: active ? 'rgba(91,140,255,0.1)' : 'none', color: active ? 'var(--accent-blue)' : 'var(--text-muted)',
+      cursor: 'pointer', fontSize: 12, fontWeight: active ? 600 : 400, transition: 'all 0.12s',
+    }}>
+      {label}
+    </button>
+  )
+}
+
+// ─── Assessments tab ──────────────────────────────────────────────────────────
+function AssessmentModal({ domain, initial, onClose, onSave }) {
+  const [form, setForm] = useState({
+    type:     initial?.type     || 'exam',
+    title:    initial?.title    || '',
+    date:     initial?.date     || '',
+    weight:   initial?.weight   != null ? String(initial.weight) : '',
+    location: initial?.location || '',
+  })
+  const set = (k, v) => setForm(prev => ({ ...prev, [k]: v }))
+  const canSave = form.title.trim() && form.weight !== ''
+
+  const inputStyle = {
+    width: '100%', padding: '9px 12px', borderRadius: 8,
+    border: '1px solid var(--border-strong)', background: 'var(--bg-input)',
+    color: 'var(--text-primary)', fontSize: 13, outline: 'none',
+    boxSizing: 'border-box', fontFamily: 'inherit',
+  }
+
+  return (
+    <div onClick={onClose} style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.6)', zIndex: 1000, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+      <div onClick={e => e.stopPropagation()} style={{ background: 'var(--bg-surface)', border: '1px solid var(--border-strong)', borderRadius: 16, width: 440, maxWidth: '92vw', boxShadow: 'var(--shadow-modal)', overflow: 'hidden' }}>
+        <div style={{ padding: '16px 20px', borderBottom: '1px solid var(--border)', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+          <span style={{ fontSize: 15, fontWeight: 600, color: 'var(--text-primary)' }}>{initial ? 'Edit' : 'Add'} Assessment</span>
+          <button onClick={onClose} style={{ width: 28, height: 28, borderRadius: 7, border: 'none', background: 'var(--bg-overlay)', color: 'var(--text-secondary)', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+            <X size={14} />
+          </button>
+        </div>
+
+        <div style={{ padding: '18px 20px', display: 'flex', flexDirection: 'column', gap: 14 }}>
+          <div>
+            <div style={{ fontSize: 11, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.5px', marginBottom: 7 }}>Type</div>
+            <div style={{ display: 'flex', gap: 6 }}>
+              {[
+                { key: 'exam', label: 'Exam', Icon: GraduationCap, color: '#fb7185' },
+                { key: 'assignment', label: 'Assignment', Icon: FileText, color: '#fbbf24' },
+              ].map(opt => (
+                <button key={opt.key} onClick={() => set('type', opt.key)} style={{
+                  flex: 1, padding: '8px', borderRadius: 8, border: `1px solid ${form.type === opt.key ? opt.color : 'var(--border)'}`,
+                  background: form.type === opt.key ? `${opt.color}12` : 'none',
+                  color: form.type === opt.key ? opt.color : 'var(--text-secondary)',
+                  cursor: 'pointer', fontSize: 13, fontWeight: form.type === opt.key ? 600 : 400, transition: 'all 0.12s',
+                  display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6,
+                }}><opt.Icon size={13} />{opt.label}</button>
+              ))}
+            </div>
+          </div>
+
+          <div>
+            <div style={{ fontSize: 11, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.5px', marginBottom: 7 }}>Title</div>
+            <input style={inputStyle} value={form.title} onChange={e => set('title', e.target.value)} placeholder="e.g. Final Exam, Coursework 1…"
+              onFocus={e => e.target.style.borderColor = 'var(--border-focus)'} onBlur={e => e.target.style.borderColor = 'var(--border-strong)'} autoFocus />
+          </div>
+
+          <div style={{ display: 'grid', gridTemplateColumns: '1fr 80px', gap: 10 }}>
+            <div>
+              <div style={{ fontSize: 11, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.5px', marginBottom: 7 }}>Date</div>
+              <input style={{ ...inputStyle, colorScheme: 'dark' }} type="date" value={form.date} onChange={e => set('date', e.target.value)}
+                onFocus={e => e.target.style.borderColor = 'var(--border-focus)'} onBlur={e => e.target.style.borderColor = 'var(--border-strong)'} />
+            </div>
+            <div>
+              <div style={{ fontSize: 11, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.5px', marginBottom: 7 }}>Weight %</div>
+              <input style={inputStyle} type="number" min={0} max={100} value={form.weight} onChange={e => set('weight', e.target.value)} placeholder="e.g. 40"
+                onFocus={e => e.target.style.borderColor = 'var(--border-focus)'} onBlur={e => e.target.style.borderColor = 'var(--border-strong)'} />
+            </div>
+          </div>
+
+          {form.type === 'exam' && (
+            <div>
+              <div style={{ fontSize: 11, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.5px', marginBottom: 7 }}>Location (optional)</div>
+              <input style={inputStyle} value={form.location} onChange={e => set('location', e.target.value)} placeholder="e.g. Main Hall, Room 204"
+                onFocus={e => e.target.style.borderColor = 'var(--border-focus)'} onBlur={e => e.target.style.borderColor = 'var(--border-strong)'} />
+            </div>
+          )}
+        </div>
+
+        <div style={{ padding: '12px 20px', borderTop: '1px solid var(--border)', display: 'flex', justifyContent: 'flex-end', gap: 8 }}>
+          <button onClick={onClose} style={{ padding: '8px 16px', borderRadius: 8, border: '1px solid var(--border-strong)', background: 'none', color: 'var(--text-secondary)', cursor: 'pointer', fontSize: 13 }}>Cancel</button>
+          <button onClick={() => { if (!canSave) return; onSave({ type: form.type, title: form.title.trim(), date: form.date || null, weight: parseInt(form.weight) || 0, location: form.location.trim() || null }); onClose() }}
+            disabled={!canSave} style={{ padding: '8px 18px', borderRadius: 8, border: 'none', fontSize: 13, fontWeight: 600,
+              background: canSave ? domain.color : 'var(--border)', color: canSave ? '#fff' : 'var(--text-muted)',
+              cursor: canSave ? 'pointer' : 'default', transition: 'all 0.15s' }}>
+            {initial ? 'Save Changes' : 'Add'}
+          </button>
+        </div>
+      </div>
+    </div>
+  )
+}
+
+function GradeInput({ assessment, onSave, onCancel }) {
+  const [val, setVal] = useState(assessment.grade != null ? String(assessment.grade) : '')
+  const num = parseFloat(val)
+  const valid = !isNaN(num) && num >= 0 && num <= 100
+  return (
+    <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+      <input autoFocus type="number" min={0} max={100} step={0.1}
+        value={val} onChange={e => setVal(e.target.value)}
+        onKeyDown={e => { if (e.key === 'Enter' && valid) { onSave(num); } if (e.key === 'Escape') onCancel() }}
+        style={{ width: 72, padding: '4px 8px', borderRadius: 6, border: '1px solid var(--border-focus)',
+          background: 'var(--bg-input)', color: 'var(--text-primary)', fontSize: 13, outline: 'none' }}
+      />
+      <span style={{ fontSize: 13, color: 'var(--text-muted)' }}>%</span>
+      <button onClick={() => valid && onSave(num)}
+        style={{ width: 24, height: 24, borderRadius: 5, border: 'none', background: valid ? 'var(--accent-green)' : 'var(--border)', color: valid ? '#fff' : 'var(--text-muted)', cursor: valid ? 'pointer' : 'default', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+        <Check size={12} />
+      </button>
+      <button onClick={onCancel} style={{ width: 24, height: 24, borderRadius: 5, border: 'none', background: 'var(--bg-overlay)', color: 'var(--text-muted)', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+        <X size={12} />
+      </button>
+    </div>
+  )
+}
+
+function AssessmentsTab({ domain, assessments, onAddAssessment, onUpdateAssessment, onDeleteAssessment }) {
+  const [showAdd,      setShowAdd]      = useState(false)
+  const [editing,      setEditing]      = useState(null)
+  const [gradingId,    setGradingId]    = useState(null)
+
+  const exams       = assessments.filter(a => a.type === 'exam').sort((a, b) => (a.date || '') < (b.date || '') ? -1 : 1)
+  const assignments = assessments.filter(a => a.type === 'assignment').sort((a, b) => (a.date || '') < (b.date || '') ? -1 : 1)
+
+  const graded      = assessments.filter(a => a.grade != null)
+  const totalWeight = graded.reduce((s, a) => s + (a.weight || 0), 0)
+  const weightedAvg = totalWeight > 0
+    ? (graded.reduce((s, a) => s + (a.grade * a.weight), 0) / totalWeight).toFixed(1)
+    : null
+  const ungraded    = assessments.filter(a => a.grade == null)
+
+  function AssessmentRow({ item }) {
+    const isExam    = item.type === 'exam'
+    const color     = isExam ? '#fb7185' : '#fbbf24'
+    const isGrading = gradingId === item.id
+    const today     = new Date()
+    const isPast    = item.date && new Date(item.date + 'T12:00:00') < today
+    const gradeColor = item.grade != null
+      ? (item.grade >= 70 ? 'var(--accent-green)' : item.grade >= 50 ? 'var(--accent-amber)' : 'var(--accent-red)')
+      : 'var(--text-muted)'
+    return (
+      <div style={{ display: 'flex', alignItems: 'center', gap: 14, padding: '14px 20px', borderBottom: '1px solid var(--border)' }}>
+        <div style={{ width: 3, alignSelf: 'stretch', borderRadius: 2, background: color, flexShrink: 0 }} />
+        <div style={{ flex: 1, minWidth: 0 }}>
+          <div style={{ fontSize: 14, fontWeight: 500, color: 'var(--text-primary)', marginBottom: 3 }}>{item.title}</div>
+          <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap', alignItems: 'center', fontSize: 12, color: 'var(--text-muted)' }}>
+            {item.date && <span style={{ display: 'flex', alignItems: 'center', gap: 3 }}><Calendar size={11} />{item.date}</span>}
+            <span>Weight: <span style={{ color: 'var(--text-secondary)', fontWeight: 600 }}>{item.weight}%</span></span>
+            {item.location && <span style={{ display: 'flex', alignItems: 'center', gap: 3 }}><MapPin size={11} />{item.location}</span>}
+          </div>
+        </div>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexShrink: 0 }}>
+          {isGrading
+            ? <GradeInput assessment={item} onSave={g => { onUpdateAssessment(item.id, { ...item, grade: g }); setGradingId(null) }} onCancel={() => setGradingId(null)} />
+            : item.grade != null
+              ? (
+                <button onClick={() => setGradingId(item.id)} title="Edit grade"
+                  style={{ background: `${gradeColor}15`, color: gradeColor, fontSize: 14, fontWeight: 700, padding: '5px 12px', borderRadius: 7, border: `1px solid ${gradeColor}30`, cursor: 'pointer' }}>
+                  {item.grade}%
+                </button>
+              )
+              : (
+                <button onClick={() => setGradingId(item.id)}
+                  style={{ padding: '5px 10px', borderRadius: 7, border: '1px dashed var(--border-strong)', background: 'none',
+                    color: 'var(--text-muted)', fontSize: 12, cursor: isPast ? 'pointer' : 'default',
+                    opacity: isPast ? 1 : 0.45 }}
+                  title={isPast ? 'Enter grade' : 'Date not yet reached'}>
+                  + Grade
+                </button>
+              )
+          }
+          <button onClick={() => setEditing(item)}
+            style={{ width: 28, height: 28, borderRadius: 6, border: 'none', background: 'var(--bg-overlay)', color: 'var(--text-muted)', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+            <Edit2 size={12} />
+          </button>
+          <button onClick={() => { if (confirm(`Delete "${item.title}"?`)) onDeleteAssessment(item.id) }}
+            style={{ width: 28, height: 28, borderRadius: 6, border: 'none', background: 'var(--bg-overlay)', color: 'var(--text-muted)', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center' }}
+            onMouseEnter={e => { e.currentTarget.style.background = 'rgba(251,113,133,0.12)'; e.currentTarget.style.color = '#fb7185' }}
+            onMouseLeave={e => { e.currentTarget.style.background = 'var(--bg-overlay)'; e.currentTarget.style.color = 'var(--text-muted)' }}>
+            <Trash2 size={12} />
+          </button>
+        </div>
+      </div>
+    )
+  }
+
+  return (
+    <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
+      {/* Header row */}
+      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 16 }}>
+          {weightedAvg != null && (
+            <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+              <div style={{ fontSize: 28, fontWeight: 700, color: Number(weightedAvg) >= 70 ? 'var(--accent-green)' : Number(weightedAvg) >= 50 ? 'var(--accent-amber)' : 'var(--accent-red)' }}>
+                {weightedAvg}%
+              </div>
+              <div style={{ fontSize: 12, color: 'var(--text-muted)', lineHeight: 1.4 }}>
+                weighted avg<br />
+                {graded.length} marked{ungraded.length > 0 && `, ${ungraded.length} pending`}
+              </div>
+            </div>
+          )}
+          {weightedAvg == null && assessments.length > 0 && (
+            <span style={{ fontSize: 13, color: 'var(--text-muted)' }}>No grades entered yet</span>
+          )}
+        </div>
+        <button
+          onClick={() => setShowAdd(true)}
+          style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '8px 14px', borderRadius: 8,
+            border: 'none', background: domain.color, color: '#fff', cursor: 'pointer', fontSize: 13, fontWeight: 600 }}>
+          <Plus size={14} /> Add Assessment
+        </button>
+      </div>
+
+      {assessments.length === 0 && (
+        <div style={{ textAlign: 'center', padding: '60px 0', color: 'var(--text-muted)' }}>
+          <BarChart2 size={32} color="var(--border-strong)" style={{ marginBottom: 12 }} />
+          <p style={{ margin: 0, fontSize: 14 }}>No assessments yet.</p>
+          <p style={{ margin: '6px 0 0', fontSize: 12 }}>Add exams and assignments to track your grades.</p>
+        </div>
+      )}
+
+      {exams.length > 0 && (
+        <SectionCard>
+          <div style={{ padding: '12px 20px', borderBottom: '1px solid var(--border)', display: 'flex', alignItems: 'center', gap: 8 }}>
+            <GraduationCap size={14} color="#fb7185" />
+            <span style={{ fontSize: 12, fontWeight: 700, color: '#fb7185', textTransform: 'uppercase', letterSpacing: '0.4px' }}>Exams</span>
+          </div>
+          {exams.map(a => <AssessmentRow key={a.id} item={a} />)}
+          <div style={{ height: 0 }} />
+        </SectionCard>
+      )}
+
+      {assignments.length > 0 && (
+        <SectionCard>
+          <div style={{ padding: '12px 20px', borderBottom: '1px solid var(--border)', display: 'flex', alignItems: 'center', gap: 8 }}>
+            <FileText size={14} color="#fbbf24" />
+            <span style={{ fontSize: 12, fontWeight: 700, color: '#fbbf24', textTransform: 'uppercase', letterSpacing: '0.4px' }}>Assignments</span>
+          </div>
+          {assignments.map(a => <AssessmentRow key={a.id} item={a} />)}
+          <div style={{ height: 0 }} />
+        </SectionCard>
+      )}
+
+      {showAdd && (
+        <AssessmentModal domain={domain} onClose={() => setShowAdd(false)}
+          onSave={data => onAddAssessment({ ...data, domainId: domain.id })} />
+      )}
+      {editing && (
+        <AssessmentModal domain={domain} initial={editing} onClose={() => setEditing(null)}
+          onSave={data => { onUpdateAssessment(editing.id, { ...editing, ...data }); setEditing(null) }} />
+      )}
+    </div>
+  )
+}
+
+// ─── Study tab ────────────────────────────────────────────────────────────────
 function StudyTab({ domain, studySessions, notes, weekConfidence, onSetWeekConfidence, onNewNote, onOpenNote }) {
   const [openWeeks, setOpenWeeks] = useState({})
   const domainConf = (weekConfidence || {})[domain.id] || {}
@@ -446,11 +679,64 @@ function StudyTab({ domain, studySessions, notes, weekConfidence, onSetWeekConfi
     onSetWeekConfidence?.(domain.id, week, next)
   }
 
+  const domainSessions   = (studySessions || []).filter(s => s.domainId === domain.id)
+  const domainNotes      = (notes || []).filter(n => n.domainId === domain.id && !n.studySessionId)
+  const generalSessions  = domainSessions.filter(s => s.academicWeek == null)
+  const generalNotes     = domainNotes.filter(n => n.academicWeek == null)
+
+  function WeekContent({ sessions, weekNotes }) {
+    return (
+      <>
+        {sessions.map((s, i) => {
+          const isLast   = i === sessions.length - 1 && weekNotes.length === 0
+          const sColor   = s.status === 'completed' ? '#34d399' : '#fbbf24'
+          const totalMins = s.pomodoroWork * s.roundsCompleted
+          return (
+            <div key={s.id} style={{ display: 'flex', alignItems: 'center', gap: 12, padding: '11px 20px', borderBottom: isLast ? 'none' : '1px solid var(--border)' }}>
+              <div style={{ width: 8, height: 8, borderRadius: '50%', background: sColor, flexShrink: 0 }} />
+              <div style={{ flex: 1 }}>
+                <div style={{ fontSize: 13, fontWeight: 500, color: 'var(--text-primary)' }}>{s.topic || 'Study Session'}</div>
+                <div style={{ fontSize: 11, color: 'var(--text-muted)', marginTop: 2 }}>
+                  {s.roundsCompleted}/{s.totalRounds} rounds · {totalMins}min
+                  {' · '}{new Date(s.startedAt).toLocaleDateString('en-GB', { day: 'numeric', month: 'short' })}
+                </div>
+              </div>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                {s.noteId && onOpenNote && (
+                  <button onClick={() => onOpenNote(s.noteId)}
+                    style={{ display: 'flex', alignItems: 'center', gap: 4, padding: '3px 8px', borderRadius: 5,
+                      border: '1px solid rgba(167,139,250,0.3)', background: 'rgba(167,139,250,0.08)', color: 'var(--accent-purple)', cursor: 'pointer', fontSize: 10 }}>
+                    <PenLine size={9} /> Open Note
+                  </button>
+                )}
+                <span style={{ fontSize: 10, fontWeight: 600, padding: '2px 7px', borderRadius: 4, background: `${sColor}18`, color: sColor }}>{s.status}</span>
+              </div>
+            </div>
+          )
+        })}
+        {weekNotes.map((note, i) => (
+          <div key={note.id} onClick={() => onOpenNote?.(note.id)}
+            style={{ display: 'flex', alignItems: 'center', gap: 12, padding: '11px 20px',
+              borderBottom: i < weekNotes.length - 1 ? '1px solid var(--border)' : 'none', cursor: 'pointer' }}>
+            <PenLine size={13} color="var(--accent-purple)" />
+            <div style={{ flex: 1 }}>
+              <div style={{ fontSize: 13, fontWeight: 500, color: 'var(--text-primary)' }}>{note.title || 'Untitled Note'}</div>
+              <div style={{ fontSize: 11, color: 'var(--text-muted)', marginTop: 2 }}>
+                Note · {new Date(note.updatedAt).toLocaleDateString('en-GB', { day: 'numeric', month: 'short' })}
+              </div>
+            </div>
+            <ChevronRight size={14} color="var(--text-muted)" />
+          </div>
+        ))}
+      </>
+    )
+  }
+
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
       {Array.from({ length: TOTAL_WEEKS }, (_, i) => i + 1).map(week => {
-        const sessions  = (studySessions || []).filter(s => s.domainId === domain.id && s.academicWeek === week)
-        const weekNotes = (notes || []).filter(n => n.domainId === domain.id && n.academicWeek === week && !n.studySessionId)
+        const sessions  = domainSessions.filter(s => s.academicWeek === week)
+        const weekNotes = domainNotes.filter(n => n.academicWeek === week)
         const conf      = domainConf[week] || 'not_started'
         const confCfg   = CONF_LEVELS.find(l => l.key === conf) || CONF_LEVELS[0]
         const hasData   = sessions.length > 0 || weekNotes.length > 0
@@ -458,135 +744,53 @@ function StudyTab({ domain, studySessions, notes, weekConfidence, onSetWeekConfi
         return (
           <SectionCard key={week}>
             <div style={{ display: 'flex', alignItems: 'center', gap: 12, padding: '12px 20px' }}>
-              <div style={{ width: 32, height: 32, borderRadius: 8, background: `${confCfg.color}18`, display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+              <div style={{ width: 32, height: 32, borderRadius: 8, background: `${confCfg.color}18`,
+                display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
                 <span style={{ fontSize: 11, fontWeight: 700, color: confCfg.color }}>W{week}</span>
               </div>
               <div style={{ flex: 1 }}>
                 <span style={{ fontSize: 13, fontWeight: 500, color: 'var(--text-primary)' }}>Week {week}</span>
                 {hasData && (
                   <span style={{ fontSize: 12, color: 'var(--text-muted)', marginLeft: 8 }}>
-                    {[
-                      sessions.length  > 0 && `${sessions.length} session${sessions.length > 1 ? 's' : ''}`,
-                      weekNotes.length > 0 && `${weekNotes.length} note${weekNotes.length > 1 ? 's' : ''}`,
+                    {[sessions.length > 0 && `${sessions.length} session${sessions.length > 1 ? 's' : ''}`,
+                      weekNotes.length > 0 && `${weekNotes.length} note${weekNotes.length > 1 ? 's' : ''}`
                     ].filter(Boolean).join(' · ')}
                   </span>
                 )}
               </div>
-              {onNewNote && (
-                <button
-                  onClick={e => { e.stopPropagation(); onNewNote({ domainId: domain.id, academicWeek: week }) }}
-                  style={{ display: 'flex', alignItems: 'center', gap: 4, padding: '4px 9px', borderRadius: 6, border: '1px solid var(--border)', background: 'none', color: 'var(--text-muted)', cursor: 'pointer', fontSize: 11, flexShrink: 0 }}
-                  onMouseEnter={e => { e.currentTarget.style.color = 'var(--accent-purple)'; e.currentTarget.style.borderColor = 'var(--accent-purple)' }}
-                  onMouseLeave={e => { e.currentTarget.style.color = 'var(--text-muted)'; e.currentTarget.style.borderColor = 'var(--border)' }}
-                >
-                  <PenLine size={11} /> Note
-                </button>
-              )}
-              <button
-                onClick={e => cycleConf(week, e)}
-                style={{ display: 'flex', alignItems: 'center', gap: 5, padding: '5px 10px', borderRadius: 6, border: `1px solid ${confCfg.color}40`, background: confCfg.bg, color: confCfg.color, cursor: 'pointer', fontSize: 11, fontWeight: 600, flexShrink: 0, transition: 'all 0.12s' }}
-              >
+              <NoteButton onNewNote={onNewNote} meta={{ domainId: domain.id, academicWeek: week, title: `Week ${week} – Study Notes` }} />
+              <button onClick={e => cycleConf(week, e)}
+                style={{ display: 'flex', alignItems: 'center', gap: 5, padding: '5px 10px', borderRadius: 6,
+                  border: `1px solid ${confCfg.color}40`, background: confCfg.bg, color: confCfg.color,
+                  cursor: 'pointer', fontSize: 11, fontWeight: 600, flexShrink: 0, transition: 'all 0.12s' }}>
                 {confCfg.label}
               </button>
               {hasData && (
-                <button
-                  onClick={() => setOpenWeeks(prev => ({ ...prev, [week]: !prev[week] }))}
-                  style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--text-muted)', display: 'flex', padding: 4, borderRadius: 5, flexShrink: 0 }}
-                >
+                <button onClick={() => setOpenWeeks(prev => ({ ...prev, [week]: !prev[week] }))}
+                  style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--text-muted)', display: 'flex', padding: 4, borderRadius: 5, flexShrink: 0 }}>
                   {isOpen ? <ChevronDown size={15} /> : <ChevronRight size={15} />}
                 </button>
               )}
             </div>
             {isOpen && hasData && (
               <div style={{ borderTop: '1px solid var(--border)' }}>
-                {sessions.map((s, i) => {
-                  const isLast    = i === sessions.length - 1 && weekNotes.length === 0
-                  const sColor    = s.status === 'completed' ? '#34d399' : '#fbbf24'
-                  const totalMins = s.pomodoroWork * s.roundsCompleted
-                  return (
-                    <div key={s.id} style={{ display: 'flex', alignItems: 'center', gap: 12, padding: '11px 20px', borderBottom: isLast ? 'none' : '1px solid var(--border)' }}>
-                      <div style={{ width: 8, height: 8, borderRadius: '50%', background: sColor, flexShrink: 0 }} />
-                      <div style={{ flex: 1 }}>
-                        <div style={{ fontSize: 13, fontWeight: 500, color: 'var(--text-primary)' }}>{s.topic || 'Study Session'}</div>
-                        <div style={{ fontSize: 11, color: 'var(--text-muted)', marginTop: 2 }}>
-                          {s.roundsCompleted}/{s.totalRounds} rounds · {totalMins}min
-                          {' · '}{new Date(s.startedAt).toLocaleDateString('en-GB', { day: 'numeric', month: 'short' })}
-                        </div>
-                      </div>
-                      <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                        {s.noteId && onOpenNote && (
-                          <button
-                            onClick={() => onOpenNote(s.noteId)}
-                            style={{ display: 'flex', alignItems: 'center', gap: 4, padding: '3px 8px', borderRadius: 5, border: '1px solid rgba(167,139,250,0.3)', background: 'rgba(167,139,250,0.08)', color: 'var(--accent-purple)', cursor: 'pointer', fontSize: 10 }}
-                          >
-                            <PenLine size={9} /> Open Note
-                          </button>
-                        )}
-                        <span style={{ fontSize: 10, fontWeight: 600, padding: '2px 7px', borderRadius: 4, background: `${sColor}18`, color: sColor }}>{s.status}</span>
-                      </div>
-                    </div>
-                  )
-                })}
-                {weekNotes.map((note, i) => (
-                  <div
-                    key={note.id}
-                    onClick={() => onOpenNote?.(note.id)}
-                    style={{ display: 'flex', alignItems: 'center', gap: 12, padding: '11px 20px', borderBottom: i < weekNotes.length - 1 ? '1px solid var(--border)' : 'none', cursor: 'pointer' }}
-                  >
-                    <PenLine size={13} color="var(--accent-purple)" />
-                    <div style={{ flex: 1 }}>
-                      <div style={{ fontSize: 13, fontWeight: 500, color: 'var(--text-primary)' }}>{note.title || 'Untitled Note'}</div>
-                      <div style={{ fontSize: 11, color: 'var(--text-muted)', marginTop: 2 }}>
-                        Note · {new Date(note.updatedAt).toLocaleDateString('en-GB', { day: 'numeric', month: 'short' })}
-                      </div>
-                    </div>
-                    <ChevronRight size={14} color="var(--text-muted)" />
-                  </div>
-                ))}
+                <WeekContent sessions={sessions} weekNotes={weekNotes} />
               </div>
             )}
           </SectionCard>
         )
       })}
-    </div>
-  )
-}
 
-function ExamsTab({ domain, onOpenEvent, eventNotes }) {
-  return (
-    <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
-      {(domain.exams || []).map(exam => {
-        const ev = examEvent(domain, exam)
-        const hasNote = !!eventNotes?.[ev.id]?.trim()
-        return (
-          <SectionCard key={exam.id}>
-            <ClickableRow onClick={() => onOpenEvent(ev)} style={{ padding: '22px 24px' }}>
-              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 16 }}>
-                <div>
-                  <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 6 }}>
-                    <GraduationCap size={16} color={domain.color} />
-                    <h3 style={{ margin: 0, fontSize: 16, fontWeight: 600, color: 'var(--text-primary)' }}>{exam.title}</h3>
-                  </div>
-                  <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
-                    <StatusBadge status={exam.status} />
-                    {hasNote && (
-                      <span style={{ fontSize: 10, color: 'var(--accent-purple)', background: 'rgba(167,139,250,0.12)', padding: '3px 7px', borderRadius: 4, display: 'flex', alignItems: 'center', gap: 3 }}>
-                        <StickyNote size={9} /> Notes
-                      </span>
-                    )}
-                  </div>
-                </div>
-                <div style={{ background: `${domain.color}18`, color: domain.color, fontSize: 13, fontWeight: 700, padding: '6px 14px', borderRadius: 8 }}>{exam.weight}% of grade</div>
-              </div>
-              <div style={{ display: 'flex', gap: 22, paddingTop: 14, borderTop: '1px solid var(--border)' }}>
-                <div style={{ display: 'flex', alignItems: 'center', gap: 7 }}><Calendar size={13} color="var(--text-muted)" /><span style={{ fontSize: 13, color: 'var(--text-secondary)' }}>{exam.date}</span></div>
-                <div style={{ display: 'flex', alignItems: 'center', gap: 7 }}><Clock   size={13} color="var(--text-muted)" /><span style={{ fontSize: 13, color: 'var(--text-secondary)' }}>{exam.time}</span></div>
-                <div style={{ display: 'flex', alignItems: 'center', gap: 7 }}><MapPin  size={13} color="var(--text-muted)" /><span style={{ fontSize: 13, color: 'var(--text-secondary)' }}>{exam.location}</span></div>
-              </div>
-            </ClickableRow>
-          </SectionCard>
-        )
-      })}
+      {/* General / no-week section */}
+      {(generalSessions.length > 0 || generalNotes.length > 0) && (
+        <SectionCard style={{ marginTop: 8 }}>
+          <div style={{ padding: '12px 20px', borderBottom: '1px solid var(--border)', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+            <span style={{ fontSize: 13, fontWeight: 600, color: 'var(--text-secondary)' }}>General</span>
+            <span style={{ fontSize: 12, color: 'var(--text-muted)' }}>Not linked to a specific week</span>
+          </div>
+          <WeekContent sessions={generalSessions} weekNotes={generalNotes} />
+        </SectionCard>
+      )}
     </div>
   )
 }
@@ -596,7 +800,6 @@ function GeneralOverviewTab({ domain, linkedEvents, onOpenEvent }) {
   const upcoming = linkedEvents.filter(e => e.date >= new Date()).sort((a, b) => a.date - b.date)
   const past     = linkedEvents.filter(e => e.date  < new Date()).sort((a, b) => b.date - a.date)
   const catCfg   = DOMAIN_CATEGORIES[domain.category] || DOMAIN_CATEGORIES.other
-
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
       <SectionCard>
@@ -616,26 +819,14 @@ function GeneralOverviewTab({ domain, linkedEvents, onOpenEvent }) {
                 <span style={{ fontSize: 12, color: 'var(--text-primary)' }}>{domain.role}</span>
               </div>
             )}
-            {domain.progress != null && (
-              <div>
-                <div style={{ fontSize: 10, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.4px', marginBottom: 3 }}>Progress</div>
-                <span style={{ fontSize: 12, fontWeight: 700, color: domain.color }}>{domain.progress}%</span>
-              </div>
-            )}
           </div>
         </div>
       </SectionCard>
 
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 12 }}>
-        <div style={{ background: 'var(--bg-surface)', border: '1px solid var(--border)', borderRadius: 12, padding: '16px 18px' }}>
-          <Stat label="Linked Events" value={linkedEvents.length} color={domain.color} />
-        </div>
-        <div style={{ background: 'var(--bg-surface)', border: '1px solid var(--border)', borderRadius: 12, padding: '16px 18px' }}>
-          <Stat label="Upcoming" value={upcoming.length} color="var(--accent-green)" />
-        </div>
-        <div style={{ background: 'var(--bg-surface)', border: '1px solid var(--border)', borderRadius: 12, padding: '16px 18px' }}>
-          <Stat label="Past" value={past.length} color="var(--text-secondary)" />
-        </div>
+        <div style={{ background: 'var(--bg-surface)', border: '1px solid var(--border)', borderRadius: 12, padding: '16px 18px' }}><Stat label="Linked Events" value={linkedEvents.length} color={domain.color} /></div>
+        <div style={{ background: 'var(--bg-surface)', border: '1px solid var(--border)', borderRadius: 12, padding: '16px 18px' }}><Stat label="Upcoming" value={upcoming.length} color="var(--accent-green)" /></div>
+        <div style={{ background: 'var(--bg-surface)', border: '1px solid var(--border)', borderRadius: 12, padding: '16px 18px' }}><Stat label="Past" value={past.length} color="var(--text-secondary)" /></div>
       </div>
 
       {upcoming.length > 0 && (
@@ -643,17 +834,8 @@ function GeneralOverviewTab({ domain, linkedEvents, onOpenEvent }) {
           <div style={{ padding: '14px 20px', borderBottom: '1px solid var(--border)' }}>
             <span style={{ fontSize: 13, fontWeight: 600, color: 'var(--text-primary)' }}>Upcoming</span>
           </div>
-          {upcoming.slice(0, 4).map((ev, i) => (
-            <EventRow key={ev.id} event={ev} isLast={i === Math.min(3, upcoming.length - 1)} onClick={() => onOpenEvent(ev)} />
-          ))}
+          {upcoming.slice(0, 4).map((ev, i) => <EventRow key={ev.id} event={ev} isLast={i === Math.min(3, upcoming.length - 1)} onClick={() => onOpenEvent(ev)} />)}
         </SectionCard>
-      )}
-
-      {linkedEvents.length === 0 && (
-        <div style={{ textAlign: 'center', padding: '40px 0', color: 'var(--text-muted)' }}>
-          <Calendar size={28} color="var(--border-strong)" style={{ marginBottom: 10 }} />
-          <p style={{ margin: 0, fontSize: 13 }}>No events linked yet. Add events from the Calendar and associate them with this domain.</p>
-        </div>
       )}
     </div>
   )
@@ -662,89 +844,42 @@ function GeneralOverviewTab({ domain, linkedEvents, onOpenEvent }) {
 function DomainEventsTab({ linkedEvents, onOpenEvent }) {
   const upcoming = linkedEvents.filter(e => e.date >= new Date()).sort((a, b) => a.date - b.date)
   const past     = linkedEvents.filter(e => e.date  < new Date()).sort((a, b) => b.date - a.date)
-
   if (linkedEvents.length === 0) {
     return (
       <div style={{ textAlign: 'center', padding: '60px 0', color: 'var(--text-muted)' }}>
         <Calendar size={32} color="var(--border-strong)" style={{ marginBottom: 12 }} />
         <p style={{ margin: 0, fontSize: 14 }}>No events linked to this domain yet.</p>
-        <p style={{ margin: '6px 0 0', fontSize: 12, color: 'var(--text-muted)' }}>Go to Calendar → Add Event → select this domain.</p>
+        <p style={{ margin: '6px 0 0', fontSize: 12 }}>Go to Calendar → Add Event → select this domain.</p>
       </div>
     )
   }
-
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 20 }}>
       {upcoming.length > 0 && (
         <div>
           <div style={{ fontSize: 11, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.5px', marginBottom: 10 }}>Upcoming</div>
-          <SectionCard>
-            {upcoming.map((ev, i) => <EventRow key={ev.id} event={ev} isLast={i === upcoming.length - 1} onClick={() => onOpenEvent(ev)} />)}
-          </SectionCard>
+          <SectionCard>{upcoming.map((ev, i) => <EventRow key={ev.id} event={ev} isLast={i === upcoming.length - 1} onClick={() => onOpenEvent(ev)} />)}</SectionCard>
         </div>
       )}
       {past.length > 0 && (
         <div>
           <div style={{ fontSize: 11, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.5px', marginBottom: 10 }}>Past</div>
-          <SectionCard style={{ opacity: 0.7 }}>
-            {past.map((ev, i) => <EventRow key={ev.id} event={ev} isLast={i === past.length - 1} onClick={() => onOpenEvent(ev)} />)}
-          </SectionCard>
+          <SectionCard style={{ opacity: 0.7 }}>{past.map((ev, i) => <EventRow key={ev.id} event={ev} isLast={i === past.length - 1} onClick={() => onOpenEvent(ev)} />)}</SectionCard>
         </div>
       )}
     </div>
   )
 }
 
-function EventRow({ event, isLast, onClick }) {
-  const [hovered, setHovered] = useState(false)
-  const typeColor = resolveTypeColor(event)
-  const typeLabel = resolveTypeLabel(event)
-  return (
-    <div
-      onClick={onClick}
-      onMouseEnter={() => setHovered(true)}
-      onMouseLeave={() => setHovered(false)}
-      style={{
-        display: 'flex', alignItems: 'center', gap: 14,
-        padding: '12px 20px',
-        borderBottom: isLast ? 'none' : '1px solid var(--border)',
-        cursor: 'pointer',
-        background: hovered ? 'var(--row-hover)' : 'transparent',
-        transition: 'background 0.12s',
-      }}
-    >
-      <div style={{ width: 32, height: 32, borderRadius: 8, background: `${typeColor}15`, display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
-        <div style={{ width: 8, height: 8, borderRadius: 2, background: typeColor }} />
-      </div>
-      <div style={{ flex: 1, minWidth: 0 }}>
-        <div style={{ fontSize: 13, fontWeight: 500, color: 'var(--text-primary)', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{event.title}</div>
-        <div style={{ fontSize: 11, color: 'var(--text-muted)', marginTop: 2 }}>
-          <span style={{ color: typeColor, fontWeight: 600 }}>{typeLabel}</span>
-          {' · '}{event.date.toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' })}
-          {event.details?.time && ` · ${event.details.time}`}
-        </div>
-      </div>
-    </div>
-  )
-}
-
 // ─── Edit domain modal ─────────────────────────────────────────────────────────
-function FieldLabel({ children }) {
-  return <div style={{ fontSize: 11, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.5px', marginBottom: 7 }}>{children}</div>
-}
-
 function EditDomainModal({ domain, onClose, onSave }) {
   const isAcademic = domain.category === 'academic'
   const [form, setForm] = useState({
-    name: domain.name || '',
-    code: domain.code || '',
-    icon: domain.icon || 'BookOpen',
-    color: domain.color || '#5b8cff',
+    name: domain.name || '', code: domain.code || '',
+    icon: domain.icon || 'BookOpen', color: domain.color || '#5b8cff',
     description: domain.description || '',
-    professor: domain.professor || '',
-    credits: domain.credits ? String(domain.credits) : '',
-    semester: domain.semester || '',
-    role: domain.role || '',
+    professor: domain.professor || '', credits: domain.credits ? String(domain.credits) : '',
+    semester: domain.semester || '', role: domain.role || '',
   })
   const set = (k, v) => setForm(prev => ({ ...prev, [k]: v }))
   const canSave = form.name.trim() && form.code.trim()
@@ -756,30 +891,9 @@ function EditDomainModal({ domain, onClose, onSave }) {
     boxSizing: 'border-box', fontFamily: 'inherit',
   }
 
-  const handleSave = () => {
-    if (!canSave) return
-    onSave({
-      name: form.name.trim(),
-      code: form.code.trim().toUpperCase(),
-      icon: form.icon,
-      color: form.color,
-      colorMuted: `${form.color}18`,
-      description: form.description.trim(),
-      ...(isAcademic ? {
-        professor: form.professor.trim(),
-        credits: parseInt(form.credits) || 0,
-        semester: form.semester.trim(),
-      } : {
-        role: form.role.trim(),
-      }),
-    })
-    onClose()
-  }
-
   return (
     <div onClick={onClose} style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.65)', zIndex: 1000, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
       <div onClick={e => e.stopPropagation()} style={{ background: 'var(--bg-surface)', backdropFilter: 'var(--glass-blur)', border: '1px solid var(--border-strong)', borderRadius: 16, width: 500, maxWidth: '92vw', maxHeight: '90vh', display: 'flex', flexDirection: 'column', boxShadow: 'var(--shadow-modal)', overflow: 'hidden' }}>
-
         <div style={{ padding: '18px 22px', borderBottom: '1px solid var(--border)', display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexShrink: 0 }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
             <div style={{ width: 28, height: 28, borderRadius: 7, background: `${form.color}20`, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
@@ -795,23 +909,19 @@ function EditDomainModal({ domain, onClose, onSave }) {
         <div style={{ padding: '20px 22px', display: 'flex', flexDirection: 'column', gap: 16, overflowY: 'auto' }}>
           <div style={{ display: 'grid', gridTemplateColumns: '1fr 90px', gap: 10 }}>
             <div>
-              <FieldLabel>Name</FieldLabel>
+              <div style={{ fontSize: 11, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.5px', marginBottom: 7 }}>Name</div>
               <input style={inputStyle} value={form.name} onChange={e => set('name', e.target.value)} autoFocus
-                onFocus={e => e.target.style.borderColor = 'var(--border-focus)'}
-                onBlur={e => e.target.style.borderColor = 'var(--border-strong)'}
-              />
+                onFocus={e => e.target.style.borderColor = 'var(--border-focus)'} onBlur={e => e.target.style.borderColor = 'var(--border-strong)'} />
             </div>
             <div>
-              <FieldLabel>Code</FieldLabel>
+              <div style={{ fontSize: 11, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.5px', marginBottom: 7 }}>Code</div>
               <input style={{ ...inputStyle, textTransform: 'uppercase', fontWeight: 600 }} maxLength={5} value={form.code} onChange={e => set('code', e.target.value)}
-                onFocus={e => e.target.style.borderColor = 'var(--border-focus)'}
-                onBlur={e => e.target.style.borderColor = 'var(--border-strong)'}
-              />
+                onFocus={e => e.target.style.borderColor = 'var(--border-focus)'} onBlur={e => e.target.style.borderColor = 'var(--border-strong)'} />
             </div>
           </div>
 
           <div>
-            <FieldLabel>Icon</FieldLabel>
+            <div style={{ fontSize: 11, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.5px', marginBottom: 7 }}>Icon</div>
             <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
               {DOMAIN_ICON_GROUPS.map(group => (
                 <div key={group.label}>
@@ -819,16 +929,11 @@ function EditDomainModal({ domain, onClose, onSave }) {
                   <div style={{ display: 'flex', flexWrap: 'wrap', gap: 5 }}>
                     {group.icons.map(name => (
                       <button key={name} onClick={() => set('icon', name)} title={name}
-                        style={{
-                          width: 32, height: 32, borderRadius: 7, border: 'none', cursor: 'pointer',
-                          display: 'flex', alignItems: 'center', justifyContent: 'center',
+                        style={{ width: 32, height: 32, borderRadius: 7, border: 'none', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center',
                           background: form.icon === name ? `${form.color}22` : 'var(--bg-overlay)',
-                          outline: form.icon === name ? `1.5px solid ${form.color}66` : '1.5px solid transparent',
-                          transition: 'all 0.12s',
-                        }}
+                          outline: form.icon === name ? `1.5px solid ${form.color}66` : '1.5px solid transparent', transition: 'all 0.12s' }}
                         onMouseEnter={e => { if (form.icon !== name) e.currentTarget.style.background = 'var(--bg-overlay-hover)' }}
-                        onMouseLeave={e => { if (form.icon !== name) e.currentTarget.style.background = 'var(--bg-overlay)' }}
-                      >
+                        onMouseLeave={e => { if (form.icon !== name) e.currentTarget.style.background = 'var(--bg-overlay)' }}>
                         <DomainIcon name={name} size={13} color={form.icon === name ? form.color : 'var(--text-secondary)'} />
                       </button>
                     ))}
@@ -839,58 +944,58 @@ function EditDomainModal({ domain, onClose, onSave }) {
           </div>
 
           <div>
-            <FieldLabel>Colour</FieldLabel>
+            <div style={{ fontSize: 11, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.5px', marginBottom: 7 }}>Colour</div>
             <div style={{ display: 'flex', gap: 7, flexWrap: 'wrap' }}>
               {DOMAIN_COLORS.map(c => (
-                <button key={c} onClick={() => set('color', c)}
-                  style={{
-                    width: 26, height: 26, borderRadius: '50%', border: 'none', cursor: 'pointer',
-                    background: c,
-                    outline: form.color === c ? `2.5px solid ${c}` : '2.5px solid transparent',
-                    outlineOffset: 2,
-                    transform: form.color === c ? 'scale(1.15)' : 'scale(1)',
-                    transition: 'all 0.12s',
-                  }}
-                />
+                <button key={c} onClick={() => set('color', c)} style={{ width: 26, height: 26, borderRadius: '50%', border: 'none', cursor: 'pointer', background: c,
+                  outline: form.color === c ? `2.5px solid ${c}` : '2.5px solid transparent', outlineOffset: 2,
+                  transform: form.color === c ? 'scale(1.15)' : 'scale(1)', transition: 'all 0.12s' }} />
               ))}
             </div>
           </div>
 
           <div>
-            <FieldLabel>Description (optional)</FieldLabel>
+            <div style={{ fontSize: 11, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.5px', marginBottom: 7 }}>Description (optional)</div>
             <textarea style={{ ...inputStyle, resize: 'vertical', minHeight: 64, lineHeight: 1.5 }} value={form.description} onChange={e => set('description', e.target.value)}
-              onFocus={e => e.target.style.borderColor = 'var(--border-focus)'}
-              onBlur={e => e.target.style.borderColor = 'var(--border-strong)'}
-            />
+              onFocus={e => e.target.style.borderColor = 'var(--border-focus)'} onBlur={e => e.target.style.borderColor = 'var(--border-strong)'} />
           </div>
 
           {isAcademic && (
             <div style={{ display: 'flex', flexDirection: 'column', gap: 10, padding: '14px 16px', background: 'var(--bg-elevated)', borderRadius: 10, border: '1px solid var(--border)' }}>
               <div style={{ fontSize: 11, color: 'var(--accent-blue)', fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.4px', marginBottom: 4 }}>Academic Details</div>
               <div style={{ display: 'grid', gridTemplateColumns: '1fr 80px', gap: 10 }}>
-                <div><FieldLabel>Professor</FieldLabel><input style={inputStyle} placeholder="Dr. Name" value={form.professor} onChange={e => set('professor', e.target.value)} onFocus={e => e.target.style.borderColor = 'var(--border-focus)'} onBlur={e => e.target.style.borderColor = 'var(--border-strong)'} /></div>
-                <div><FieldLabel>Credits</FieldLabel><input style={inputStyle} type="number" placeholder="20" value={form.credits} onChange={e => set('credits', e.target.value)} onFocus={e => e.target.style.borderColor = 'var(--border-focus)'} onBlur={e => e.target.style.borderColor = 'var(--border-strong)'} /></div>
+                <div>
+                  <div style={{ fontSize: 11, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.5px', marginBottom: 7 }}>Professor</div>
+                  <input style={inputStyle} placeholder="Dr. Name" value={form.professor} onChange={e => set('professor', e.target.value)}
+                    onFocus={e => e.target.style.borderColor = 'var(--border-focus)'} onBlur={e => e.target.style.borderColor = 'var(--border-strong)'} />
+                </div>
+                <div>
+                  <div style={{ fontSize: 11, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.5px', marginBottom: 7 }}>Credits</div>
+                  <input style={inputStyle} type="number" placeholder="20" value={form.credits} onChange={e => set('credits', e.target.value)}
+                    onFocus={e => e.target.style.borderColor = 'var(--border-focus)'} onBlur={e => e.target.style.borderColor = 'var(--border-strong)'} />
+                </div>
               </div>
-              <div><FieldLabel>Semester</FieldLabel><input style={inputStyle} placeholder="Semester 2 · Year 2" value={form.semester} onChange={e => set('semester', e.target.value)} onFocus={e => e.target.style.borderColor = 'var(--border-focus)'} onBlur={e => e.target.style.borderColor = 'var(--border-strong)'} /></div>
+              <div>
+                <div style={{ fontSize: 11, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.5px', marginBottom: 7 }}>Semester</div>
+                <input style={inputStyle} placeholder="Semester 2 · Year 2" value={form.semester} onChange={e => set('semester', e.target.value)}
+                  onFocus={e => e.target.style.borderColor = 'var(--border-focus)'} onBlur={e => e.target.style.borderColor = 'var(--border-strong)'} />
+              </div>
             </div>
           )}
 
           {!isAcademic && (
             <div>
-              <FieldLabel>Your Role (optional)</FieldLabel>
+              <div style={{ fontSize: 11, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.5px', marginBottom: 7 }}>Your Role (optional)</div>
               <input style={inputStyle} placeholder="e.g. Team Lead, Member, President…" value={form.role} onChange={e => set('role', e.target.value)}
-                onFocus={e => e.target.style.borderColor = 'var(--border-focus)'}
-                onBlur={e => e.target.style.borderColor = 'var(--border-strong)'}
-              />
+                onFocus={e => e.target.style.borderColor = 'var(--border-focus)'} onBlur={e => e.target.style.borderColor = 'var(--border-strong)'} />
             </div>
           )}
         </div>
 
         <div style={{ padding: '14px 22px', borderTop: '1px solid var(--border)', display: 'flex', justifyContent: 'flex-end', gap: 8, flexShrink: 0 }}>
           <button onClick={onClose} style={{ padding: '8px 16px', borderRadius: 8, border: '1px solid var(--border-strong)', background: 'none', color: 'var(--text-secondary)', cursor: 'pointer', fontSize: 13 }}>Cancel</button>
-          <button onClick={handleSave} disabled={!canSave}
-            style={{ padding: '8px 18px', borderRadius: 8, border: 'none', fontSize: 13, fontWeight: 600, background: canSave ? form.color : 'var(--border)', color: canSave ? '#fff' : 'var(--text-muted)', cursor: canSave ? 'pointer' : 'default', transition: 'all 0.15s' }}
-          >
+          <button onClick={() => { if (!canSave) return; onSave({ name: form.name.trim(), code: form.code.trim().toUpperCase(), icon: form.icon, color: form.color, colorMuted: `${form.color}18`, description: form.description.trim(), ...(isAcademic ? { professor: form.professor.trim(), credits: parseInt(form.credits) || 0, semester: form.semester.trim() } : { role: form.role.trim() }) }); onClose() }}
+            disabled={!canSave} style={{ padding: '8px 18px', borderRadius: 8, border: 'none', fontSize: 13, fontWeight: 600, background: canSave ? form.color : 'var(--border)', color: canSave ? '#fff' : 'var(--text-muted)', cursor: canSave ? 'pointer' : 'default', transition: 'all 0.15s' }}>
             Save Changes
           </button>
         </div>
@@ -900,44 +1005,41 @@ function EditDomainModal({ domain, onClose, onSave }) {
 }
 
 // ─── Main page ─────────────────────────────────────────────────────────────────
-export default function DomainDetailPage({ domain, linkedEvents, onBack, eventNotes, onUpdateNote, onNewNote, studySessions, notes, weekConfidence, onSetWeekConfidence, onOpenNote, onUpdateDomain }) {
+export default function DomainDetailPage({
+  domain, domainEvents = [], linkedEvents = [], onBack, eventNotes, onUpdateNote,
+  onNewNote, onUpdateDomain, studySessions, notes, weekConfidence, onSetWeekConfidence,
+  onOpenNote, assessments = [], onAddAssessment, onUpdateAssessment, onDeleteAssessment,
+}) {
   const isAcademic = domain.category === 'academic'
   const TABS = isAcademic
-    ? ['Overview', 'Lectures', 'Assignments', 'Labs', 'Exams', 'Study']
+    ? ['Overview', 'Schedule', 'Assessments', 'Study']
     : ['Overview', 'Events']
-  const [activeTab,  setActiveTab]  = useState('Overview')
-  const [openEvent,  setOpenEvent]  = useState(null)
-  const [showEdit,   setShowEdit]   = useState(false)
+  const [activeTab, setActiveTab] = useState('Overview')
+  const [openEvent, setOpenEvent] = useState(null)
+  const [showEdit,  setShowEdit]  = useState(false)
 
   const catCfg = DOMAIN_CATEGORIES[domain.category] || DOMAIN_CATEGORIES.other
 
   return (
     <div style={{ padding: '32px 40px', maxWidth: 1000 }}>
       <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 24 }}>
-        <button
-          onClick={onBack}
+        <button onClick={onBack}
           style={{ display: 'flex', alignItems: 'center', gap: 6, background: 'none', border: 'none', cursor: 'pointer', color: 'var(--text-secondary)', fontSize: 13, padding: 0, transition: 'color 0.15s' }}
           onMouseEnter={e => e.currentTarget.style.color = 'var(--text-primary)'}
-          onMouseLeave={e => e.currentTarget.style.color = 'var(--text-secondary)'}
-        >
+          onMouseLeave={e => e.currentTarget.style.color = 'var(--text-secondary)'}>
           <ArrowLeft size={15} /> Back to Domains
         </button>
-        <button
-          onClick={() => setShowEdit(true)}
+        <button onClick={() => setShowEdit(true)}
           style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '7px 14px', borderRadius: 8, border: '1px solid var(--border-strong)', background: 'none', color: 'var(--text-secondary)', fontSize: 13, cursor: 'pointer', transition: 'all 0.15s' }}
           onMouseEnter={e => { e.currentTarget.style.borderColor = domain.color; e.currentTarget.style.color = domain.color }}
-          onMouseLeave={e => { e.currentTarget.style.borderColor = 'var(--border-strong)'; e.currentTarget.style.color = 'var(--text-secondary)' }}
-        >
+          onMouseLeave={e => { e.currentTarget.style.borderColor = 'var(--border-strong)'; e.currentTarget.style.color = 'var(--text-secondary)' }}>
           <Pencil size={13} /> Edit Domain
         </button>
       </div>
 
       {showEdit && (
-        <EditDomainModal
-          domain={domain}
-          onClose={() => setShowEdit(false)}
-          onSave={updates => { onUpdateDomain?.(domain.id, updates); setShowEdit(false) }}
-        />
+        <EditDomainModal domain={domain} onClose={() => setShowEdit(false)}
+          onSave={updates => { onUpdateDomain?.(domain.id, updates); setShowEdit(false) }} />
       )}
 
       {/* Domain header */}
@@ -948,7 +1050,7 @@ export default function DomainDetailPage({ domain, linkedEvents, onBack, eventNo
         <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between' }}>
           <div style={{ flex: 1 }}>
             <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 10 }}>
-              <span style={{ fontSize: 12, fontWeight: 700, letterSpacing: '0.5px', color: domain.color, background: domain.colorMuted, padding: '4px 10px', borderRadius: 6 }}>{domain.code}</span>
+              <span style={{ fontSize: 12, fontWeight: 700, letterSpacing: '0.5px', color: domain.color, background: domain.colorMuted || `${domain.color}18`, padding: '4px 10px', borderRadius: 6 }}>{domain.code}</span>
               <span style={{ fontSize: 12, fontWeight: 600, color: catCfg.color, background: `${catCfg.color}18`, padding: '4px 10px', borderRadius: 6 }}>{catCfg.label}</span>
               {domain.icon && <DomainIcon name={domain.icon} size={16} color={domain.color} />}
             </div>
@@ -979,19 +1081,15 @@ export default function DomainDetailPage({ domain, linkedEvents, onBack, eventNo
       {/* Tab bar */}
       <div data-tutorial-id="domain-detail-tabs" style={{ display: 'flex', gap: 4, marginBottom: 20, background: 'var(--bg-surface)', border: '1px solid var(--border)', borderRadius: 10, padding: 4 }}>
         {TABS.map(tab => (
-          <button
-            key={tab}
-            onClick={() => setActiveTab(tab)}
-            style={{
-              flex: 1, padding: '8px 12px', borderRadius: 7, border: 'none', cursor: 'pointer',
-              fontSize: 13, fontWeight: activeTab === tab ? 600 : 400,
-              background: activeTab === tab ? 'var(--nav-active)' : 'transparent',
-              color: activeTab === tab ? domain.color : 'var(--text-secondary)',
-              transition: 'all 0.15s ease',
-            }}
+          <button key={tab} onClick={() => setActiveTab(tab)} style={{
+            flex: 1, padding: '8px 12px', borderRadius: 7, border: 'none', cursor: 'pointer',
+            fontSize: 13, fontWeight: activeTab === tab ? 600 : 400,
+            background: activeTab === tab ? 'var(--nav-active)' : 'transparent',
+            color: activeTab === tab ? domain.color : 'var(--text-secondary)',
+            transition: 'all 0.15s ease',
+          }}
             onMouseEnter={e => { if (activeTab !== tab) e.currentTarget.style.color = 'var(--text-bright)' }}
-            onMouseLeave={e => { if (activeTab !== tab) e.currentTarget.style.color = 'var(--text-secondary)' }}
-          >
+            onMouseLeave={e => { if (activeTab !== tab) e.currentTarget.style.color = 'var(--text-secondary)' }}>
             {tab}
           </button>
         ))}
@@ -999,11 +1097,9 @@ export default function DomainDetailPage({ domain, linkedEvents, onBack, eventNo
 
       {isAcademic ? (
         <>
-          {activeTab === 'Overview'    && <OverviewTab    domain={domain} onOpenEvent={setOpenEvent} />}
-          {activeTab === 'Lectures'    && <LecturesTab    domain={domain} onOpenEvent={setOpenEvent} eventNotes={eventNotes} onNewNote={onNewNote} />}
-          {activeTab === 'Assignments' && <AssignmentsTab domain={domain} onOpenEvent={setOpenEvent} eventNotes={eventNotes} />}
-          {activeTab === 'Labs'        && <LabsTab        domain={domain} onOpenEvent={setOpenEvent} eventNotes={eventNotes} onNewNote={onNewNote} notes={notes} onOpenNote={onOpenNote} />}
-          {activeTab === 'Exams'       && <ExamsTab       domain={domain} onOpenEvent={setOpenEvent} eventNotes={eventNotes} />}
+          {activeTab === 'Overview'    && <OverviewTab    domain={domain} domainEvents={domainEvents} assessments={assessments} />}
+          {activeTab === 'Schedule'    && <ScheduleTab    domain={domain} domainEvents={domainEvents} onNewNote={onNewNote} notes={notes} eventNotes={eventNotes} />}
+          {activeTab === 'Assessments' && <AssessmentsTab domain={domain} assessments={assessments} onAddAssessment={onAddAssessment} onUpdateAssessment={onUpdateAssessment} onDeleteAssessment={onDeleteAssessment} />}
           {activeTab === 'Study'       && <StudyTab       domain={domain} studySessions={studySessions} notes={notes} weekConfidence={weekConfidence} onSetWeekConfidence={onSetWeekConfidence} onNewNote={onNewNote} onOpenNote={onOpenNote} />}
         </>
       ) : (
@@ -1014,12 +1110,8 @@ export default function DomainDetailPage({ domain, linkedEvents, onBack, eventNo
       )}
 
       {openEvent && (
-        <EventDetailModal
-          event={openEvent}
-          onClose={() => setOpenEvent(null)}
-          note={eventNotes?.[openEvent.id] || ''}
-          onUpdateNote={onUpdateNote}
-        />
+        <EventDetailModal event={openEvent} onClose={() => setOpenEvent(null)}
+          note={eventNotes?.[openEvent.id] || ''} onUpdateNote={onUpdateNote} />
       )}
     </div>
   )

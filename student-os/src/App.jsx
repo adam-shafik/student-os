@@ -46,6 +46,7 @@ export default function App() {
   const [selectedDomain, setSelectedDomain] = useState(null)
   const [domains,        setDomains]        = useState([])
   const [scheduleSlots,  setScheduleSlots]  = useState([])
+  const [assessments,    setAssessments]    = useState([])
   const [customCalendarEvents, setCustomCalendarEvents] = useState([])
   const [eventNotes,    setEventNotes]    = useState({})
   const [notes,         setNotes]         = useState([])
@@ -79,13 +80,14 @@ export default function App() {
   }
 
   function dbDomainToLocal(r) {
+    const color = r.color || '#5b8cff'
     return {
       id: r.id, name: r.name, code: r.code, category: r.category || 'academic',
-      color: r.color || '#5b8cff', icon: r.icon || 'BookOpen',
+      color, colorMuted: `${color}18`, icon: r.icon || 'BookOpen',
       professor: r.professor, credits: r.credits,
       semester: r.semester_label, description: r.description,
+      role: r.role || null,
       progress: r.progress || 0,
-      lectures: [], labs: [], assignments: [], exams: [],
     }
   }
 
@@ -196,6 +198,16 @@ export default function App() {
           })),
         })))
       })
+
+    supabase.from('domain_assessments').select('*').eq('user_id', userId)
+      .then(({ data }) => {
+        if (data) setAssessments(data.map(r => ({
+          id: r.id, domainId: r.domain_id, type: r.type,
+          title: r.title, date: r.date, weight: r.weight,
+          grade: r.grade ?? null, location: r.location ?? null,
+          createdAt: r.created_at,
+        })))
+      })
   }, [userId])
 
   const handleNavigate = (page) => {
@@ -216,12 +228,36 @@ export default function App() {
     setPreviousPage(null)
   }
 
-  // Auto-generated domain events from schedule slots + semester config
-  const domainEvents = useMemo(
-    () => buildScheduleEvents(domains, scheduleSlots, semConfig || getSemesterConfig())
-      .filter(ev => !cancelledEventIds.has(ev.id)),
-    [domains, scheduleSlots, semConfig, cancelledEventIds]
-  )
+  // Auto-generated domain events from schedule slots + assessments
+  const domainEvents = useMemo(() => {
+    const domainMap = Object.fromEntries(domains.map(d => [d.id, d]))
+    const schedEvents = buildScheduleEvents(domains, scheduleSlots, semConfig || getSemesterConfig())
+      .filter(ev => !cancelledEventIds.has(ev.id))
+    const assessEvents = assessments.map(a => {
+      const d = domainMap[a.domainId]
+      if (!d) return null
+      const dateObj = a.date ? new Date(a.date + 'T12:00:00') : new Date()
+      return {
+        id: `assessment-${a.id}`,
+        type: a.type,
+        title: a.title,
+        date: dateObj,
+        domainId: a.domainId,
+        domainCode: d.code,
+        domainName: d.name,
+        domainColor: d.color,
+        domainIcon: d.icon,
+        details: {
+          weight: a.weight,
+          grade: a.grade,
+          location: a.location,
+          status: a.grade != null ? 'graded' : dateObj < new Date() ? 'submitted' : 'upcoming',
+        },
+        assessmentId: a.id,
+      }
+    }).filter(Boolean)
+    return [...schedEvents, ...assessEvents]
+  }, [domains, scheduleSlots, semConfig, cancelledEventIds, assessments])
 
   const handleCompleteOnboarding = async ({ profile, semBreaks, domains: newDomains, slots }) => {
     const now = new Date().toISOString()
@@ -301,7 +337,40 @@ export default function App() {
       professor: updates.professor ?? null, credits: updates.credits ?? null,
       semester_label: updates.semester ?? null, role: updates.role ?? null,
       updated_at: new Date().toISOString(),
-    }).eq('id', id)
+    }).eq('id', id).then(({ error }) => {
+      if (error) console.error('Domain update failed:', error)
+    })
+  }
+
+  const handleAddAssessment = (assessment) => {
+    const id  = crypto.randomUUID()
+    const now = new Date().toISOString()
+    const item = { ...assessment, id, grade: null, createdAt: now }
+    setAssessments(prev => [...prev, item])
+    supabase.from('domain_assessments').insert({
+      id, user_id: userId, domain_id: assessment.domainId,
+      type: assessment.type, title: assessment.title,
+      date: assessment.date || null, weight: assessment.weight || 0,
+      grade: null, location: assessment.location || null,
+      created_at: now,
+    }).then(({ error }) => { if (error) console.error('Assessment insert failed:', error) })
+  }
+
+  const handleUpdateAssessment = (id, updates) => {
+    setAssessments(prev => prev.map(a => a.id === id ? { ...a, ...updates } : a))
+    supabase.from('domain_assessments').update({
+      title: updates.title,
+      date: updates.date ?? null,
+      weight: updates.weight ?? 0,
+      grade: updates.grade ?? null,
+      location: updates.location ?? null,
+    }).eq('id', id).then(({ error }) => { if (error) console.error('Assessment update failed:', error) })
+  }
+
+  const handleDeleteAssessment = (id) => {
+    setAssessments(prev => prev.filter(a => a.id !== id))
+    supabase.from('domain_assessments').delete().eq('id', id)
+      .then(({ error }) => { if (error) console.error('Assessment delete failed:', error) })
   }
 
   const handleDeleteCalendarEvent = (id) => {
@@ -575,12 +644,15 @@ export default function App() {
 
   // Called from DomainDetailPage — creates note, navigates, signals NotesPage to auto-open it
   const handleNewNoteForContext = (meta = {}) => {
-    const id     = crypto.randomUUID()
-    const pageId = crypto.randomUUID()
-    const now    = new Date().toISOString()
+    const isTyped = meta.noteType === 'typed'
+    const id      = crypto.randomUUID()
+    const pageId  = crypto.randomUUID()
+    const now     = new Date().toISOString()
+    const title   = meta.title || 'Untitled Note'
     const newNote = {
-      id, title: 'Untitled Note', type: 'handwritten', content: '',
-      pages: [{ id: pageId, strokes: [] }],
+      id, title, type: isTyped ? 'typed' : 'handwritten',
+      content: isTyped ? '' : null,
+      pages: isTyped ? [] : [{ id: pageId, strokes: [] }],
       template: 'blank', bgColor: '#f8f7f2', lineSpacing: 32, orientation: 'portrait',
       createdAt: now, updatedAt: now,
       domainId: meta.domainId || null, academicWeek: meta.academicWeek || null,
@@ -588,14 +660,14 @@ export default function App() {
     }
     setNotes(prev => [...prev, newNote])
     supabase.from('notes').upsert({
-      id, user_id: userId, title: newNote.title, domain_id: newNote.domainId,
+      id, user_id: userId, title, domain_id: newNote.domainId,
       academic_week: newNote.academicWeek, event_id: newNote.eventId,
       study_session_id: null, template: newNote.template, bg_color: newNote.bgColor,
       line_spacing: newNote.lineSpacing, orientation: newNote.orientation,
-      note_type: 'handwritten', content: null,
+      note_type: newNote.type, content: isTyped ? '' : null,
       created_at: now, updated_at: now,
     }, { onConflict: 'id' }).then(() => {
-      supabase.from('note_pages').upsert({ note_id: id, page_order: 0, strokes: [] }, { onConflict: 'note_id,page_order' })
+      if (!isTyped) supabase.from('note_pages').upsert({ note_id: id, page_order: 0, strokes: [] }, { onConflict: 'note_id,page_order' })
     })
     setNoteToOpen(id)
     handleNavigate('notes')
@@ -666,6 +738,7 @@ export default function App() {
       {currentPage === 'domain-detail' && selectedDomain && (
         <DomainDetailPage
           domain={selectedDomain}
+          domainEvents={domainEvents.filter(e => e.domainId === selectedDomain.id)}
           linkedEvents={linkedEventsFor(selectedDomain.id)}
           onBack={handleBack}
           eventNotes={eventNotes}
@@ -677,6 +750,10 @@ export default function App() {
           weekConfidence={weekConfidence}
           onSetWeekConfidence={handleSetWeekConfidence}
           onOpenNote={handleOpenNoteFromSession}
+          assessments={assessments.filter(a => a.domainId === selectedDomain.id)}
+          onAddAssessment={handleAddAssessment}
+          onUpdateAssessment={handleUpdateAssessment}
+          onDeleteAssessment={handleDeleteAssessment}
         />
       )}
       {currentPage === 'calendar' && (
