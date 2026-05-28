@@ -11,9 +11,10 @@ import StudyPage, { FloatingTimerWidget, playChime, unlockAudio } from './pages/
 import AuthPage from './pages/AuthPage'
 import OnboardingPage from './pages/OnboardingPage'
 import SettingsPage from './pages/SettingsPage'
+import ScheduleBuilderPage from './pages/ScheduleBuilderPage'
 import TutorialOverlay from './components/TutorialOverlay'
 import { supabase } from './lib/supabase'
-import { setSemesterConfig, getSemesterConfig } from './utils/semester'
+import { setSemesterConfig, getSemesterConfig, totalTeachingWeeks } from './utils/semester'
 import { buildScheduleEvents } from './utils/calendarEvents'
 
 export default function App() {
@@ -709,6 +710,23 @@ export default function App() {
     return { error }
   }
 
+  const handleSaveSchedule = async (newSlots) => {
+    await supabase.from('domain_schedule_slots').delete().eq('user_id', userId)
+    if (newSlots.length) {
+      await supabase.from('domain_schedule_slots').insert(
+        newSlots.map(s => ({
+          id: s.id, user_id: userId, domain_id: s.domainId,
+          day_of_week: s.dayOfWeek, start_time: s.startTime,
+          duration_minutes: s.durationMinutes, slot_type: s.slotType,
+          week_from: s.weekFrom ?? null, week_to: s.weekTo ?? null,
+          location: s.location || null,
+        }))
+      )
+    }
+    setScheduleSlots(newSlots)
+    setCurrentPage('settings')
+  }
+
   const handleDevResetOnboarding = async () => {
     if (!userId) return
     await Promise.all([
@@ -849,6 +867,17 @@ export default function App() {
           onUpdateProfile={handleUpdateProfile}
           onChangePassword={handleChangePassword}
           onResetOnboarding={handleDevResetOnboarding}
+          onEditSchedule={() => { setPreviousPage('settings'); setCurrentPage('schedule-builder') }}
+        />
+      )}
+      {currentPage === 'schedule-builder' && (
+        <ScheduleBuilderPage
+          domains={domains}
+          scheduleSlots={scheduleSlots}
+          weekStartSunday={userProfile?.week_start === 'sunday'}
+          totalWeeks={semConfig ? totalTeachingWeeks() : null}
+          onSave={handleSaveSchedule}
+          onCancel={() => setCurrentPage('settings')}
         />
       )}
     </Layout>

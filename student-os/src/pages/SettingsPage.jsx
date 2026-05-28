@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import { User, Lock, Palette, AlertTriangle, Check, Eye, EyeOff, Save, Loader2, GraduationCap, Building2, BookOpen } from 'lucide-react'
+import { User, Lock, Palette, AlertTriangle, Check, Eye, EyeOff, Save, Loader2, Calendar } from 'lucide-react'
 import { THEMES } from '../theme'
 
 function SectionCard({ title, Icon, accentColor = 'var(--accent-blue)', children }) {
@@ -63,7 +63,7 @@ function ErrorBanner({ message }) {
   )
 }
 
-export default function SettingsPage({ userProfile, userEmail, theme, onThemeChange, onUpdateProfile, onChangePassword, onResetOnboarding }) {
+export default function SettingsPage({ userProfile, userEmail, theme, onThemeChange, onUpdateProfile, onChangePassword, onResetOnboarding, onEditSchedule }) {
   const [firstName,  setFirstName]  = useState(userProfile?.first_name    || '')
   const [lastName,   setLastName]   = useState(userProfile?.last_name     || '')
   const [dob,        setDob]        = useState(userProfile?.date_of_birth || '')
@@ -247,6 +247,30 @@ export default function SettingsPage({ userProfile, userEmail, theme, onThemeCha
             saving={pwSaving} saved={pwSaved} onClick={handleChangePassword}
             color="var(--accent-purple)" label="Change Password" savedLabel="Password Updated"
           />
+        </div>
+      </SectionCard>
+
+      {/* Schedule */}
+      <SectionCard title="Schedule" Icon={Calendar} accentColor="var(--accent-blue)">
+        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 16, flexWrap: 'wrap' }}>
+          <div>
+            <div style={{ fontSize: 13, fontWeight: 600, color: 'var(--text-primary)', marginBottom: 4 }}>Weekly Timetable</div>
+            <div style={{ fontSize: 12, color: 'var(--text-muted)', lineHeight: 1.5, maxWidth: 380 }}>
+              Add, remove, or rearrange your recurring lecture slots, labs, and tutorials. Changes take effect immediately on your calendar.
+            </div>
+          </div>
+          <button
+            onClick={onEditSchedule}
+            style={{
+              display: 'flex', alignItems: 'center', gap: 7,
+              padding: '9px 18px', borderRadius: 9, border: 'none',
+              background: 'var(--accent-blue)', color: 'var(--btn-primary-text, #fff)',
+              fontSize: 13, fontWeight: 600, cursor: 'pointer', flexShrink: 0,
+              fontFamily: 'inherit',
+            }}
+          >
+            <Calendar size={14} /> Edit Schedule
+          </button>
         </div>
       </SectionCard>
 
