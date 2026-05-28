@@ -1,6 +1,6 @@
 import { useState } from 'react'
 import {
-  Plus, X, BookOpen, User, Award, ChevronRight, FileCheck, FlaskConical, ChevronDown, CheckSquare, FolderOpen,
+  Plus, X, BookOpen, User, Award, ChevronRight, FileCheck, FlaskConical, ChevronDown, CheckSquare, FolderOpen, Archive,
 } from 'lucide-react'
 import { DOMAIN_CATEGORIES, DOMAIN_COLORS, DOMAIN_ICON_GROUPS, getDomainIcon } from '../data/domains'
 
@@ -38,7 +38,7 @@ function CategoryBadge({ category }) {
 }
 
 // ─── Academic domain card ─────────────────────────────────────────────────────
-function AcademicCard({ domain, pendingTasks, domainEvents = [], assessments = [], onClick }) {
+function AcademicCard({ domain, pendingTasks, domainEvents = [], assessments = [], onClick, muted = false }) {
   const [hovered, setHovered] = useState(false)
   const today = new Date()
   const schedEvs = domainEvents.filter(e => e.type !== 'exam' && e.type !== 'assignment')
@@ -62,6 +62,7 @@ function AcademicCard({ domain, pendingTasks, domainEvents = [], assessments = [
         transform: hovered ? 'translateY(-2px)' : 'none',
         boxShadow: hovered ? 'var(--shadow-card)' : 'none',
         transition: 'all 0.18s ease',
+        opacity: muted ? 0.65 : 1,
       }}
     >
       <div style={{ position: 'absolute', top: 0, left: 0, right: 0, height: 3, background: domain.color, borderRadius: '14px 14px 0 0' }} />
@@ -407,16 +408,19 @@ export default function DomainsPage({ domains, customCalendarEvents, todos, asse
   const [showCreate,   setShowCreate]   = useState(false)
   const [academicOpen, setAcademicOpen] = useState(true)
   const [otherOpen,    setOtherOpen]    = useState(true)
+  const [pastOpen,     setPastOpen]     = useState(false)
 
-  const academic = domains.filter(d => d.category === 'academic')
-  const other    = domains.filter(d => d.category !== 'academic')
+  const academic     = domains.filter(d => d.category === 'academic' && !d.isPast)
+  const pastAcademic = domains.filter(d => d.category === 'academic' && d.isPast)
+  const other        = domains.filter(d => d.category !== 'academic')
+  const included     = domains.filter(d => d.category === 'academic' && !d.excludeFromGrade)
 
   const linkedCount  = (domainId) => customCalendarEvents.filter(e => e.domainId === domainId).length
   const pendingTasks = (domainId) => (todos || []).filter(t => t.domainId === domainId && !t.done).length
 
-  const totalCredits = academic.reduce((s, d) => s + (d.credits || 0), 0)
+  const totalCredits = included.reduce((s, d) => s + (d.credits || 0), 0)
 
-  const domainRunningGrades = academic.map(d => {
+  const domainRunningGrades = included.map(d => {
     const graded = assessments.filter(a => a.domainId === d.id && a.grade != null)
     const totalWeight = graded.reduce((s, a) => s + (a.weight || 0), 0)
     return totalWeight > 0 ? graded.reduce((s, a) => s + a.grade * (a.weight || 0), 0) / totalWeight : null
@@ -425,13 +429,15 @@ export default function DomainsPage({ domains, customCalendarEvents, todos, asse
     ? Math.round(domainRunningGrades.reduce((s, v) => s + v, 0) / domainRunningGrades.length)
     : null
 
-  const domainRemainingWeights = academic.map(d => {
+  const domainRemainingWeights = included.map(d => {
     const all = assessments.filter(a => a.domainId === d.id)
     return all.length > 0 ? all.filter(a => a.grade == null).reduce((s, a) => s + (a.weight || 0), 0) : null
   }).filter(v => v != null)
   const avgRemaining = domainRemainingWeights.length > 0
     ? Math.round(domainRemainingWeights.reduce((s, v) => s + v, 0) / domainRemainingWeights.length)
     : null
+
+  const hasAnyAcademic = academic.length > 0 || pastAcademic.length > 0
 
   return (
     <div data-tutorial-id="domains-grid" style={{ padding: '36px 40px', maxWidth: 1100 }}>
@@ -451,11 +457,11 @@ export default function DomainsPage({ domains, customCalendarEvents, todos, asse
         </button>
       </div>
 
-      {academic.length > 0 && (
+      {hasAnyAcademic && (
         <div style={{ display: 'flex', gap: 12, marginBottom: 28 }}>
           {[
-            { label: 'Modules',        value: academic.length,                                    color: 'var(--accent-blue)'   },
-            { label: 'Total Credits', value: totalCredits,                                        color: 'var(--accent-green)'  },
+            { label: 'Modules',       value: included.length,                                       color: 'var(--accent-blue)'   },
+            { label: 'Total Credits', value: totalCredits,                                          color: 'var(--accent-green)'  },
             { label: 'Running Grade', value: avgRunningGrade != null ? `${avgRunningGrade}%` : '—', color: 'var(--accent-purple)' },
             { label: 'Grade Left',    value: avgRemaining    != null ? `${avgRemaining}%`    : '—', color: 'var(--accent-amber)'  },
           ].map(s => (
@@ -473,6 +479,30 @@ export default function DomainsPage({ domains, customCalendarEvents, todos, asse
           {academicOpen && (
             <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(300px, 1fr))', gap: 14 }}>
               {academic.map(d => <AcademicCard key={d.id} domain={d} pendingTasks={pendingTasks(d.id)} domainEvents={domainEvents.filter(e => e.domainId === d.id)} assessments={assessments.filter(a => a.domainId === d.id)} onClick={() => onOpenDomain(d)} />)}
+            </div>
+          )}
+        </div>
+      )}
+
+      {pastAcademic.length > 0 && (
+        <div style={{ marginBottom: 32 }}>
+          <button
+            onClick={() => setPastOpen(v => !v)}
+            style={{
+              display: 'flex', alignItems: 'center', gap: 10,
+              background: 'none', border: 'none', cursor: 'pointer',
+              padding: '4px 0', marginBottom: pastOpen ? 14 : 0, width: '100%', textAlign: 'left',
+            }}
+          >
+            <Archive size={13} color="var(--text-muted)" />
+            <span style={{ fontSize: 13, fontWeight: 700, color: 'var(--text-muted)', letterSpacing: '-0.2px' }}>Past Modules</span>
+            <span style={{ fontSize: 11, color: 'var(--text-muted)', background: 'var(--border)', padding: '2px 7px', borderRadius: 10 }}>{pastAcademic.length}</span>
+            <div style={{ flex: 1, height: 1, background: 'var(--border)', marginLeft: 4 }} />
+            <ChevronDown size={14} color="var(--text-muted)" style={{ transform: pastOpen ? 'none' : 'rotate(-90deg)', transition: 'transform 0.2s' }} />
+          </button>
+          {pastOpen && (
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(300px, 1fr))', gap: 14 }}>
+              {pastAcademic.map(d => <AcademicCard key={d.id} domain={d} pendingTasks={pendingTasks(d.id)} domainEvents={domainEvents.filter(e => e.domainId === d.id)} assessments={assessments.filter(a => a.domainId === d.id)} onClick={() => onOpenDomain(d)} muted />)}
             </div>
           )}
         </div>

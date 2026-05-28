@@ -410,7 +410,7 @@ export default function NotesPage({ notes, domains, noteToOpen, onClearNoteToOpe
   const openNote = (notes || []).find(n => n.id === openNoteId)
 
   const academicDomains = useMemo(
-    () => (domains || []).filter(d => d.category === 'academic'),
+    () => (domains || []).filter(d => d.category === 'academic' && !d.isPast),
     [domains]
   )
 

@@ -4,7 +4,7 @@ import {
   GraduationCap, CheckCircle2, Clock, ChevronDown,
   ChevronRight, StickyNote, Calendar, MapPin, TrendingUp,
   AlertCircle, ExternalLink, Tag, PenLine, Pencil, X,
-  Plus, Trash2, Edit2, Check, BarChart2, Layers,
+  Plus, Trash2, Edit2, Check, BarChart2, Layers, Archive, BarChart,
 } from 'lucide-react'
 import { DOMAIN_CATEGORIES, DOMAIN_COLORS, DOMAIN_ICON_GROUPS, getDomainIcon } from '../data/domains'
 import { EVENT_TYPES, resolveTypeLabel, resolveTypeColor } from '../utils/calendarEvents'
@@ -1093,6 +1093,43 @@ export default function DomainDetailPage({
               {domain.role      && <span style={{ fontSize: 13, color: 'var(--text-secondary)', display: 'flex', alignItems: 'center', gap: 5 }}><Tag size={13} color="var(--text-muted)" />{domain.role}</span>}
               {!isAcademic && <span style={{ fontSize: 13, color: 'var(--text-secondary)', display: 'flex', alignItems: 'center', gap: 5 }}><ExternalLink size={13} color="var(--text-muted)" />{linkedEvents.length} linked event{linkedEvents.length !== 1 ? 's' : ''}</span>}
             </div>
+
+            {isAcademic && (
+              <div style={{ display: 'flex', gap: 8, marginTop: 14, flexWrap: 'wrap' }}>
+                <button
+                  onClick={() => onUpdateDomain?.(domain.id, { isPast: !domain.isPast })}
+                  style={{
+                    display: 'flex', alignItems: 'center', gap: 6,
+                    padding: '5px 12px', borderRadius: 7, border: '1px solid',
+                    cursor: 'pointer', fontSize: 12, fontWeight: 500,
+                    background: domain.isPast ? 'rgba(251,191,36,0.12)' : 'transparent',
+                    borderColor: domain.isPast ? 'rgba(251,191,36,0.4)' : 'var(--border-strong)',
+                    color: domain.isPast ? '#fbbf24' : 'var(--text-muted)',
+                    transition: 'all 0.15s',
+                  }}
+                  title={domain.isPast ? 'Click to move back to active modules' : 'Click to archive as a past semester module'}
+                >
+                  <Archive size={12} />
+                  {domain.isPast ? 'Past Module — click to restore' : 'Mark as Past'}
+                </button>
+                <button
+                  onClick={() => onUpdateDomain?.(domain.id, { excludeFromGrade: !domain.excludeFromGrade })}
+                  style={{
+                    display: 'flex', alignItems: 'center', gap: 6,
+                    padding: '5px 12px', borderRadius: 7, border: '1px solid',
+                    cursor: 'pointer', fontSize: 12, fontWeight: 500,
+                    background: domain.excludeFromGrade ? 'rgba(251,113,133,0.1)' : 'rgba(52,211,153,0.08)',
+                    borderColor: domain.excludeFromGrade ? 'rgba(251,113,133,0.35)' : 'rgba(52,211,153,0.3)',
+                    color: domain.excludeFromGrade ? '#fb7185' : '#34d399',
+                    transition: 'all 0.15s',
+                  }}
+                  title={domain.excludeFromGrade ? 'Click to include this module in grade calculations' : 'Click to exclude this module from grade calculations'}
+                >
+                  <BarChart size={12} />
+                  {domain.excludeFromGrade ? 'Excluded from grade avg — click to include' : 'Counted in grade avg — click to exclude'}
+                </button>
+              </div>
+            )}
           </div>
 
           {isAcademic && (

@@ -90,6 +90,8 @@ export default function App() {
       semester: r.semester_label, description: r.description,
       role: r.role || null,
       progress: r.progress || 0,
+      isPast: r.is_past || false,
+      excludeFromGrade: r.exclude_from_grade || false,
     }
   }
 
@@ -338,13 +340,19 @@ export default function App() {
   const handleUpdateDomain = (id, updates) => {
     setDomains(prev => prev.map(d => d.id === id ? { ...d, ...updates } : d))
     setSelectedDomain(prev => prev?.id === id ? { ...prev, ...updates } : prev)
-    supabase.from('domains').update({
-      name: updates.name, code: updates.code, icon: updates.icon,
-      color: updates.color, description: updates.description ?? null,
-      professor: updates.professor ?? null, credits: updates.credits ?? null,
-      semester_label: updates.semester ?? null, role: updates.role ?? null,
-      updated_at: new Date().toISOString(),
-    }).eq('id', id).then(({ error }) => {
+    const patch = { updated_at: new Date().toISOString() }
+    if ('name'             in updates) patch.name             = updates.name
+    if ('code'             in updates) patch.code             = updates.code
+    if ('icon'             in updates) patch.icon             = updates.icon
+    if ('color'            in updates) patch.color            = updates.color
+    if ('description'      in updates) patch.description      = updates.description ?? null
+    if ('professor'        in updates) patch.professor        = updates.professor ?? null
+    if ('credits'          in updates) patch.credits          = updates.credits ?? null
+    if ('semester'         in updates) patch.semester_label   = updates.semester ?? null
+    if ('role'             in updates) patch.role             = updates.role ?? null
+    if ('isPast'           in updates) patch.is_past          = updates.isPast
+    if ('excludeFromGrade' in updates) patch.exclude_from_grade = updates.excludeFromGrade
+    supabase.from('domains').update(patch).eq('id', id).then(({ error }) => {
       if (error) console.error('Domain update failed:', error)
     })
   }
