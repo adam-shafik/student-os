@@ -342,35 +342,42 @@ export default function App() {
     })
   }
 
-  const handleAddAssessment = (assessment) => {
+  const handleAddAssessment = async (assessment) => {
     const id  = crypto.randomUUID()
     const now = new Date().toISOString()
     const item = { ...assessment, id, grade: null, createdAt: now }
     setAssessments(prev => [...prev, item])
-    supabase.from('domain_assessments').insert({
+    const { error } = await supabase.from('domain_assessments').insert({
       id, user_id: userId, domain_id: assessment.domainId,
       type: assessment.type, title: assessment.title,
       date: assessment.date || null, weight: assessment.weight || 0,
       grade: null, location: assessment.location || null,
       created_at: now,
-    }).then(({ error }) => { if (error) console.error('Assessment insert failed:', error) })
+    })
+    if (error) setAssessments(prev => prev.filter(a => a.id !== id))
+    return { error }
   }
 
-  const handleUpdateAssessment = (id, updates) => {
+  const handleUpdateAssessment = async (id, updates) => {
+    const snapshot = assessments.slice()
     setAssessments(prev => prev.map(a => a.id === id ? { ...a, ...updates } : a))
-    supabase.from('domain_assessments').update({
+    const { error } = await supabase.from('domain_assessments').update({
       title: updates.title,
       date: updates.date ?? null,
       weight: updates.weight ?? 0,
       grade: updates.grade ?? null,
       location: updates.location ?? null,
-    }).eq('id', id).then(({ error }) => { if (error) console.error('Assessment update failed:', error) })
+    }).eq('id', id)
+    if (error) setAssessments(snapshot)
+    return { error }
   }
 
-  const handleDeleteAssessment = (id) => {
+  const handleDeleteAssessment = async (id) => {
+    const snapshot = assessments.slice()
     setAssessments(prev => prev.filter(a => a.id !== id))
-    supabase.from('domain_assessments').delete().eq('id', id)
-      .then(({ error }) => { if (error) console.error('Assessment delete failed:', error) })
+    const { error } = await supabase.from('domain_assessments').delete().eq('id', id)
+    if (error) setAssessments(snapshot)
+    return { error }
   }
 
   const handleDeleteCalendarEvent = (id) => {

@@ -530,6 +530,7 @@ function AssessmentsTab({ domain, assessments, onAddAssessment, onUpdateAssessme
   const [showAdd,      setShowAdd]      = useState(false)
   const [editing,      setEditing]      = useState(null)
   const [gradingId,    setGradingId]    = useState(null)
+  const [saveError,    setSaveError]    = useState(null)
 
   const exams       = assessments.filter(a => a.type === 'exam').sort((a, b) => (a.date || '') < (b.date || '') ? -1 : 1)
   const assignments = assessments.filter(a => a.type === 'assignment').sort((a, b) => (a.date || '') < (b.date || '') ? -1 : 1)
@@ -563,7 +564,7 @@ function AssessmentsTab({ domain, assessments, onAddAssessment, onUpdateAssessme
         </div>
         <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexShrink: 0 }}>
           {isGrading
-            ? <GradeInput assessment={item} onSave={g => { onUpdateAssessment(item.id, { ...item, grade: g }); setGradingId(null) }} onCancel={() => setGradingId(null)} />
+            ? <GradeInput assessment={item} onSave={async g => { const { error } = await onUpdateAssessment(item.id, { ...item, grade: g }); if (error) setSaveError(error.message || 'Unknown error'); else setGradingId(null) }} onCancel={() => setGradingId(null)} />
             : item.grade != null
               ? (
                 <button onClick={() => setGradingId(item.id)} title="Edit grade"
@@ -624,6 +625,13 @@ function AssessmentsTab({ domain, assessments, onAddAssessment, onUpdateAssessme
         </button>
       </div>
 
+      {saveError && (
+        <div style={{ padding: '10px 14px', borderRadius: 8, background: 'rgba(251,113,133,0.1)', border: '1px solid rgba(251,113,133,0.25)', color: '#fb7185', fontSize: 13, display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 12 }}>
+          <span style={{ flex: 1 }}>Save failed: {saveError}</span>
+          <button onClick={() => setSaveError(null)} style={{ background: 'none', border: 'none', color: '#fb7185', cursor: 'pointer', padding: 0, display: 'flex' }}><X size={14} /></button>
+        </div>
+      )}
+
       {assessments.length === 0 && (
         <div style={{ textAlign: 'center', padding: '60px 0', color: 'var(--text-muted)' }}>
           <BarChart2 size={32} color="var(--border-strong)" style={{ marginBottom: 12 }} />
@@ -656,11 +664,17 @@ function AssessmentsTab({ domain, assessments, onAddAssessment, onUpdateAssessme
 
       {showAdd && (
         <AssessmentModal domain={domain} onClose={() => setShowAdd(false)}
-          onSave={data => onAddAssessment({ ...data, domainId: domain.id })} />
+          onSave={async data => {
+            const { error } = await onAddAssessment({ ...data, domainId: domain.id })
+            if (error) setSaveError(error.message || 'Unknown error')
+          }} />
       )}
       {editing && (
         <AssessmentModal domain={domain} initial={editing} onClose={() => setEditing(null)}
-          onSave={data => { onUpdateAssessment(editing.id, { ...editing, ...data }); setEditing(null) }} />
+          onSave={async data => {
+            const { error } = await onUpdateAssessment(editing.id, { ...editing, ...data })
+            if (error) setSaveError(error.message || 'Unknown error')
+          }} />
       )}
     </div>
   )
