@@ -115,7 +115,8 @@ function TypedEditor({ note, onUpdate }) {
 
 // ─── Note card in grid ─────────────────────────────────────────────────────────
 function NoteCard({ note, domain, onClick, onDelete }) {
-  const [hovered, setHovered] = useState(false)
+  const [hovered,    setHovered]    = useState(false)
+  const [confirming, setConfirming] = useState(false)
   const isTyped  = note.type === 'typed'
   const preview  = isTyped ? (note.content || '').trim().slice(0, 120) : null
   const pagesCnt = (note.pages || []).length
@@ -134,18 +135,25 @@ function NoteCard({ note, domain, onClick, onDelete }) {
         position: 'relative',
       }}
     >
-      <button
-        onClick={e => { e.stopPropagation(); onDelete() }}
-        style={{
-          position: 'absolute', top: 10, right: 10, background: 'none', border: 'none',
-          cursor: 'pointer', color: 'var(--text-muted)', display: 'flex', padding: 4,
-          borderRadius: 5, opacity: hovered ? 1 : 0, transition: 'opacity 0.12s',
-        }}
-        onMouseEnter={e => e.currentTarget.style.color = 'var(--accent-red)'}
-        onMouseLeave={e => e.currentTarget.style.color = 'var(--text-muted)'}
-      >
-        <Trash2 size={13} />
-      </button>
+      {confirming ? (
+        <div onClick={e => e.stopPropagation()} style={{ position: 'absolute', top: 8, right: 8, display: 'flex', gap: 6 }}>
+          <button onClick={() => setConfirming(false)} style={{ padding: '3px 9px', borderRadius: 6, border: '1px solid var(--border-strong)', background: 'var(--bg-surface)', color: 'var(--text-muted)', fontSize: 11, cursor: 'pointer', fontFamily: 'inherit' }}>Cancel</button>
+          <button onClick={e => { e.stopPropagation(); onDelete() }} style={{ padding: '3px 9px', borderRadius: 6, border: '1px solid rgba(251,113,133,0.4)', background: 'rgba(251,113,133,0.14)', color: '#fb7185', fontSize: 11, fontWeight: 600, cursor: 'pointer', fontFamily: 'inherit' }}>Delete</button>
+        </div>
+      ) : (
+        <button
+          onClick={e => { e.stopPropagation(); setConfirming(true) }}
+          style={{
+            position: 'absolute', top: 10, right: 10, background: 'none', border: 'none',
+            cursor: 'pointer', color: 'var(--text-muted)', display: 'flex', padding: 4,
+            borderRadius: 5, opacity: hovered ? 1 : 0, transition: 'opacity 0.12s',
+          }}
+          onMouseEnter={e => e.currentTarget.style.color = 'var(--accent-red)'}
+          onMouseLeave={e => e.currentTarget.style.color = 'var(--text-muted)'}
+        >
+          <Trash2 size={13} />
+        </button>
+      )}
 
       <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 8 }}>
         <div style={{ width: 30, height: 30, borderRadius: 8, background: 'var(--bg-overlay)', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
@@ -371,6 +379,7 @@ function NoteLocationPicker({ note, domains, onSave }) {
 export default function NotesPage({ notes, domains, noteToOpen, onClearNoteToOpen, onAddNote, onUpdateNote, onDeleteNote, onSaveNote }) {
   const [selectedFolder,  setSelectedFolder]  = useState({ type: 'all' })
   const [openNoteId,      setOpenNoteId]      = useState(null)
+  const [confirmDelNote,  setConfirmDelNote]  = useState(false)
   const [saveState,       setSaveState]       = useState('idle') // 'idle' | 'saving' | 'saved' | 'error'
   const [saveError,       setSaveError]       = useState('')
   const [sidebarPicker,   setSidebarPicker]   = useState(false)
@@ -605,12 +614,16 @@ export default function NotesPage({ notes, domains, noteToOpen, onClearNoteToOpe
                   : saveState === 'error' ? <><X size={12} /> Failed</>
                   : <><Save size={12} /> {saveState === 'saving' ? 'Saving…' : 'Save'}</>}
                 </button>
-                <button
-                  onClick={() => { onDeleteNote(openNote.id); setOpenNoteId(null) }}
-                  style={{ display: 'flex', alignItems: 'center', gap: 5, padding: '5px 10px', borderRadius: 7, border: '1px solid var(--border)', background: 'none', color: 'var(--accent-red)', cursor: 'pointer', fontSize: 12 }}
-                >
-                  <Trash2 size={12} /> Delete
-                </button>
+                {confirmDelNote ? (
+                  <div style={{ display: 'flex', gap: 6 }}>
+                    <button onClick={() => setConfirmDelNote(false)} style={{ padding: '5px 10px', borderRadius: 7, border: '1px solid var(--border-strong)', background: 'transparent', color: 'var(--text-muted)', fontSize: 12, cursor: 'pointer', fontFamily: 'inherit' }}>Cancel</button>
+                    <button onClick={() => { onDeleteNote(openNote.id); setOpenNoteId(null); setConfirmDelNote(false) }} style={{ display: 'flex', alignItems: 'center', gap: 5, padding: '5px 10px', borderRadius: 7, border: '1px solid rgba(251,113,133,0.4)', background: 'rgba(251,113,133,0.14)', color: '#fb7185', fontSize: 12, fontWeight: 600, cursor: 'pointer', fontFamily: 'inherit' }}>Delete</button>
+                  </div>
+                ) : (
+                  <button onClick={() => setConfirmDelNote(true)} style={{ display: 'flex', alignItems: 'center', gap: 5, padding: '5px 10px', borderRadius: 7, border: '1px solid var(--border)', background: 'none', color: 'var(--accent-red)', cursor: 'pointer', fontSize: 12 }}>
+                    <Trash2 size={12} /> Delete
+                  </button>
+                )}
               </div>
             </div>
 

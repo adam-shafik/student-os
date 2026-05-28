@@ -10,6 +10,7 @@ import { DOMAIN_CATEGORIES, DOMAIN_COLORS, DOMAIN_ICON_GROUPS, getDomainIcon } f
 import { EVENT_TYPES, resolveTypeLabel, resolveTypeColor } from '../utils/calendarEvents'
 import { totalTeachingWeeks } from '../utils/semester'
 import EventDetailModal from '../components/EventDetailModal'
+import ConfirmModal from '../components/ConfirmModal'
 
 function DomainIcon({ name, size = 16, color }) {
   const Icon = getDomainIcon(name)
@@ -527,10 +528,11 @@ function GradeInput({ assessment, onSave, onCancel }) {
 }
 
 function AssessmentsTab({ domain, assessments, onAddAssessment, onUpdateAssessment, onDeleteAssessment }) {
-  const [showAdd,      setShowAdd]      = useState(false)
-  const [editing,      setEditing]      = useState(null)
-  const [gradingId,    setGradingId]    = useState(null)
-  const [saveError,    setSaveError]    = useState(null)
+  const [showAdd,        setShowAdd]        = useState(false)
+  const [editing,        setEditing]        = useState(null)
+  const [gradingId,      setGradingId]      = useState(null)
+  const [saveError,      setSaveError]      = useState(null)
+  const [confirmDelId,   setConfirmDelId]   = useState(null)
 
   const exams       = assessments.filter(a => a.type === 'exam').sort((a, b) => (a.date || '') < (b.date || '') ? -1 : 1)
   const assignments = assessments.filter(a => a.type === 'assignment').sort((a, b) => (a.date || '') < (b.date || '') ? -1 : 1)
@@ -586,7 +588,7 @@ function AssessmentsTab({ domain, assessments, onAddAssessment, onUpdateAssessme
             style={{ width: 28, height: 28, borderRadius: 6, border: 'none', background: 'var(--bg-overlay)', color: 'var(--text-muted)', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
             <Edit2 size={12} />
           </button>
-          <button onClick={() => { if (confirm(`Delete "${item.title}"?`)) onDeleteAssessment(item.id) }}
+          <button onClick={() => setConfirmDelId(item.id)}
             style={{ width: 28, height: 28, borderRadius: 6, border: 'none', background: 'var(--bg-overlay)', color: 'var(--text-muted)', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center' }}
             onMouseEnter={e => { e.currentTarget.style.background = 'rgba(251,113,133,0.12)'; e.currentTarget.style.color = '#fb7185' }}
             onMouseLeave={e => { e.currentTarget.style.background = 'var(--bg-overlay)'; e.currentTarget.style.color = 'var(--text-muted)' }}>
@@ -675,6 +677,14 @@ function AssessmentsTab({ domain, assessments, onAddAssessment, onUpdateAssessme
             const { error } = await onUpdateAssessment(editing.id, { ...editing, ...data })
             if (error) setSaveError(error.message || 'Unknown error')
           }} />
+      )}
+      {confirmDelId && (
+        <ConfirmModal
+          message={`Delete "${assessments.find(a => a.id === confirmDelId)?.title}"? This cannot be undone.`}
+          confirmLabel="Delete"
+          onConfirm={() => { onDeleteAssessment(confirmDelId); setConfirmDelId(null) }}
+          onCancel={() => setConfirmDelId(null)}
+        />
       )}
     </div>
   )

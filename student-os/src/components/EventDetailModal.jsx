@@ -1,3 +1,4 @@
+import { useState } from 'react'
 import {
   X, Calendar, Clock, MapPin, BookOpen, FlaskConical, FileCheck,
   GraduationCap, Tag, AlignLeft, ExternalLink, StickyNote, AlertTriangle, Trash2,
@@ -49,6 +50,7 @@ function fmtDuration(mins) {
 }
 
 export default function EventDetailModal({ event, onClose, onViewDomain, note, onUpdateNote, onDelete, isTutorial = false }) {
+  const [confirmDelete, setConfirmDelete] = useState(false)
   if (!event) return null
   const typeColor = resolveTypeColor(event)
   const typeLabel = resolveTypeLabel(event)
@@ -209,14 +211,23 @@ export default function EventDetailModal({ event, onClose, onViewDomain, note, o
         {(onDelete || (onViewDomain && event.domainId)) && (
           <div style={{ padding: '12px 22px', borderTop: '1px solid var(--border)', flexShrink: 0, display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 8 }}>
             {onDelete ? (
-              <button
-                onClick={isTutorial ? undefined : onDelete}
-                style={{ display: 'flex', alignItems: 'center', gap: 6, background: 'rgba(251,113,133,0.08)', border: '1px solid rgba(251,113,133,0.2)', borderRadius: 8, padding: '8px 14px', cursor: isTutorial ? 'not-allowed' : 'pointer', color: '#fb7185', fontSize: 13, transition: 'all 0.15s', opacity: isTutorial ? 0.4 : 1 }}
-                onMouseEnter={e => { if (!isTutorial) { e.currentTarget.style.background = 'rgba(251,113,133,0.16)'; e.currentTarget.style.borderColor = 'rgba(251,113,133,0.4)' } }}
-                onMouseLeave={e => { if (!isTutorial) { e.currentTarget.style.background = 'rgba(251,113,133,0.08)'; e.currentTarget.style.borderColor = 'rgba(251,113,133,0.2)' } }}
-              >
-                <Trash2 size={13} /> Delete event
-              </button>
+              confirmDelete ? (
+                <div style={{ display: 'flex', gap: 8 }}>
+                  <button onClick={() => setConfirmDelete(false)} style={{ padding: '8px 14px', borderRadius: 8, border: '1px solid var(--border-strong)', background: 'transparent', color: 'var(--text-secondary)', fontSize: 13, cursor: 'pointer', fontFamily: 'inherit' }}>Cancel</button>
+                  <button onClick={onDelete} style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '8px 14px', borderRadius: 8, border: '1px solid rgba(251,113,133,0.4)', background: 'rgba(251,113,133,0.14)', color: '#fb7185', fontSize: 13, fontWeight: 600, cursor: 'pointer', fontFamily: 'inherit' }}>
+                    <Trash2 size={13} /> Confirm Delete
+                  </button>
+                </div>
+              ) : (
+                <button
+                  onClick={isTutorial ? undefined : () => setConfirmDelete(true)}
+                  style={{ display: 'flex', alignItems: 'center', gap: 6, background: 'rgba(251,113,133,0.08)', border: '1px solid rgba(251,113,133,0.2)', borderRadius: 8, padding: '8px 14px', cursor: isTutorial ? 'not-allowed' : 'pointer', color: '#fb7185', fontSize: 13, transition: 'all 0.15s', opacity: isTutorial ? 0.4 : 1 }}
+                  onMouseEnter={e => { if (!isTutorial) { e.currentTarget.style.background = 'rgba(251,113,133,0.16)'; e.currentTarget.style.borderColor = 'rgba(251,113,133,0.4)' } }}
+                  onMouseLeave={e => { if (!isTutorial) { e.currentTarget.style.background = 'rgba(251,113,133,0.08)'; e.currentTarget.style.borderColor = 'rgba(251,113,133,0.2)' } }}
+                >
+                  <Trash2 size={13} /> Delete event
+                </button>
+              )
             ) : <div />}
             {onViewDomain && event.domainId && (
               <button

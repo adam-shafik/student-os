@@ -331,7 +331,8 @@ function TaskDetailModal({ task, domains, notes, studySessions, domainMap, onClo
 
 // ─── Standard task row (Tasks view) ───────────────────────────────────────────
 function TaskRow({ task, domainMap, onToggle, onDelete, onOpenNote, onOpenDetail }) {
-  const [hovered, setHovered] = useState(false)
+  const [hovered,    setHovered]    = useState(false)
+  const [confirming, setConfirming] = useState(false)
   const domain = task.domainId ? domainMap[task.domainId] : null
   const isOverdue = task.dueDate && !task.done && parseDue(task.dueDate) < todayMidnight()
 
@@ -369,12 +370,18 @@ function TaskRow({ task, domainMap, onToggle, onDelete, onOpenNote, onOpenDetail
           <FileText size={12} />
         </button>
       )}
-      {hovered && (
-        <button onClick={() => onDelete(task.id)} style={{ background: 'none', border: 'none', cursor: 'pointer', padding: 2, color: 'var(--text-muted)', flexShrink: 0, display: 'flex' }}
+      {hovered && !confirming && (
+        <button onClick={e => { e.stopPropagation(); setConfirming(true) }} style={{ background: 'none', border: 'none', cursor: 'pointer', padding: 2, color: 'var(--text-muted)', flexShrink: 0, display: 'flex' }}
           onMouseEnter={e => e.currentTarget.style.color = 'var(--accent-red)'}
           onMouseLeave={e => e.currentTarget.style.color = 'var(--text-muted)'}>
           <Trash2 size={13} />
         </button>
+      )}
+      {confirming && (
+        <div style={{ display: 'flex', gap: 6, flexShrink: 0 }}>
+          <button onClick={() => setConfirming(false)} style={{ padding: '3px 9px', borderRadius: 6, border: '1px solid var(--border-strong)', background: 'transparent', color: 'var(--text-muted)', fontSize: 11, cursor: 'pointer', fontFamily: 'inherit' }}>Cancel</button>
+          <button onClick={() => onDelete(task.id)} style={{ padding: '3px 9px', borderRadius: 6, border: '1px solid rgba(251,113,133,0.4)', background: 'rgba(251,113,133,0.14)', color: '#fb7185', fontSize: 11, fontWeight: 600, cursor: 'pointer', fontFamily: 'inherit' }}>Delete</button>
+        </div>
       )}
     </div>
   )
@@ -382,7 +389,8 @@ function TaskRow({ task, domainMap, onToggle, onDelete, onOpenNote, onOpenDetail
 
 // ─── Study plan task row ───────────────────────────────────────────────────────
 function StudyPlanTaskRow({ task, domainMap, noteMap, onToggle, onDelete, onOpenNote, onOpenDetail, isLast }) {
-  const [hovered, setHovered] = useState(false)
+  const [hovered,    setHovered]    = useState(false)
+  const [confirming, setConfirming] = useState(false)
   const domain = task.domainId ? domainMap[task.domainId] : null
   const note   = task.noteId   ? noteMap[task.noteId]     : null
 
@@ -428,12 +436,18 @@ function StudyPlanTaskRow({ task, domainMap, noteMap, onToggle, onDelete, onOpen
             session
           </span>
         )}
-        {hovered && (
-          <button onClick={() => onDelete(task.id)} style={{ background: 'none', border: 'none', cursor: 'pointer', padding: 2, color: 'var(--text-muted)', display: 'flex' }}
+        {hovered && !confirming && (
+          <button onClick={e => { e.stopPropagation(); setConfirming(true) }} style={{ background: 'none', border: 'none', cursor: 'pointer', padding: 2, color: 'var(--text-muted)', display: 'flex' }}
             onMouseEnter={e => e.currentTarget.style.color = 'var(--accent-red)'}
             onMouseLeave={e => e.currentTarget.style.color = 'var(--text-muted)'}>
             <Trash2 size={12} />
           </button>
+        )}
+        {confirming && (
+          <div style={{ display: 'flex', gap: 6, flexShrink: 0 }}>
+            <button onClick={() => setConfirming(false)} style={{ padding: '3px 9px', borderRadius: 6, border: '1px solid var(--border-strong)', background: 'transparent', color: 'var(--text-muted)', fontSize: 11, cursor: 'pointer', fontFamily: 'inherit' }}>Cancel</button>
+            <button onClick={() => onDelete(task.id)} style={{ padding: '3px 9px', borderRadius: 6, border: '1px solid rgba(251,113,133,0.4)', background: 'rgba(251,113,133,0.14)', color: '#fb7185', fontSize: 11, fontWeight: 600, cursor: 'pointer', fontFamily: 'inherit' }}>Delete</button>
+          </div>
         )}
       </div>
     </div>
