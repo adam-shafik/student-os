@@ -1,12 +1,41 @@
 import { useState, useMemo, useEffect, useRef } from 'react'
 import {
   PenLine, Plus, Trash2, ChevronRight, ChevronDown,
-  BookOpen, FolderOpen, Folder, Pencil, Check, X, MapPin, Save, Type,
+  BookOpen, FolderOpen, Folder, Pencil, Check, X, MapPin, Save, Type, FileText,
 } from 'lucide-react'
 import NoteCanvas from '../components/NoteCanvas'
 import { totalTeachingWeeks } from '../utils/semester'
 
 const TOTAL_WEEKS = totalTeachingWeeks()
+
+// ─── PDF rendering (lazy-loads pdfjs-dist only when needed) ───────────────────
+let _pdfjsMod = null
+async function loadPdfJs() {
+  if (_pdfjsMod) return _pdfjsMod
+  _pdfjsMod = await import('pdfjs-dist')
+  _pdfjsMod.GlobalWorkerOptions.workerSrc = new URL(
+    'pdfjs-dist/build/pdf.worker.min.mjs',
+    import.meta.url,
+  ).href
+  return _pdfjsMod
+}
+
+async function renderPdfToBackgrounds(source) {
+  const pdfjsLib = await loadPdfJs()
+  const data = source instanceof ArrayBuffer || ArrayBuffer.isView(source) ? source : await source.arrayBuffer()
+  const pdf = await pdfjsLib.getDocument({ data }).promise
+  const backgrounds = []
+  for (let i = 1; i <= pdf.numPages; i++) {
+    const page = await pdf.getPage(i)
+    const viewport = page.getViewport({ scale: 1.5 })
+    const canvas = document.createElement('canvas')
+    canvas.width = viewport.width
+    canvas.height = viewport.height
+    await page.render({ canvasContext: canvas.getContext('2d'), viewport }).promise
+    backgrounds.push(canvas.toDataURL('image/jpeg', 0.88))
+  }
+  return backgrounds
+}
 
 function noteId() { return crypto.randomUUID() }
 function fmt(iso) {
@@ -48,7 +77,7 @@ function FolderItem({ label, count, active, depth = 0, onClick, children, defaul
 }
 
 // ─── New note type picker ──────────────────────────────────────────────────────
-function NewNoteTypePicker({ onSelect, onClose }) {
+function NewNoteTypePicker({ onSelect, onSelectPdf, onClose }) {
   const ref = useRef()
   useEffect(() => {
     function h(e) { if (ref.current && !ref.current.contains(e.target)) onClose() }
@@ -87,6 +116,15 @@ function NewNoteTypePicker({ onSelect, onClose }) {
       >
         <Type size={14} color="var(--accent-blue)" /> Typed
       </button>
+      <div style={{ height: 1, background: 'var(--border)' }} />
+      <button
+        style={optBtn}
+        onMouseEnter={e => { e.currentTarget.style.background = 'var(--bg-hover)'; e.currentTarget.style.color = '#f97316' }}
+        onMouseLeave={e => { e.currentTarget.style.background = 'none'; e.currentTarget.style.color = 'var(--text-secondary)' }}
+        onClick={() => { onSelectPdf(); onClose() }}
+      >
+        <FileText size={14} color="#f97316" /> From PDF
+      </button>
     </div>
   )
 }
@@ -118,6 +156,7 @@ function NoteCard({ note, domain, onClick, onDelete }) {
   const [hovered,    setHovered]    = useState(false)
   const [confirming, setConfirming] = useState(false)
   const isTyped  = note.type === 'typed'
+  const isPdf    = note.type === 'pdf'
   const preview  = isTyped ? (note.content || '').trim().slice(0, 120) : null
   const pagesCnt = (note.pages || []).length
 
@@ -157,9 +196,9 @@ function NoteCard({ note, domain, onClick, onDelete }) {
 
       <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 8 }}>
         <div style={{ width: 30, height: 30, borderRadius: 8, background: 'var(--bg-overlay)', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
-          {isTyped
-            ? <Type size={14} color="var(--accent-blue)" />
-            : <PenLine size={14} color="var(--accent-purple)" />}
+          {isTyped ? <Type size={14} color="var(--accent-blue)" />
+           : isPdf  ? <FileText size={14} color="#f97316" />
+           : <PenLine size={14} color="var(--accent-purple)" />}
         </div>
         <div style={{ flex: 1, minWidth: 0 }}>
           <div style={{ fontSize: 13, fontWeight: 600, color: 'var(--text-primary)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
@@ -194,6 +233,8 @@ function NoteCard({ note, domain, onClick, onDelete }) {
       <div style={{ fontSize: 11, color: 'var(--text-muted)' }}>
         {fmt(note.updatedAt)} · {isTyped
           ? `${(note.content || '').length} chars`
+          : isPdf
+          ? `${pagesCnt} page${pagesCnt !== 1 ? 's' : ''} · PDF`
           : `${pagesCnt} page${pagesCnt !== 1 ? 's' : ''}`}
       </div>
     </div>
@@ -376,7 +417,7 @@ function NoteLocationPicker({ note, domains, onSave }) {
 }
 
 // ─── Main page ─────────────────────────────────────────────────────────────────
-export default function NotesPage({ notes, domains, noteToOpen, onClearNoteToOpen, onAddNote, onUpdateNote, onDeleteNote, onSaveNote }) {
+export default function NotesPage({ notes, domains, noteToOpen, onClearNoteToOpen, onAddNote, onUpdateNote, onDeleteNote, onSaveNote, onAddPdfNote, onGetSignedPdfUrl }) {
   const [selectedFolder,  setSelectedFolder]  = useState({ type: 'all' })
   const [openNoteId,      setOpenNoteId]      = useState(null)
   const [confirmDelNote,  setConfirmDelNote]  = useState(false)
@@ -384,6 +425,10 @@ export default function NotesPage({ notes, domains, noteToOpen, onClearNoteToOpe
   const [saveError,       setSaveError]       = useState('')
   const [sidebarPicker,   setSidebarPicker]   = useState(false)
   const [mainPicker,      setMainPicker]      = useState(false)
+  const [pdfBackgrounds,  setPdfBackgrounds]  = useState({}) // { [noteId]: string[] }
+  const [isLoadingPdf,    setIsLoadingPdf]    = useState(false)
+  const pdfInputRef    = useRef()
+  const pendingPdfMeta = useRef({})
 
   async function handleSave(noteId) {
     setSaveState('saving')
@@ -408,6 +453,25 @@ export default function NotesPage({ notes, domains, noteToOpen, onClearNoteToOpe
   }, [noteToOpen])
 
   const openNote = (notes || []).find(n => n.id === openNoteId)
+
+  // Load PDF backgrounds when switching to a PDF note that hasn't been rendered yet
+  useEffect(() => {
+    if (!openNote || openNote.type !== 'pdf' || !openNote.pdfStoragePath) return
+    if (pdfBackgrounds[openNote.id]) return
+    if (!onGetSignedPdfUrl) return
+    let cancelled = false
+    setIsLoadingPdf(true)
+    onGetSignedPdfUrl(openNote.pdfStoragePath)
+      .then(url => fetch(url))
+      .then(r => r.arrayBuffer())
+      .then(buf => renderPdfToBackgrounds(buf))
+      .then(bgs => {
+        if (!cancelled) setPdfBackgrounds(prev => ({ ...prev, [openNote.id]: bgs }))
+      })
+      .catch(err => console.error('PDF load failed:', err))
+      .finally(() => { if (!cancelled) setIsLoadingPdf(false) })
+    return () => { cancelled = true }
+  }, [openNote?.id])
 
   const academicDomains = useMemo(
     () => (domains || []).filter(d => d.category === 'academic' && !d.isPast),
@@ -463,6 +527,33 @@ export default function NotesPage({ notes, domains, noteToOpen, onClearNoteToOpe
     createNote(meta, type)
   }
 
+  function triggerPdfPicker() {
+    const f = selectedFolder
+    pendingPdfMeta.current =
+      f.type === 'general' ? {} :
+      f.type === 'domain'  ? { domainId: f.domainId } :
+      f.type === 'week'    ? { domainId: f.domainId, academicWeek: f.week } : {}
+    pdfInputRef.current?.click()
+  }
+
+  async function handlePdfFileSelected(e) {
+    const file = e.target.files?.[0]
+    e.target.value = ''
+    if (!file) return
+    setIsLoadingPdf(true)
+    try {
+      const backgrounds = await renderPdfToBackgrounds(file)
+      const id = noteId()
+      setPdfBackgrounds(prev => ({ ...prev, [id]: backgrounds }))
+      await onAddPdfNote(id, file, pendingPdfMeta.current, backgrounds.length)
+      setOpenNoteId(id)
+    } catch (err) {
+      console.error('PDF import failed:', err)
+    } finally {
+      setIsLoadingPdf(false)
+    }
+  }
+
   // Weeks that have notes, per domain
   function weeksForDomain(domainId) {
     const weeks = new Set(
@@ -473,6 +564,24 @@ export default function NotesPage({ notes, domains, noteToOpen, onClearNoteToOpe
 
   return (
     <div style={{ display: 'flex', height: '100%', overflow: 'hidden' }}>
+      <input
+        ref={pdfInputRef}
+        type="file"
+        accept=".pdf,application/pdf"
+        style={{ display: 'none' }}
+        onChange={handlePdfFileSelected}
+      />
+      {isLoadingPdf && (
+        <div style={{
+          position: 'fixed', inset: 0, zIndex: 2000,
+          background: 'rgba(0,0,0,0.55)', backdropFilter: 'blur(4px)',
+          display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: 14,
+        }}>
+          <div style={{ width: 44, height: 44, borderRadius: '50%', border: '3px solid rgba(255,255,255,0.12)', borderTopColor: '#f97316', animation: 'spin 0.8s linear infinite' }} />
+          <span style={{ fontSize: 14, color: 'rgba(255,255,255,0.7)', fontWeight: 500 }}>Processing PDF…</span>
+          <style>{`@keyframes spin{to{transform:rotate(360deg)}}`}</style>
+        </div>
+      )}
 
       {/* Sidebar */}
       <aside style={{
@@ -499,6 +608,7 @@ export default function NotesPage({ notes, domains, noteToOpen, onClearNoteToOpe
           {sidebarPicker && (
             <NewNoteTypePicker
               onSelect={type => { handleNewNote(type); setSidebarPicker(false) }}
+              onSelectPdf={() => { triggerPdfPicker(); setSidebarPicker(false) }}
               onClose={() => setSidebarPicker(false)}
             />
           )}
@@ -654,6 +764,8 @@ export default function NotesPage({ notes, domains, noteToOpen, onClearNoteToOpe
                   lineSpacing={openNote.lineSpacing || 32}
                   orientation={openNote.orientation || 'portrait'}
                   onSettingsChange={s => onUpdateNote(openNote.id, s)}
+                  pageBackgrounds={pdfBackgrounds[openNote.id]}
+                  isPdfNote={openNote.type === 'pdf'}
                 />
               )}
             </div>
@@ -688,6 +800,7 @@ export default function NotesPage({ notes, domains, noteToOpen, onClearNoteToOpe
                 {mainPicker && (
                   <NewNoteTypePicker
                     onSelect={type => { handleNewNote(type); setMainPicker(false) }}
+                    onSelectPdf={() => { triggerPdfPicker(); setMainPicker(false) }}
                     onClose={() => setMainPicker(false)}
                   />
                 )}

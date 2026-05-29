@@ -235,7 +235,7 @@ function PageTemplate({ pageId, template, bgColor, lineSpacing }) {
 }
 
 // ─── Single page canvas ────────────────────────────────────────────────────────
-function PageCanvas({ page, pageH, pageIdx, totalPages, onStrokesChange, onTransferStrokes, penColor, penSize, tool, shapeType, opacity, smoothness, template, bgColor, lineSpacing, eraserMode, eraserRadius, readonly, onUndo, clipboard, onCopy }) {
+function PageCanvas({ page, pageH, pageIdx, totalPages, onStrokesChange, onTransferStrokes, penColor, penSize, tool, shapeType, opacity, smoothness, template, bgColor, lineSpacing, eraserMode, eraserRadius, readonly, onUndo, clipboard, onCopy, pageBackground }) {
   const svgRef        = useRef()
   const livePathRef   = useRef(null)
   const liveShapeRef  = useRef(null)
@@ -907,7 +907,17 @@ function PageCanvas({ page, pageH, pageIdx, totalPages, onStrokesChange, onTrans
         onPointerLeave={readonly ? undefined : (e) => { onPointerUp(e); setEraserPos(null) }}
         onKeyDown={readonly ? undefined : onKeyDown}
       >
-        <PageTemplate pageId={page.id} template={template} bgColor={bgColor} lineSpacing={lineSpacing} />
+        <PageTemplate pageId={page.id} template={pageBackground ? 'blank' : template} bgColor={bgColor} lineSpacing={lineSpacing} />
+        {pageBackground && (
+          <image
+            href={pageBackground}
+            x="0"
+            y="0"
+            width="100%"
+            height="100%"
+            preserveAspectRatio="xMidYMin meet"
+          />
+        )}
 
         {(() => {
           const indexed = displayStrokes.map((s, i) => ({ s, i }))
@@ -964,6 +974,8 @@ export default function NoteCanvas({
   template = 'blank', bgColor = '#f8f7f2', lineSpacing = 32,
   orientation = 'portrait', onSettingsChange,
   readonly = false,
+  pageBackgrounds,
+  isPdfNote = false,
 }) {
   const scrollRef        = useRef()
   const addingPageRef    = useRef(false)
@@ -1119,67 +1131,74 @@ export default function NoteCanvas({
               borderBottom: '1px solid var(--border)', flexShrink: 0,
               background: 'var(--bg-elevated)', flexWrap: 'wrap',
             }}>
-              <div style={{ display: 'flex', alignItems: 'center', gap: 7 }}>
-                <span style={{ fontSize: 10, fontWeight: 700, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.5px' }}>Orientation</span>
-                {['portrait', 'landscape'].map(o => (
-                  <button key={o} onClick={() => onSettingsChange({ orientation: o })} style={{
-                    padding: '4px 9px', borderRadius: 6, border: '1px solid transparent',
-                    cursor: 'pointer', fontSize: 11, textTransform: 'capitalize',
-                    background: orientation === o ? 'rgba(91,140,255,0.15)' : 'none',
-                    color: orientation === o ? 'var(--accent-blue)' : 'var(--text-muted)',
-                    borderColor: orientation === o ? 'rgba(91,140,255,0.3)' : 'transparent',
-                  }}>{o}</button>
-                ))}
-              </div>
-              {sep}
-              <div style={{ display: 'flex', alignItems: 'center', gap: 7 }}>
-                <span style={{ fontSize: 10, fontWeight: 700, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.5px' }}>Template</span>
-                {TEMPLATES.map(t => (
-                  <button key={t} onClick={() => onSettingsChange({ template: t })} style={{
-                    padding: '4px 9px', borderRadius: 6, border: '1px solid transparent',
-                    cursor: 'pointer', fontSize: 11, textTransform: 'capitalize',
-                    background: template === t ? 'rgba(91,140,255,0.15)' : 'none',
-                    color: template === t ? 'var(--accent-blue)' : 'var(--text-muted)',
-                    borderColor: template === t ? 'rgba(91,140,255,0.3)' : 'transparent',
-                  }}>{t}</button>
-                ))}
-              </div>
-              {sep}
-              <div style={{ display: 'flex', alignItems: 'center', gap: 7 }}>
-                <span style={{ fontSize: 10, fontWeight: 700, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.5px' }}>Background</span>
-                {BG_COLORS.map(c => (
-                  <button key={c} onClick={() => onSettingsChange({ bgColor: c })} title={c} style={{
-                    width: 18, height: 18, borderRadius: 4, background: c, cursor: 'pointer', padding: 0, flexShrink: 0,
-                    border: bgColor === c ? '2px solid var(--accent-blue)' : '1px solid var(--border-strong)',
-                  }} />
-                ))}
-                <div style={{ position: 'relative', width: 18, height: 18, flexShrink: 0 }}>
-                  <div style={{
-                    width: 18, height: 18, borderRadius: 4,
-                    background: 'conic-gradient(red, yellow, lime, cyan, blue, magenta, red)',
-                    border: !BG_COLORS.includes(bgColor) ? '2px solid var(--accent-blue)' : '1px solid var(--border-strong)',
-                  }} />
-                  <input type="color" value={customBg}
-                    onChange={e => { setCustomBg(e.target.value); onSettingsChange({ bgColor: e.target.value }) }}
-                    style={{ position: 'absolute', inset: 0, opacity: 0, cursor: 'pointer', width: '100%', height: '100%' }} />
-                </div>
-              </div>
-              {template !== 'blank' && (
+              {!isPdfNote && (
                 <>
-                  {sep}
                   <div style={{ display: 'flex', alignItems: 'center', gap: 7 }}>
-                    <span style={{ fontSize: 10, fontWeight: 700, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.5px' }}>Spacing</span>
-                    {SPACINGS.map(([val, label]) => (
-                      <button key={val} onClick={() => onSettingsChange({ lineSpacing: val })} style={{
-                        padding: '4px 8px', borderRadius: 6, border: '1px solid transparent',
-                        cursor: 'pointer', fontSize: 11,
-                        background: lineSpacing === val ? 'rgba(91,140,255,0.15)' : 'none',
-                        color: lineSpacing === val ? 'var(--accent-blue)' : 'var(--text-muted)',
-                        borderColor: lineSpacing === val ? 'rgba(91,140,255,0.3)' : 'transparent',
-                      }}>{label}</button>
+                    <span style={{ fontSize: 10, fontWeight: 700, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.5px' }}>Orientation</span>
+                    {['portrait', 'landscape'].map(o => (
+                      <button key={o} onClick={() => onSettingsChange({ orientation: o })} style={{
+                        padding: '4px 9px', borderRadius: 6, border: '1px solid transparent',
+                        cursor: 'pointer', fontSize: 11, textTransform: 'capitalize',
+                        background: orientation === o ? 'rgba(91,140,255,0.15)' : 'none',
+                        color: orientation === o ? 'var(--accent-blue)' : 'var(--text-muted)',
+                        borderColor: orientation === o ? 'rgba(91,140,255,0.3)' : 'transparent',
+                      }}>{o}</button>
                     ))}
                   </div>
+                  {sep}
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 7 }}>
+                    <span style={{ fontSize: 10, fontWeight: 700, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.5px' }}>Template</span>
+                    {TEMPLATES.map(t => (
+                      <button key={t} onClick={() => onSettingsChange({ template: t })} style={{
+                        padding: '4px 9px', borderRadius: 6, border: '1px solid transparent',
+                        cursor: 'pointer', fontSize: 11, textTransform: 'capitalize',
+                        background: template === t ? 'rgba(91,140,255,0.15)' : 'none',
+                        color: template === t ? 'var(--accent-blue)' : 'var(--text-muted)',
+                        borderColor: template === t ? 'rgba(91,140,255,0.3)' : 'transparent',
+                      }}>{t}</button>
+                    ))}
+                  </div>
+                  {sep}
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 7 }}>
+                    <span style={{ fontSize: 10, fontWeight: 700, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.5px' }}>Background</span>
+                    {BG_COLORS.map(c => (
+                      <button key={c} onClick={() => onSettingsChange({ bgColor: c })} title={c} style={{
+                        width: 18, height: 18, borderRadius: 4, background: c, cursor: 'pointer', padding: 0, flexShrink: 0,
+                        border: bgColor === c ? '2px solid var(--accent-blue)' : '1px solid var(--border-strong)',
+                      }} />
+                    ))}
+                    <div style={{ position: 'relative', width: 18, height: 18, flexShrink: 0 }}>
+                      <div style={{
+                        width: 18, height: 18, borderRadius: 4,
+                        background: 'conic-gradient(red, yellow, lime, cyan, blue, magenta, red)',
+                        border: !BG_COLORS.includes(bgColor) ? '2px solid var(--accent-blue)' : '1px solid var(--border-strong)',
+                      }} />
+                      <input type="color" value={customBg}
+                        onChange={e => { setCustomBg(e.target.value); onSettingsChange({ bgColor: e.target.value }) }}
+                        style={{ position: 'absolute', inset: 0, opacity: 0, cursor: 'pointer', width: '100%', height: '100%' }} />
+                    </div>
+                  </div>
+                  {template !== 'blank' && (
+                    <>
+                      {sep}
+                      <div style={{ display: 'flex', alignItems: 'center', gap: 7 }}>
+                        <span style={{ fontSize: 10, fontWeight: 700, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.5px' }}>Spacing</span>
+                        {SPACINGS.map(([val, label]) => (
+                          <button key={val} onClick={() => onSettingsChange({ lineSpacing: val })} style={{
+                            padding: '4px 8px', borderRadius: 6, border: '1px solid transparent',
+                            cursor: 'pointer', fontSize: 11,
+                            background: lineSpacing === val ? 'rgba(91,140,255,0.15)' : 'none',
+                            color: lineSpacing === val ? 'var(--accent-blue)' : 'var(--text-muted)',
+                            borderColor: lineSpacing === val ? 'rgba(91,140,255,0.3)' : 'transparent',
+                          }}>{label}</button>
+                        ))}
+                      </div>
+                    </>
+                  )}
                 </>
+              )}
+              {isPdfNote && (
+                <span style={{ fontSize: 11, color: 'var(--text-muted)' }}>PDF annotation — page settings locked</span>
               )}
             </div>
           )}
@@ -1352,6 +1371,7 @@ export default function NoteCanvas({
                   onUndo={handleUndo}
                   clipboard={clipboard}
                   onCopy={strokes => setClipboard(strokes)}
+                  pageBackground={pageBackgrounds?.[pageIdx]}
                 />
                 <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', marginTop: 8, gap: 10 }}>
                   <span style={{ fontSize: 10, color: 'rgba(255,255,255,0.15)', letterSpacing: '0.5px' }}>{pageIdx + 1}</span>

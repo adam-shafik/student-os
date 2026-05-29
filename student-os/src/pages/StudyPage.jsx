@@ -649,7 +649,11 @@ export default function StudyPage({ domains, studySessions, activeSession, onSta
               Recent Sessions
             </div>
             <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
-              {studySessions.filter(d => !d.isPast).slice(0, 12).map(s => (
+              {studySessions.filter(s => {
+                const d = domains.find(dd => dd.id === s.domainId)
+                return !d?.isPast
+              }).slice(0, 12).map(s => (
+
                 <SessionRow
                   key={s.id}
                   session={s}

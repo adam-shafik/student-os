@@ -197,6 +197,7 @@ export default function App() {
           type: n.note_type || 'handwritten', content: n.content || '',
           template: n.template, bgColor: n.bg_color, lineSpacing: n.line_spacing,
           orientation: n.orientation, createdAt: n.created_at, updatedAt: n.updated_at,
+          pdfStoragePath: n.pdf_storage_path || null,
           pages: (n.note_pages || []).sort((a, b) => a.page_order - b.page_order).map(p => ({
             id: p.id, strokes: p.strokes || [],
           })),
@@ -683,6 +684,49 @@ export default function App() {
     }
   }
 
+  const handleAddPdfNote = async (noteId, file, meta, pageCount) => {
+    const now  = new Date().toISOString()
+    const path = `${userId}/${noteId}.pdf`
+    const { error: uploadErr } = await supabase.storage.from('pdfs').upload(path, file, {
+      contentType: 'application/pdf', upsert: false,
+    })
+    if (uploadErr) { console.error('PDF upload failed:', uploadErr); throw uploadErr }
+
+    const newNote = {
+      id: noteId, title: file.name.replace(/\.pdf$/i, '') || 'PDF Note',
+      type: 'pdf', content: null,
+      pages: Array.from({ length: pageCount }, (_, i) => ({ id: `page-${noteId}-${i}`, strokes: [] })),
+      template: 'blank', bgColor: '#ffffff', lineSpacing: 48, orientation: 'portrait',
+      createdAt: now, updatedAt: now,
+      domainId: meta.domainId || null, academicWeek: meta.academicWeek || null,
+      eventId: null, studySessionId: null,
+      pdfStoragePath: path,
+    }
+    setNotes(prev => [...prev, newNote])
+
+    const { error: noteErr } = await supabase.from('notes').insert({
+      id: noteId, user_id: userId, title: newNote.title,
+      domain_id: newNote.domainId, academic_week: newNote.academicWeek,
+      event_id: null, study_session_id: null,
+      template: 'blank', bg_color: '#ffffff', line_spacing: 48, orientation: 'portrait',
+      note_type: 'pdf', content: null, pdf_storage_path: path,
+      created_at: now, updated_at: now,
+    })
+    if (noteErr) { console.error('PDF note insert failed:', noteErr); throw noteErr }
+
+    if (pageCount > 0) {
+      await supabase.from('note_pages').insert(
+        newNote.pages.map((p, i) => ({ note_id: noteId, page_order: i, strokes: [] }))
+      )
+    }
+  }
+
+  const handleGetSignedPdfUrl = async (storagePath) => {
+    const { data, error } = await supabase.storage.from('pdfs').createSignedUrl(storagePath, 3600)
+    if (error) throw error
+    return data.signedUrl
+  }
+
   const handleSaveNote = async (noteId) => {
     const note = notes.find(n => n.id === noteId)
     if (!note) return
@@ -698,9 +742,11 @@ export default function App() {
       }).eq('id', noteId)
       if (error) { console.error('notes update failed:', error); throw error }
     } else {
+      const extra = note.type === 'pdf'
+        ? {}
+        : { template: note.template, bg_color: note.bgColor, line_spacing: note.lineSpacing, orientation: note.orientation }
       const { error: updateErr } = await supabase.from('notes').update({
-        ...metaFields, template: note.template, bg_color: note.bgColor,
-        line_spacing: note.lineSpacing, orientation: note.orientation, updated_at: now,
+        ...metaFields, ...extra, updated_at: now,
       }).eq('id', noteId)
       if (updateErr) { console.error('notes update failed:', updateErr); throw updateErr }
 
@@ -908,6 +954,8 @@ export default function App() {
           onUpdateNote={handleUpdateNoteData}
           onDeleteNote={handleDeleteNote}
           onSaveNote={handleSaveNote}
+          onAddPdfNote={handleAddPdfNote}
+          onGetSignedPdfUrl={handleGetSignedPdfUrl}
         />
       )}
       {currentPage === 'todos' && (
