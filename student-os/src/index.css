@@ -74,55 +74,61 @@
   --line-height:       1.5;
 }
 
-/* ── Midnight Neon ───────────────────────────────────────────────────────────── */
-html.theme-neon {
-  --bg-page:           #020210;
-  --bg-surface:        rgba(8,8,20,0.88);
-  --bg-elevated:       rgba(4,4,14,0.92);
-  --bg-hover:          rgba(14,14,36,0.94);
-  --bg-overlay:        rgba(18,18,48,0.7);
-  --bg-overlay-hover:  rgba(28,28,70,0.8);
-  --bg-input:          rgba(4,4,14,0.9);
-  --bg-body-image:     radial-gradient(ellipse at 15% 10%, rgba(40,40,140,0.35) 0%, transparent 55%),
-                       radial-gradient(ellipse at 85% 85%, rgba(120,40,160,0.25) 0%, transparent 50%);
+/* ── Space Observatory ───────────────────────────────────────────────────────── */
+html.theme-space {
+  --bg-page:           #070709;
+  --bg-surface:        #0D0D10;
+  --bg-elevated:       rgba(20,20,24,0.70);
+  --bg-hover:          rgba(32,32,38,0.50);
+  --bg-overlay:        rgba(16,16,20,0.88);
+  --bg-overlay-hover:  rgba(26,26,32,0.92);
+  --bg-input:          #0A0A0D;
+  --bg-body-image:     radial-gradient(ellipse at 30% 15%, rgba(200,215,255,0.04) 0%, transparent 48%),
+                       radial-gradient(ellipse at 78% 72%, rgba(160,180,240,0.03) 0%, transparent 42%),
+                       radial-gradient(ellipse at 12% 88%, rgba(120,150,220,0.025) 0%, transparent 38%),
+                       radial-gradient(ellipse at 55% 55%, rgba(210,168,72,0.055) 0%, transparent 55%),
+                       radial-gradient(ellipse at 80% 20%, rgba(220,150,50,0.035) 0%, transparent 38%),
+                       radial-gradient(ellipse at 18% 50%, rgba(200,160,80,0.03) 0%, transparent 42%);
 
-  --nav-hover:         rgba(20,20,70,0.8);
-  --nav-active:        rgba(30,30,90,0.85);
+  --nav-hover:         rgba(255,255,255,0.05);
+  --nav-active:        rgba(255,255,255,0.09);
 
-  --border:            rgba(91,140,255,0.16);
-  --border-strong:     rgba(91,140,255,0.32);
-  --border-focus:      rgba(91,140,255,0.65);
+  --border:            rgba(255,255,255,0.09);
+  --border-strong:     rgba(255,255,255,0.18);
+  --border-focus:      rgba(255,255,255,0.48);
 
-  --text-primary:      #eaedff;
-  --text-bright:       #c8ccf0;
-  --text-secondary:    #8890cc;
-  --text-muted:        #4a5080;
-  --text-disabled:     #252840;
+  --text-primary:      #EEEEF8;
+  --text-bright:       #FFFFFF;
+  --text-secondary:    #72729A;
+  --text-muted:        #404058;
+  --text-disabled:     #222230;
 
-  --accent-blue:       #5b8cff;
-  --accent-purple:     #bf7fff;
-  --accent-amber:      #ffd700;
-  --accent-green:      #00ff9d;
-  --accent-red:        #ff4488;
+  --accent-blue:       #D0DCFF;
+  --accent-purple:     #7890D4;
+  --accent-amber:      #D4A848;
+  --accent-green:      #88C0B0;
+  --accent-red:        #C88888;
 
-  --shadow-card:       0 8px 32px rgba(0,0,0,0.8), 0 0 30px rgba(91,140,255,0.08);
-  --shadow-modal:      0 24px 80px rgba(0,0,0,0.92), 0 0 60px rgba(91,140,255,0.14);
+  --shadow-card:       0 1px 0 rgba(255,255,255,0.10), 0 8px 40px rgba(0,0,0,0.88);
+  --shadow-modal:      0 1px 0 rgba(255,255,255,0.14), 0 28px 72px rgba(0,0,0,0.96);
 
-  --glow-blue:         0 0 22px rgba(91,140,255,0.55), 0 0 60px rgba(91,140,255,0.2);
-  --glow-purple:       0 0 22px rgba(191,127,255,0.5);
-  --glow-green:        0 0 22px rgba(0,255,157,0.45);
-  --glow-red:          0 0 22px rgba(255,68,136,0.45);
-  --glass-blur:        blur(6px);
+  --glow-blue:         0 0 22px rgba(208,220,255,0.28), 0 0 56px rgba(208,220,255,0.09);
+  --glow-purple:       0 0 20px rgba(120,144,212,0.32);
+  --glow-green:        0 0 18px rgba(136,192,176,0.32);
+  --glow-red:          0 0 18px rgba(200,136,136,0.32);
+  --glass-blur:        blur(14px);
 
-  --progress-track:    rgba(91,140,255,0.1);
-  --progress-gradient: linear-gradient(90deg, #5b8cff, #bf7fff, #00d4ff, #5b8cff);
-  --progress-anim:     aurora-shift 5s linear infinite;
+  --progress-track:    rgba(255,255,255,0.07);
+  --progress-gradient: linear-gradient(90deg, rgba(160,180,240,0.65), rgba(212,168,72,0.8), rgba(255,255,255,0.96), rgba(212,168,72,0.8), rgba(160,180,240,0.65));
+  --progress-anim:     aurora-shift 4s linear infinite;
 
-  --scrollbar-thumb:       rgba(91,140,255,0.22);
-  --scrollbar-thumb-hover: rgba(91,140,255,0.42);
+  --scrollbar-thumb:       rgba(255,255,255,0.11);
+  --scrollbar-thumb-hover: rgba(255,255,255,0.22);
 
-  --btn-primary-text:  #fff;
-  --row-hover:         rgba(91,140,255,0.07);
+  --btn-primary-text:  #070709;
+  --row-hover:         rgba(255,255,255,0.03);
+
+  --letter-spacing:    0.012em;
 }
 
 /* ── Academic Minimal (light) ────────────────────────────────────────────────── */

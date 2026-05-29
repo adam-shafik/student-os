@@ -143,19 +143,18 @@ export default function Layout({ currentPage, onNavigate, onSignOut, onStartTuto
         </div>
       </aside>
 
-      {/* Header strip — same material, fills top-right, makes sidebar feel full-width at top */}
+      {/* Header strip */}
       <div style={{
         gridColumn: '2', gridRow: '1',
         background: 'linear-gradient(to right, var(--bg-hover) 0%, var(--bg-overlay) 100%)',
       }} />
 
-      {/* Main content — rounded top-left corner creates concave arc with header strip */}
+      {/* Main content */}
       <main style={{
         gridColumn: '2', gridRow: '2',
         overflow: 'hidden', display: 'flex', flexDirection: 'column',
         borderTop: '1px solid var(--border)',
         borderLeft: '1px solid var(--border)',
-        borderTopLeftRadius: 20,
       }}>
         <div style={{ flex: 1, overflowY: 'auto', height: '100%' }}>
           {children}

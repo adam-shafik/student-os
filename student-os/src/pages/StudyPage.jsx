@@ -396,7 +396,7 @@ function StartSessionModal({ initialDomain, domains, onClose, onStart, isTutoria
         {/* Start button */}
         <button onClick={handleStart} disabled={!topic.trim() || isTutorial} style={{
           background: topic.trim() && !isTutorial ? 'var(--accent-blue)' : 'var(--bg-surface)',
-          color: topic.trim() && !isTutorial ? 'white' : 'var(--text-muted)',
+          color: topic.trim() && !isTutorial ? 'var(--btn-primary-text)' : 'var(--text-muted)',
           border: 'none', borderRadius: 9, padding: '12px',
           cursor: topic.trim() && !isTutorial ? 'pointer' : 'not-allowed',
           fontSize: 14, fontWeight: 600,
@@ -592,7 +592,7 @@ export default function StudyPage({ domains, studySessions, activeSession, onSta
         <h1 style={{ margin: 0, fontSize: 22, fontWeight: 700, color: 'var(--text-primary)' }}>Study Sessions</h1>
         <button data-tutorial-id="study-new-btn" onClick={() => { setModalDomain(null); setShowModal(true) }} style={{
           display: 'flex', alignItems: 'center', gap: 7,
-          background: 'var(--accent-blue)', color: 'white', border: 'none',
+          background: 'var(--accent-blue)', color: 'var(--btn-primary-text)', border: 'none',
           borderRadius: 8, padding: '8px 14px', cursor: 'pointer', fontSize: 13, fontWeight: 600,
         }}>
           <Play size={13} /> New Session

@@ -404,7 +404,7 @@ function NoteLocationPicker({ note, domains, onSave }) {
               </button>
               <button
                 onClick={apply}
-                style={{ padding: '6px 14px', borderRadius: 7, border: 'none', background: 'var(--accent-blue)', color: '#fff', cursor: 'pointer', fontSize: 12, fontWeight: 600 }}
+                style={{ padding: '6px 14px', borderRadius: 7, border: 'none', background: 'var(--accent-blue)', color: 'var(--btn-primary-text)', cursor: 'pointer', fontSize: 12, fontWeight: 600 }}
               >
                 Move
               </button>
@@ -650,7 +650,7 @@ export default function NotesPage({ notes, domains, noteToOpen, onClearNoteToOpe
             style={{
               width: '100%', display: 'flex', alignItems: 'center', gap: 8,
               padding: '9px 12px', borderRadius: 8, border: 'none',
-              background: 'var(--accent-blue)', color: '#fff',
+              background: 'var(--accent-blue)', color: 'var(--btn-primary-text)',
               cursor: 'pointer', fontSize: 13, fontWeight: 600,
               transition: 'opacity 0.12s',
             }}
@@ -836,7 +836,7 @@ export default function NotesPage({ notes, domains, noteToOpen, onClearNoteToOpe
                   style={{
                     display: 'flex', alignItems: 'center', gap: 6, padding: '8px 14px',
                     borderRadius: 8, border: 'none', background: 'var(--accent-blue)',
-                    color: '#fff', cursor: 'pointer', fontSize: 13, fontWeight: 600,
+                    color: 'var(--btn-primary-text)', cursor: 'pointer', fontSize: 13, fontWeight: 600,
                   }}
                 >
                   <Plus size={14} /> New Note
