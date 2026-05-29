@@ -427,6 +427,7 @@ export default function NotesPage({ notes, domains, noteToOpen, onClearNoteToOpe
   const [mainPicker,      setMainPicker]      = useState(false)
   const [pdfBackgrounds,  setPdfBackgrounds]  = useState({}) // { [noteId]: string[] }
   const [isLoadingPdf,    setIsLoadingPdf]    = useState(false)
+  const [pdfError,        setPdfError]        = useState('')
   const pdfInputRef    = useRef()
   const pendingPdfMeta = useRef({})
 
@@ -541,6 +542,7 @@ export default function NotesPage({ notes, domains, noteToOpen, onClearNoteToOpe
     e.target.value = ''
     if (!file) return
     setIsLoadingPdf(true)
+    setPdfError('')
     try {
       const backgrounds = await renderPdfToBackgrounds(file)
       const id = noteId()
@@ -548,7 +550,9 @@ export default function NotesPage({ notes, domains, noteToOpen, onClearNoteToOpe
       await onAddPdfNote(id, file, pendingPdfMeta.current, backgrounds.length)
       setOpenNoteId(id)
     } catch (err) {
-      console.error('PDF import failed:', err)
+      const msg = err?.message || err?.error || String(err) || 'Unknown error'
+      setPdfError(msg)
+      setTimeout(() => setPdfError(''), 15000)
     } finally {
       setIsLoadingPdf(false)
     }
@@ -580,6 +584,22 @@ export default function NotesPage({ notes, domains, noteToOpen, onClearNoteToOpe
           <div style={{ width: 44, height: 44, borderRadius: '50%', border: '3px solid rgba(255,255,255,0.12)', borderTopColor: '#f97316', animation: 'spin 0.8s linear infinite' }} />
           <span style={{ fontSize: 14, color: 'rgba(255,255,255,0.7)', fontWeight: 500 }}>Processing PDF…</span>
           <style>{`@keyframes spin{to{transform:rotate(360deg)}}`}</style>
+        </div>
+      )}
+      {pdfError && (
+        <div
+          onClick={() => setPdfError('')}
+          style={{
+            position: 'fixed', top: 20, left: '50%', transform: 'translateX(-50%)',
+            zIndex: 2001, maxWidth: 480, width: 'calc(100% - 40px)',
+            background: 'rgba(251,113,133,0.15)', border: '1px solid rgba(251,113,133,0.5)',
+            borderRadius: 12, padding: '14px 18px',
+            display: 'flex', flexDirection: 'column', gap: 6, cursor: 'pointer',
+          }}
+        >
+          <span style={{ fontSize: 13, fontWeight: 700, color: '#fb7185' }}>PDF import failed</span>
+          <span style={{ fontSize: 12, color: 'rgba(251,113,133,0.85)', wordBreak: 'break-all', lineHeight: 1.5 }}>{pdfError}</span>
+          <span style={{ fontSize: 11, color: 'rgba(251,113,133,0.5)' }}>Tap to dismiss</span>
         </div>
       )}
 
