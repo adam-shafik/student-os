@@ -909,20 +909,28 @@ function PageCanvas({ page, pageH, pageIdx, totalPages, onStrokesChange, onTrans
       >
         <PageTemplate pageId={page.id} template={template} bgColor={bgColor} lineSpacing={lineSpacing} />
 
-        {displayStrokes.map((s, i) => {
-          const sel = selectedIndices.has(i)
-          const dx  = sel && isMoving ? moveOff.dx : 0
-          const dy  = sel && isMoving ? moveOff.dy : 0
-          const tf  = (dx || dy) ? `translate(${dx},${dy})` : undefined
-          const rc = adaptColor(s.color, bgColor)
-          if (s.shape) return <g key={i} transform={tf}>{renderShape({ ...s, color: rc })}</g>
-          const outline = getStroke(s.points, strokeOpts(s.size, true, s.smoothing ?? 0.5))
-          return (
-            <g key={i} transform={tf}>
-              <path fill={rc} fillOpacity={s.opacity ?? 1} stroke="none" d={toPath(outline)} />
-            </g>
-          )
-        })}
+        {(() => {
+          const indexed = displayStrokes.map((s, i) => ({ s, i }))
+          // Render highlighters first (behind), then all other strokes on top
+          const sorted = [
+            ...indexed.filter(({ s }) => !s.shape && (s.opacity ?? 1) < 1),
+            ...indexed.filter(({ s }) =>  s.shape || (s.opacity ?? 1) >= 1),
+          ]
+          return sorted.map(({ s, i }) => {
+            const sel = selectedIndices.has(i)
+            const dx  = sel && isMoving ? moveOff.dx : 0
+            const dy  = sel && isMoving ? moveOff.dy : 0
+            const tf  = (dx || dy) ? `translate(${dx},${dy})` : undefined
+            const rc  = adaptColor(s.color, bgColor)
+            if (s.shape) return <g key={i} transform={tf}>{renderShape({ ...s, color: rc })}</g>
+            const outline = getStroke(s.points, strokeOpts(s.size, true, s.smoothing ?? 0.5))
+            return (
+              <g key={i} transform={tf}>
+                <path fill={rc} fillOpacity={s.opacity ?? 1} stroke="none" d={toPath(outline)} />
+              </g>
+            )
+          })
+        })()}
 
         {tool === 'select' && selRect && (
           <rect
