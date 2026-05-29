@@ -42,6 +42,10 @@ export default function Layout({ currentPage, onNavigate, onSignOut, onStartTuto
       display: 'flex', height: '100vh',
       background: 'var(--bg-page)',
       backgroundImage: 'var(--bg-body-image)',
+      backgroundSize: 'cover',
+      backgroundPosition: 'center',
+      backgroundRepeat: 'no-repeat',
+      backgroundAttachment: 'fixed',
       overflow: 'hidden',
     }}>
       <aside style={{

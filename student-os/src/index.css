@@ -438,75 +438,58 @@ html.theme-forest {
   --line-height:       1.65;
 }
 
-/* ── Terminal Hacker ─────────────────────────────────────────────────────────── */
-html.theme-terminal {
-  --bg-page:           #020402;
-  --bg-surface:        #050a05;
-  --bg-elevated:       #030703;
-  --bg-hover:          #0a130a;
-  --bg-overlay:        #07100a;
-  --bg-overlay-hover:  #0d190d;
-  --bg-input:          #030703;
-  --bg-body-image:     radial-gradient(ellipse at 50% 0%, rgba(0,180,0,0.06) 0%, transparent 55%),
-                       radial-gradient(ellipse at 100% 100%, rgba(0,120,0,0.04) 0%, transparent 50%);
+/* ── Deep Ocean ──────────────────────────────────────────────────────────────── */
+html.theme-ocean {
+  --bg-page:           #071422;
+  --bg-surface:        #0D2035;
+  --bg-elevated:       #0A1A2C;
+  --bg-hover:          #122A44;
+  --bg-overlay:        #0C1E32;
+  --bg-overlay-hover:  #142C48;
+  --bg-input:          #0A1A2C;
+  --bg-body-image:     radial-gradient(ellipse at 50% -5%, rgba(0,180,220,0.14) 0%, transparent 52%),
+                       radial-gradient(ellipse at 18% 28%, rgba(0,220,200,0.07) 0%, transparent 28%),
+                       radial-gradient(ellipse at 84% 52%, rgba(0,160,230,0.07) 0%, transparent 30%),
+                       radial-gradient(ellipse at 44% 88%, rgba(0,200,180,0.05) 0%, transparent 32%),
+                       radial-gradient(ellipse at 76% 96%, rgba(0,140,210,0.06) 0%, transparent 36%);
 
-  --nav-hover:         rgba(0,220,0,0.06);
-  --nav-active:        rgba(0,220,0,0.11);
+  --nav-hover:         rgba(0,196,214,0.09);
+  --nav-active:        rgba(0,196,214,0.18);
 
-  --border:            rgba(0,200,0,0.18);
-  --border-strong:     rgba(0,200,0,0.32);
-  --border-focus:      rgba(0,255,0,0.58);
+  --border:            rgba(0,196,214,0.13);
+  --border-strong:     rgba(0,196,214,0.24);
+  --border-focus:      rgba(0,220,240,0.62);
 
-  --text-primary:      #b8f0a0;
-  --text-bright:       #a0e080;
-  --text-secondary:    #56a040;
-  --text-muted:        #2c5820;
-  --text-disabled:     #162c10;
+  --text-primary:      #D4EDF8;
+  --text-bright:       #EBF6FF;
+  --text-secondary:    #5A8CA8;
+  --text-muted:        #2C5670;
+  --text-disabled:     #142C40;
 
-  --accent-blue:       #00cc00;
-  --accent-purple:     #88cc00;
-  --accent-amber:      #ffbb00;
-  --accent-green:      #00ff44;
-  --accent-red:        #ff4444;
+  --accent-blue:       #00C4D4;
+  --accent-purple:     #0092C0;
+  --accent-amber:      #38D9C0;
+  --accent-green:      #20E8B0;
+  --accent-red:        #FF607A;
 
-  --shadow-card:       0 8px 24px rgba(0,0,0,0.92), 0 0 0 1px rgba(0,200,0,0.07);
-  --shadow-modal:      0 24px 60px rgba(0,0,0,0.96), 0 0 40px rgba(0,200,0,0.08);
+  --shadow-card:       0 1px 0 rgba(0,196,214,0.13), 0 8px 32px rgba(0,0,0,0.58);
+  --shadow-modal:      0 1px 0 rgba(0,196,214,0.16), 0 24px 64px rgba(0,0,0,0.74);
 
-  --glow-blue:         0 0 20px rgba(0,204,0,0.62), 0 0 50px rgba(0,204,0,0.2);
-  --glow-purple:       0 0 20px rgba(136,204,0,0.5);
-  --glow-green:        0 0 20px rgba(0,255,68,0.62);
-  --glow-red:          0 0 20px rgba(255,68,68,0.52);
-  --glass-blur:        none;
+  --glow-blue:         0 0 22px rgba(0,196,214,0.58), 0 0 58px rgba(0,196,214,0.18);
+  --glow-purple:       0 0 20px rgba(0,146,192,0.52);
+  --glow-green:        0 0 20px rgba(32,232,176,0.48);
+  --glow-red:          0 0 18px rgba(255,96,122,0.44);
+  --glass-blur:        blur(12px);
 
-  --progress-track:    rgba(0,200,0,0.08);
-  --progress-gradient: linear-gradient(90deg, #00cc00, #00ff44, #88cc00, #00cc00);
-  --progress-anim:     aurora-shift 3s linear infinite;
+  --progress-track:    rgba(0,196,214,0.1);
+  --progress-gradient: linear-gradient(90deg, #0092C0, #00C4D4, #20E8B0, #0092C0);
+  --progress-anim:     aurora-shift 5s linear infinite;
 
-  --scrollbar-thumb:       rgba(0,200,0,0.22);
-  --scrollbar-thumb-hover: rgba(0,200,0,0.42);
+  --scrollbar-thumb:       rgba(0,196,214,0.18);
+  --scrollbar-thumb-hover: rgba(0,196,214,0.36);
 
-  --btn-primary-text:  #020402;
-  --row-hover:         rgba(0,200,0,0.04);
-
-  --font-family:       'JetBrains Mono', 'Fira Code', 'Courier New', monospace;
-  --letter-spacing:    0.04em;
-  --line-height:       1.55;
-}
-
-/* terminal scanline overlay */
-html.theme-terminal body::after {
-  content: '';
-  position: fixed;
-  inset: 0;
-  background-image: repeating-linear-gradient(
-    0deg,
-    transparent,
-    transparent 3px,
-    rgba(0, 0, 0, 0.06) 3px,
-    rgba(0, 0, 0, 0.06) 4px
-  );
-  pointer-events: none;
-  z-index: 9999;
+  --btn-primary-text:  #071422;
+  --row-hover:         rgba(0,196,214,0.06);
 }
 
 /* ── Rainy Akatsuki ──────────────────────────────────────────────────────────── */
