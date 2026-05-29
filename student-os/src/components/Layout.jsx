@@ -54,22 +54,18 @@ export default function Layout({ currentPage, onNavigate, onSignOut, onStartTuto
         background: 'var(--wallpaper-overlay, transparent)',
       }} />
     <div style={{
-      display: 'flex', flexDirection: 'column', height: '100vh',
+      display: 'grid',
+      gridTemplateColumns: '228px 1fr',
+      gridTemplateRows: '52px 1fr',
+      height: '100vh',
       background: 'var(--layout-bg)',
       backgroundImage: 'var(--bg-body-image)',
       overflow: 'hidden',
       position: 'relative',
     }}>
-      {/* Top accent bar — spans full width */}
-      <div style={{
-        height: 3, flexShrink: 0,
-        background: 'linear-gradient(to right, var(--accent-blue) 0%, var(--accent-purple) 50%, var(--accent-blue) 100%)',
-        opacity: 0.7,
-      }} />
-
-      <div style={{ display: 'flex', flex: 1, overflow: 'hidden' }}>
+      {/* Sidebar — spans both rows so it's one unbroken element top to bottom */}
       <aside style={{
-        width: 228, flexShrink: 0,
+        gridColumn: '1', gridRow: '1 / 3',
         background: 'linear-gradient(to right, var(--bg-elevated) 0%, var(--bg-overlay) 60%, var(--bg-hover) 100%)',
         borderRight: 'none',
         display: 'flex', flexDirection: 'column',
@@ -147,19 +143,24 @@ export default function Layout({ currentPage, onNavigate, onSignOut, onStartTuto
         </div>
       </aside>
 
-      {/* Accent connector strip */}
+      {/* Header strip — same material, fills top-right, makes sidebar feel full-width at top */}
       <div style={{
-        width: 1, flexShrink: 0,
-        background: 'linear-gradient(to bottom, transparent 0%, var(--border) 8%, var(--accent-blue) 30%, var(--accent-purple) 70%, var(--border) 92%, transparent 100%)',
-        opacity: 0.55,
+        gridColumn: '2', gridRow: '1',
+        background: 'linear-gradient(to right, var(--bg-hover) 0%, var(--bg-overlay) 100%)',
       }} />
 
-      <main style={{ flex: 1, overflow: 'hidden', display: 'flex', flexDirection: 'column' }}>
+      {/* Main content — rounded top-left corner creates concave arc with header strip */}
+      <main style={{
+        gridColumn: '2', gridRow: '2',
+        overflow: 'hidden', display: 'flex', flexDirection: 'column',
+        borderTop: '1px solid var(--border)',
+        borderLeft: '1px solid var(--border)',
+        borderTopLeftRadius: 20,
+      }}>
         <div style={{ flex: 1, overflowY: 'auto', height: '100%' }}>
           {children}
         </div>
       </main>
-      </div>
     </div>
     </>
   )
