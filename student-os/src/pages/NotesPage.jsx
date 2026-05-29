@@ -568,7 +568,7 @@ export default function NotesPage({ notes, domains, noteToOpen, onClearNoteToOpe
         ref={pdfInputRef}
         type="file"
         accept=".pdf,application/pdf"
-        style={{ display: 'none' }}
+        style={{ position: 'fixed', top: -1000, left: -1000, opacity: 0, width: 1, height: 1 }}
         onChange={handlePdfFileSelected}
       />
       {isLoadingPdf && (
