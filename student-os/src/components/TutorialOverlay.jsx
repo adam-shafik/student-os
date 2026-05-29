@@ -94,6 +94,15 @@ function buildSteps(name) {
       tooltipSide: 'bottom-corner',
     },
     {
+      id: 'themes',
+      type: 'center',
+      page: 'domains',
+      targetId: null,
+      title: 'Make StudentOS yours',
+      body: `Head to Settings anytime to switch themes — Space Observatory, Sakura Glass, Deep Ocean, Rainy Akatsuki, and more. Your theme syncs across all your devices so it always feels like home.`,
+      nextLabel: 'Got it',
+    },
+    {
       id: 'done',
       type: 'center',
       page: 'domains',

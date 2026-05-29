@@ -626,6 +626,11 @@ export default function App() {
     setActiveSession(null)
   }
 
+  const handleDeleteSession = (id) => {
+    setStudySessions(prev => prev.filter(s => s.id !== id))
+    supabase.from('study_sessions').delete().eq('id', id).eq('user_id', userId)
+  }
+
   const handlePauseResume = () =>
     setActiveSession(prev => prev ? { ...prev, isRunning: !prev.isRunning } : null)
 
@@ -951,6 +956,7 @@ export default function App() {
           soundEnabled={soundEnabled}
           onToggleSound={() => setSoundEnabled(v => !v)}
           onOpenNote={handleOpenNoteFromSession}
+          onDeleteSession={handleDeleteSession}
           isTutorial={tutorialStep !== null}
         />
       )}

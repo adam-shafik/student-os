@@ -99,9 +99,9 @@ html.theme-space {
 
   --text-primary:      #EEEEF8;
   --text-bright:       #FFFFFF;
-  --text-secondary:    #72729A;
-  --text-muted:        #404058;
-  --text-disabled:     #222230;
+  --text-secondary:    #9898BA;
+  --text-muted:        #686880;
+  --text-disabled:     #303040;
 
   --accent-blue:       #D0DCFF;
   --accent-purple:     #7890D4;
@@ -199,10 +199,10 @@ html.theme-cyberpunk {
   --border-focus:      rgba(0,229,255,0.65);
 
   --text-primary:      #c8f8ff;
-  --text-bright:       #98d8e8;
-  --text-secondary:    #50889a;
-  --text-muted:        #284858;
-  --text-disabled:     #102030;
+  --text-bright:       #e8fdff;
+  --text-secondary:    #7ac8da;
+  --text-muted:        #4a8898;
+  --text-disabled:     #1e4050;
 
   --accent-blue:       #00e5ff;
   --accent-purple:     #ff00aa;
@@ -251,10 +251,10 @@ html.theme-aurora {
   --border-focus:      rgba(100,200,255,0.55);
 
   --text-primary:      #e8eeff;
-  --text-bright:       #c4cce8;
-  --text-secondary:    #7880b0;
-  --text-muted:        #404870;
-  --text-disabled:     #2c3050;
+  --text-bright:       #ffffff;
+  --text-secondary:    #9098c8;
+  --text-muted:        #5c648c;
+  --text-disabled:     #343660;
 
   --accent-blue:       #64c8ff;
   --accent-purple:     #9b7fff;
@@ -303,10 +303,10 @@ html.theme-sakura {
   --border-focus:      rgba(244,114,182,0.62);
 
   --text-primary:      #fdf2f8;
-  --text-bright:       #fce7f3;
-  --text-secondary:    #d8a0c0;
-  --text-muted:        #9d6080;
-  --text-disabled:     #4a2840;
+  --text-bright:       #ffffff;
+  --text-secondary:    #e0aac8;
+  --text-muted:        #b07890;
+  --text-disabled:     #5a3850;
 
   --accent-blue:       #f472b6;
   --accent-purple:     #c084fc;
@@ -359,10 +359,10 @@ html.theme-frost {
   --border-focus:      rgba(147,216,255,0.62);
 
   --text-primary:      #e8f4ff;
-  --text-bright:       #c8e4f8;
-  --text-secondary:    #78b0cc;
-  --text-muted:        #38647c;
-  --text-disabled:     #1a3248;
+  --text-bright:       #ffffff;
+  --text-secondary:    #90c4dc;
+  --text-muted:        #528298;
+  --text-disabled:     #244058;
 
   --accent-blue:       #7dd3fc;
   --accent-purple:     #a5b4fc;
@@ -414,10 +414,10 @@ html.theme-forest {
   --border-focus:      rgba(100,180,100,0.58);
 
   --text-primary:      #e6ede2;
-  --text-bright:       #ccd6c6;
-  --text-secondary:    #7a9470;
-  --text-muted:        #485e40;
-  --text-disabled:     #283820;
+  --text-bright:       #f0f7ec;
+  --text-secondary:    #96b088;
+  --text-muted:        #637852;
+  --text-disabled:     #364828;
 
   --accent-blue:       #6aab6a;
   --accent-purple:     #8cb88c;
@@ -473,9 +473,9 @@ html.theme-ocean {
 
   --text-primary:      #D4EDF8;
   --text-bright:       #EBF6FF;
-  --text-secondary:    #5A8CA8;
-  --text-muted:        #2C5670;
-  --text-disabled:     #142C40;
+  --text-secondary:    #7AAEC8;
+  --text-muted:        #4A7A98;
+  --text-disabled:     #1E4058;
 
   --accent-blue:       #00C4D4;
   --accent-purple:     #0092C0;
@@ -527,9 +527,9 @@ html.theme-akatsuki {
 
   --text-primary:      #EDF2FA;
   --text-bright:       #FFFFFF;
-  --text-secondary:    #7A8BA4;
-  --text-muted:        #435060;
-  --text-disabled:     #272F3E;
+  --text-secondary:    #96A8C0;
+  --text-muted:        #5E7080;
+  --text-disabled:     #303844;
 
   --accent-blue:       #E82525;
   --accent-purple:     #C41C1C;

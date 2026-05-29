@@ -1,7 +1,7 @@
 import { useState } from 'react'
 import {
   Play, Pause, SkipForward, Square, Volume2, VolumeX,
-  Eye, EyeOff, BookOpen, Timer, X, ChevronRight, Pencil, Check, Brain,
+  Eye, EyeOff, BookOpen, Timer, X, ChevronRight, Pencil, Check, Brain, Trash2,
 } from 'lucide-react'
 
 // ─── Audio ─────────────────────────────────────────────────────────────────────
@@ -519,7 +519,8 @@ export function FloatingTimerWidget({ session, domain, onPauseResume, onSkipPhas
 }
 
 // ─── Past session row ─────────────────────────────────────────────────────────
-function SessionRow({ session, domain, onOpenNote }) {
+function SessionRow({ session, domain, onOpenNote, onDelete }) {
+  const [confirming, setConfirming] = useState(false)
   const d       = new Date(session.startedAt)
   const dateStr = d.toLocaleDateString('en-GB', { day: 'numeric', month: 'short' })
   const color   = domain?.color ?? '#5b8cff'
@@ -561,12 +562,39 @@ function SessionRow({ session, domain, onOpenNote }) {
           <BookOpen size={11} /> Note
         </button>
       )}
+      {confirming ? (
+        <div style={{ display: 'flex', alignItems: 'center', gap: 6, flexShrink: 0 }}>
+          <span style={{ fontSize: 11, color: 'var(--text-muted)' }}>Delete?</span>
+          <button onClick={() => onDelete(session.id)} style={{
+            padding: '3px 8px', borderRadius: 5, border: '1px solid rgba(251,113,133,0.4)',
+            background: 'rgba(251,113,133,0.12)', color: '#fb7185',
+            fontSize: 11, fontWeight: 600, cursor: 'pointer',
+          }}>Yes</button>
+          <button onClick={() => setConfirming(false)} style={{
+            padding: '3px 8px', borderRadius: 5, border: '1px solid var(--border)',
+            background: 'none', color: 'var(--text-muted)',
+            fontSize: 11, cursor: 'pointer',
+          }}>No</button>
+        </div>
+      ) : (
+        <button onClick={() => setConfirming(true)} style={{
+          display: 'flex', alignItems: 'center', flexShrink: 0,
+          background: 'none', border: 'none', padding: '4px',
+          borderRadius: 5, cursor: 'pointer', color: 'var(--text-muted)',
+          opacity: 0.5,
+        }}
+          onMouseEnter={e => { e.currentTarget.style.opacity = '1'; e.currentTarget.style.color = '#fb7185' }}
+          onMouseLeave={e => { e.currentTarget.style.opacity = '0.5'; e.currentTarget.style.color = 'var(--text-muted)' }}
+        >
+          <Trash2 size={13} />
+        </button>
+      )}
     </div>
   )
 }
 
 // ─── Main page ────────────────────────────────────────────────────────────────
-export default function StudyPage({ domains, studySessions, activeSession, onStartSession, onEndSession, onPauseResume, onSkipPhase, soundEnabled, onToggleSound, onOpenNote, isTutorial }) {
+export default function StudyPage({ domains, studySessions, activeSession, onStartSession, onEndSession, onPauseResume, onSkipPhase, soundEnabled, onToggleSound, onOpenNote, onDeleteSession, isTutorial }) {
   const [modalDomain, setModalDomain] = useState(null)
   const [showModal,   setShowModal]   = useState(false)
 
@@ -659,6 +687,7 @@ export default function StudyPage({ domains, studySessions, activeSession, onSta
                   session={s}
                   domain={domains.find(d => d.id === s.domainId)}
                   onOpenNote={onOpenNote}
+                  onDelete={onDeleteSession}
                 />
               ))}
             </div>
