@@ -53,6 +53,12 @@ export const THEMES = [
     description: 'Monospace matrix green, scanlines, dev aesthetic',
     preview: ['#00cc00', '#00ff44', '#020402'],
   },
+  {
+    id: 'akatsuki',
+    name: 'Rainy Akatsuki',
+    description: 'Dark slate, crimson accents, rain village atmosphere',
+    preview: ['#DC2626', '#EF4444', '#262B34'],
+  },
 ]
 
 export function getStoredTheme() {

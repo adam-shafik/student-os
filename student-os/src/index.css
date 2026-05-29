@@ -509,6 +509,61 @@ html.theme-terminal body::after {
   z-index: 9999;
 }
 
+/* ── Rainy Akatsuki ──────────────────────────────────────────────────────────── */
+html.theme-akatsuki {
+  --bg-page:           #0E1016;
+  --bg-surface:        #161B24;
+  --bg-elevated:       #121620;
+  --bg-hover:          #1D2332;
+  --bg-overlay:        #141820;
+  --bg-overlay-hover:  #1C2130;
+  --bg-input:          #121620;
+  --bg-body-image:     radial-gradient(ellipse at 82% 0%, rgba(232,37,37,0.2) 0%, transparent 42%),
+                       radial-gradient(ellipse at 55% 0%, rgba(180,20,20,0.1) 0%, transparent 50%),
+                       radial-gradient(ellipse at 100% 55%, rgba(200,30,30,0.08) 0%, transparent 38%),
+                       radial-gradient(ellipse at 12% 95%, rgba(50,70,150,0.09) 0%, transparent 38%),
+                       radial-gradient(ellipse at 40% 100%, rgba(30,40,100,0.06) 0%, transparent 45%);
+
+  --nav-hover:         rgba(232,37,37,0.1);
+  --nav-active:        rgba(232,37,37,0.2);
+
+  --border:            rgba(255,255,255,0.07);
+  --border-strong:     rgba(255,255,255,0.12);
+  --border-focus:      rgba(239,68,68,0.6);
+
+  --text-primary:      #EDF2FA;
+  --text-bright:       #FFFFFF;
+  --text-secondary:    #7A8BA4;
+  --text-muted:        #435060;
+  --text-disabled:     #272F3E;
+
+  --accent-blue:       #E82525;
+  --accent-purple:     #C41C1C;
+  --accent-amber:      #F59E0B;
+  --accent-green:      #34D399;
+  --accent-red:        #FF3B3B;
+
+  /* top-edge highlight gives cards a lit, dimensional feel */
+  --shadow-card:       0 1px 0 rgba(255,255,255,0.08), 0 8px 32px rgba(0,0,0,0.6);
+  --shadow-modal:      0 1px 0 rgba(255,255,255,0.1), 0 24px 64px rgba(0,0,0,0.75);
+
+  --glow-blue:         0 0 24px rgba(232,37,37,0.58), 0 0 60px rgba(232,37,37,0.18);
+  --glow-purple:       0 0 20px rgba(196,28,28,0.52);
+  --glow-green:        0 0 18px rgba(52,211,153,0.36);
+  --glow-red:          0 0 18px rgba(255,59,59,0.48);
+  --glass-blur:        blur(12px);
+
+  --progress-track:    rgba(255,255,255,0.06);
+  --progress-gradient: linear-gradient(90deg, #C41C1C, #E82525, #FF3B3B, #C41C1C);
+  --progress-anim:     aurora-shift 4s linear infinite;
+
+  --scrollbar-thumb:       rgba(255,255,255,0.1);
+  --scrollbar-thumb-hover: rgba(255,255,255,0.18);
+
+  --btn-primary-text:  #fff;
+  --row-hover:         rgba(232,37,37,0.07);
+}
+
 /* ── Global resets ───────────────────────────────────────────────────────────── */
 * { box-sizing: border-box; }
 

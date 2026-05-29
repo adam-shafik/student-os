@@ -41,6 +41,9 @@ export default function App() {
   const handleThemeChange = (id) => {
     setTheme(id)
     applyTheme(id)
+    if (userId) {
+      supabase.from('user_preferences').upsert({ user_id: userId, theme: id }, { onConflict: 'user_id' })
+    }
   }
 
   const [currentPage,    setCurrentPage]    = useState('domains')
@@ -154,8 +157,15 @@ export default function App() {
         if (data) setCancelledEventIds(new Set(data.map(r => r.event_id)))
       })
 
-    supabase.from('user_preferences').select('event_type_colors').eq('user_id', userId).maybeSingle()
-      .then(({ data }) => { if (data?.event_type_colors) setEventTypeColors(data.event_type_colors) })
+    supabase.from('user_preferences').select('event_type_colors, theme').eq('user_id', userId).maybeSingle()
+      .then(({ data }) => {
+        if (data?.event_type_colors) setEventTypeColors(data.event_type_colors)
+        if (data?.theme) {
+          setTheme(data.theme)
+          applyTheme(data.theme)
+          try { localStorage.setItem('sos-theme', data.theme) } catch {}
+        }
+      })
 
     supabase.from('event_notes').select('*').eq('user_id', userId)
       .then(({ data }) => {
