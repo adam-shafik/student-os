@@ -640,7 +640,7 @@ export default function NotesPage({ notes, domains, noteToOpen, onClearNoteToOpe
       {/* Sidebar */}
       <aside style={{
         width: 220, flexShrink: 0, borderRight: '1px solid var(--border)',
-        background: 'var(--bg-elevated)', display: 'flex', flexDirection: 'column',
+        background: 'linear-gradient(to right, var(--bg-elevated) 0%, var(--bg-overlay) 60%, var(--bg-hover) 100%)', display: 'flex', flexDirection: 'column',
         overflow: 'hidden',
       }}>
         <div style={{ padding: '16px 10px 10px', position: 'relative' }}>

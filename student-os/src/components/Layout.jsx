@@ -38,20 +38,40 @@ function NavBtn({ id, label, Icon, isActive, onClick }) {
 
 export default function Layout({ currentPage, onNavigate, onSignOut, onStartTutorial, children }) {
   return (
+    <>
+      {/* Wallpaper photo layer — blurred, behind everything */}
+      <div style={{
+        position: 'fixed', inset: 0, pointerEvents: 'none',
+        backgroundImage: 'var(--bg-wallpaper-photo, none)',
+        backgroundSize: 'cover', backgroundPosition: 'center',
+        filter: 'blur(var(--wallpaper-blur, 0px))',
+        transform: 'scale(1.1)',
+        opacity: 'var(--wallpaper-opacity, 1)',
+      }} />
+      {/* Color overlay — darkens/tints the photo, no blur */}
+      <div style={{
+        position: 'fixed', inset: 0, pointerEvents: 'none',
+        background: 'var(--wallpaper-overlay, transparent)',
+      }} />
     <div style={{
-      display: 'flex', height: '100vh',
-      background: 'var(--bg-page)',
+      display: 'flex', flexDirection: 'column', height: '100vh',
+      background: 'var(--layout-bg)',
       backgroundImage: 'var(--bg-body-image)',
-      backgroundSize: 'cover',
-      backgroundPosition: 'center',
-      backgroundRepeat: 'no-repeat',
-      backgroundAttachment: 'fixed',
       overflow: 'hidden',
+      position: 'relative',
     }}>
+      {/* Top accent bar — spans full width */}
+      <div style={{
+        height: 3, flexShrink: 0,
+        background: 'linear-gradient(to right, var(--accent-blue) 0%, var(--accent-purple) 50%, var(--accent-blue) 100%)',
+        opacity: 0.7,
+      }} />
+
+      <div style={{ display: 'flex', flex: 1, overflow: 'hidden' }}>
       <aside style={{
         width: 228, flexShrink: 0,
-        background: 'var(--bg-elevated)',
-        borderRight: '1px solid var(--border)',
+        background: 'linear-gradient(to right, var(--bg-elevated) 0%, var(--bg-overlay) 60%, var(--bg-hover) 100%)',
+        borderRight: 'none',
         display: 'flex', flexDirection: 'column',
         padding: '20px 10px',
       }}>
@@ -127,11 +147,20 @@ export default function Layout({ currentPage, onNavigate, onSignOut, onStartTuto
         </div>
       </aside>
 
+      {/* Accent connector strip */}
+      <div style={{
+        width: 1, flexShrink: 0,
+        background: 'linear-gradient(to bottom, transparent 0%, var(--border) 8%, var(--accent-blue) 30%, var(--accent-purple) 70%, var(--border) 92%, transparent 100%)',
+        opacity: 0.55,
+      }} />
+
       <main style={{ flex: 1, overflow: 'hidden', display: 'flex', flexDirection: 'column' }}>
         <div style={{ flex: 1, overflowY: 'auto', height: '100%' }}>
           {children}
         </div>
       </main>
+      </div>
     </div>
+    </>
   )
 }
