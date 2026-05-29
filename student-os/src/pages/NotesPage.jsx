@@ -1,7 +1,7 @@
 import { useState, useMemo, useEffect, useRef } from 'react'
 import {
   PenLine, Plus, Trash2, ChevronRight, ChevronDown,
-  BookOpen, FolderOpen, Folder, Pencil, Check, X, MapPin, Save, Type, FileText,
+  BookOpen, FolderOpen, Folder, Pencil, Check, X, MapPin, Type, FileText,
 } from 'lucide-react'
 import NoteCanvas from '../components/NoteCanvas'
 import { totalTeachingWeeks } from '../utils/semester'
@@ -428,8 +428,10 @@ export default function NotesPage({ notes, domains, noteToOpen, onClearNoteToOpe
   const [pdfBackgrounds,  setPdfBackgrounds]  = useState({}) // { [noteId]: string[] }
   const [isLoadingPdf,    setIsLoadingPdf]    = useState(false)
   const [pdfError,        setPdfError]        = useState('')
-  const pdfInputRef    = useRef()
-  const pendingPdfMeta = useRef({})
+  const pdfInputRef        = useRef()
+  const pendingPdfMeta     = useRef({})
+  const autoSaveTimerRef   = useRef(null)
+  const openNoteBaseline   = useRef(null) // { id, updatedAt } at the moment the note was opened
 
   async function handleSave(noteId) {
     setSaveState('saving')
@@ -454,6 +456,29 @@ export default function NotesPage({ notes, domains, noteToOpen, onClearNoteToOpe
   }, [noteToOpen])
 
   const openNote = (notes || []).find(n => n.id === openNoteId)
+
+  // Store baseline updatedAt when a note is opened so we know if it has been edited
+  useEffect(() => {
+    clearTimeout(autoSaveTimerRef.current)
+    setSaveState('idle')
+    setSaveError('')
+    if (openNote) {
+      openNoteBaseline.current = { id: openNote.id, updatedAt: openNote.updatedAt }
+    } else {
+      openNoteBaseline.current = null
+    }
+  }, [openNoteId]) // eslint-disable-line react-hooks/exhaustive-deps
+
+  // Debounced autosave — fires 3s after any content change
+  useEffect(() => {
+    if (!openNote) return
+    const baseline = openNoteBaseline.current
+    if (!baseline || baseline.id !== openNote.id || openNote.updatedAt === baseline.updatedAt) return
+    clearTimeout(autoSaveTimerRef.current)
+    setSaveState('idle') // clear any stale 'saved' flash while user is still editing
+    autoSaveTimerRef.current = setTimeout(() => handleSave(openNote.id), 3000)
+    return () => clearTimeout(autoSaveTimerRef.current)
+  }, [openNote?.updatedAt]) // eslint-disable-line react-hooks/exhaustive-deps
 
   // Load PDF backgrounds when switching to a PDF note that hasn't been rendered yet
   useEffect(() => {
@@ -499,9 +524,18 @@ export default function NotesPage({ notes, domains, noteToOpen, onClearNoteToOpe
     }).sort((a, b) => (b.updatedAt > a.updatedAt ? 1 : -1))
   }, [notes, selectedFolder])
 
+  function closeNote() {
+    clearTimeout(autoSaveTimerRef.current)
+    const baseline = openNoteBaseline.current
+    if (openNote && baseline && openNote.updatedAt !== baseline.updatedAt) {
+      handleSave(openNote.id) // fire-and-forget background save
+    }
+    setOpenNoteId(null)
+  }
+
   function selectFolder(f) {
     setSelectedFolder(f)
-    setOpenNoteId(null)
+    closeNote()
   }
 
   function createNote(meta = {}, type = 'handwritten') {
@@ -703,7 +737,7 @@ export default function NotesPage({ notes, domains, noteToOpen, onClearNoteToOpe
               background: 'var(--bg-surface)',
             }}>
               <button
-                onClick={() => setOpenNoteId(null)}
+                onClick={closeNote}
                 style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--text-secondary)', display: 'flex', padding: 4, borderRadius: 6 }}
                 onMouseEnter={e => e.currentTarget.style.color = 'var(--text-primary)'}
                 onMouseLeave={e => e.currentTarget.style.color = 'var(--text-secondary)'}
@@ -727,27 +761,17 @@ export default function NotesPage({ notes, domains, noteToOpen, onClearNoteToOpe
                 <span style={{ fontSize: 11, color: 'var(--text-muted)' }}>
                   {fmt(openNote.updatedAt)}
                 </span>
-                <button
-                  onClick={() => handleSave(openNote.id)}
-                  disabled={saveState === 'saving'}
-                  style={{
-                    display: 'flex', alignItems: 'center', gap: 5, padding: '5px 12px',
-                    borderRadius: 7, border: 'none', cursor: saveState === 'saving' ? 'not-allowed' : 'pointer',
-                    fontSize: 12, fontWeight: 600,
-                    background: saveState === 'saved' ? 'rgba(52,211,153,0.15)' : saveState === 'error' ? 'rgba(251,113,133,0.15)' : 'var(--accent-blue)',
-                    color: saveState === 'saved' ? 'var(--accent-green)' : saveState === 'error' ? 'var(--accent-red)' : '#fff',
-                    transition: 'background 0.2s, color 0.2s',
-                    opacity: saveState === 'saving' ? 0.6 : 1,
-                  }}
-                >
-                  {saveState === 'saved'  ? <><Check size={12} /> Saved</>
-                  : saveState === 'error' ? <><X size={12} /> Failed</>
-                  : <><Save size={12} /> {saveState === 'saving' ? 'Saving…' : 'Save'}</>}
-                </button>
+                <span style={{
+                  fontSize: 11, minWidth: 52,
+                  color: saveState === 'saved' ? 'var(--accent-green)' : saveState === 'error' ? 'var(--accent-red)' : 'var(--text-muted)',
+                  transition: 'color 0.2s',
+                }}>
+                  {saveState === 'saving' ? 'Saving…' : saveState === 'saved' ? <><Check size={11} style={{ verticalAlign: 'middle', marginRight: 3 }} />Saved</> : saveState === 'error' ? 'Save failed' : ''}
+                </span>
                 {confirmDelNote ? (
                   <div style={{ display: 'flex', gap: 6 }}>
                     <button onClick={() => setConfirmDelNote(false)} style={{ padding: '5px 10px', borderRadius: 7, border: '1px solid var(--border-strong)', background: 'transparent', color: 'var(--text-muted)', fontSize: 12, cursor: 'pointer', fontFamily: 'inherit' }}>Cancel</button>
-                    <button onClick={() => { onDeleteNote(openNote.id); setOpenNoteId(null); setConfirmDelNote(false) }} style={{ display: 'flex', alignItems: 'center', gap: 5, padding: '5px 10px', borderRadius: 7, border: '1px solid rgba(251,113,133,0.4)', background: 'rgba(251,113,133,0.14)', color: '#fb7185', fontSize: 12, fontWeight: 600, cursor: 'pointer', fontFamily: 'inherit' }}>Delete</button>
+                    <button onClick={() => { clearTimeout(autoSaveTimerRef.current); onDeleteNote(openNote.id); setOpenNoteId(null); setConfirmDelNote(false) }} style={{ display: 'flex', alignItems: 'center', gap: 5, padding: '5px 10px', borderRadius: 7, border: '1px solid rgba(251,113,133,0.4)', background: 'rgba(251,113,133,0.14)', color: '#fb7185', fontSize: 12, fontWeight: 600, cursor: 'pointer', fontFamily: 'inherit' }}>Delete</button>
                   </div>
                 ) : (
                   <button onClick={() => setConfirmDelNote(true)} style={{ display: 'flex', alignItems: 'center', gap: 5, padding: '5px 10px', borderRadius: 7, border: '1px solid var(--border)', background: 'none', color: 'var(--accent-red)', cursor: 'pointer', fontSize: 12 }}>
