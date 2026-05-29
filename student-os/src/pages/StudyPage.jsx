@@ -289,7 +289,7 @@ function StartSessionModal({ initialDomain, domains, onClose, onStart, isTutoria
           <label style={sectionLabel}>Domain</label>
           <select value={domainId} onChange={e => setDomainId(e.target.value)} style={inp}>
             <option value="">— General (no domain) —</option>
-            {domains.map(d => (
+            {domains.filter(d => !d.isPast).map(d => (
               <option key={d.id} value={d.id}>{d.code ? `${d.code} · ` : ''}{d.name}</option>
             ))}
           </select>
@@ -606,7 +606,8 @@ export default function StudyPage({ domains, studySessions, activeSession, onSta
             Start from a domain
           </div>
           <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(190px, 1fr))', gap: 10 }}>
-            {domains.map(domain => {
+            {domains.filter(d => !d.isPast).map(domain => {
+
               const count = studySessions.filter(s => s.domainId === domain.id).length
               return (
                 <button
@@ -648,7 +649,7 @@ export default function StudyPage({ domains, studySessions, activeSession, onSta
               Recent Sessions
             </div>
             <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
-              {studySessions.slice(0, 12).map(s => (
+              {studySessions.filter(d => !d.isPast).slice(0, 12).map(s => (
                 <SessionRow
                   key={s.id}
                   session={s}
