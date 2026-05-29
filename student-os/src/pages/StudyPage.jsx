@@ -568,12 +568,12 @@ function SessionRow({ session, domain, onOpenNote, onDelete }) {
           <button onClick={() => onDelete(session.id)} style={{
             padding: '3px 8px', borderRadius: 5, border: '1px solid rgba(251,113,133,0.4)',
             background: 'rgba(251,113,133,0.12)', color: '#fb7185',
-            fontSize: 11, fontWeight: 600, cursor: 'pointer',
+            fontSize: 11, fontWeight: 600, cursor: 'pointer', fontFamily: 'inherit',
           }}>Yes</button>
           <button onClick={() => setConfirming(false)} style={{
             padding: '3px 8px', borderRadius: 5, border: '1px solid var(--border)',
             background: 'none', color: 'var(--text-muted)',
-            fontSize: 11, cursor: 'pointer',
+            fontSize: 11, cursor: 'pointer', fontFamily: 'inherit',
           }}>No</button>
         </div>
       ) : (

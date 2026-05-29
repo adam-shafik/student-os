@@ -626,9 +626,10 @@ export default function App() {
     setActiveSession(null)
   }
 
-  const handleDeleteSession = (id) => {
+  const handleDeleteSession = async (id) => {
     setStudySessions(prev => prev.filter(s => s.id !== id))
-    supabase.from('study_sessions').delete().eq('id', id).eq('user_id', userId)
+    const { error } = await supabase.from('study_sessions').delete().eq('id', id).eq('user_id', userId)
+    if (error) console.error('delete session failed:', error.message)
   }
 
   const handlePauseResume = () =>
