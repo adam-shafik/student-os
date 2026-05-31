@@ -45,42 +45,13 @@ export default function App() {
     return () => subscription.unsubscribe()
   }, [])
 
-  // Capture share-incoming flag before auth redirects change the URL
+  // Capture share-incoming flag before auth redirects change the URL (no userId needed)
   useEffect(() => {
     if (window.location.search.includes('share-incoming=1')) {
       sessionStorage.setItem('pendingShare', '1')
       window.history.replaceState({}, '', window.location.pathname)
     }
   }, [])
-
-  // Once logged in, process any pending shared PDF
-  useEffect(() => {
-    if (!userId) return
-    if (!sessionStorage.getItem('pendingShare')) return
-    sessionStorage.removeItem('pendingShare');
-    (async () => {
-      try {
-        const db = await openShareDb()
-        const pending = await new Promise((resolve, reject) => {
-          const tx = db.transaction('shares', 'readwrite')
-          const store = tx.objectStore('shares')
-          const get = store.get('pending')
-          get.onsuccess = () => { store.delete('pending'); resolve(get.result) }
-          get.onerror = reject
-        })
-        if (!pending) return
-        const { getPdfPageCount } = await import('./utils/pdf.js')
-        const file = new File([pending.blob], pending.name, { type: 'application/pdf' })
-        const pageCount = await getPdfPageCount(file)
-        const newId = crypto.randomUUID()
-        await handleAddPdfNote(newId, file, {}, pageCount)
-        setNoteToOpen(newId)
-        setCurrentPage('notes')
-      } catch (err) {
-        console.error('Failed to import shared PDF:', err)
-      }
-    })()
-  }, [userId]) // eslint-disable-line react-hooks/exhaustive-deps
 
   const [theme, setTheme] = useState(getStoredTheme)
   useEffect(() => { applyTheme(theme) }, [])
@@ -783,6 +754,35 @@ export default function App() {
       )
     }
   }
+
+  // Once logged in, process any PDF shared via the Web Share Target
+  useEffect(() => {
+    if (!userId) return
+    if (!sessionStorage.getItem('pendingShare')) return
+    sessionStorage.removeItem('pendingShare');
+    (async () => {
+      try {
+        const db = await openShareDb()
+        const pending = await new Promise((resolve, reject) => {
+          const tx = db.transaction('shares', 'readwrite')
+          const store = tx.objectStore('shares')
+          const get = store.get('pending')
+          get.onsuccess = () => { store.delete('pending'); resolve(get.result) }
+          get.onerror = reject
+        })
+        if (!pending) return
+        const { getPdfPageCount } = await import('./utils/pdf.js')
+        const file = new File([pending.blob], pending.name, { type: 'application/pdf' })
+        const pageCount = await getPdfPageCount(file)
+        const newId = crypto.randomUUID()
+        await handleAddPdfNote(newId, file, {}, pageCount)
+        setNoteToOpen(newId)
+        setCurrentPage('notes')
+      } catch (err) {
+        console.error('Failed to import shared PDF:', err)
+      }
+    })()
+  }, [userId]) // eslint-disable-line react-hooks/exhaustive-deps
 
   const handleGetSignedPdfUrl = async (storagePath) => {
     const { data, error } = await supabase.storage.from('pdfs').createSignedUrl(storagePath, 3600)
