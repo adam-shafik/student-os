@@ -1,10 +1,10 @@
-import { useState, useRef, useEffect } from 'react'
+import { useState, useRef, useEffect, useLayoutEffect } from 'react'
 import {
-  ArrowLeft, User, Award, BookOpen, FileText, FlaskConical,
+  ArrowLeft, User, Award, FileText,
   GraduationCap, CheckCircle2, Clock, ChevronDown,
   ChevronRight, StickyNote, Calendar, MapPin, TrendingUp,
   AlertCircle, ExternalLink, Tag, PenLine, Pencil, X,
-  Plus, Trash2, Edit2, Check, BarChart2, Layers, Archive, BarChart, MoreVertical,
+  Plus, Trash2, Edit2, Check, BarChart2,
 } from 'lucide-react'
 import { DOMAIN_CATEGORIES, DOMAIN_COLORS, DOMAIN_ICON_GROUPS, getDomainIcon } from '../data/domains'
 import { EVENT_TYPES, resolveTypeLabel, resolveTypeColor } from '../utils/calendarEvents'
@@ -39,15 +39,6 @@ function Stat({ label, value, color }) {
   )
 }
 
-function ClickableRow({ onClick, children, style }) {
-  const [hovered, setHovered] = useState(false)
-  return (
-    <div onClick={onClick} onMouseEnter={() => setHovered(true)} onMouseLeave={() => setHovered(false)}
-      style={{ cursor: 'pointer', background: hovered ? 'var(--row-hover)' : 'transparent', transition: 'background 0.12s', ...style }}>
-      {children}
-    </div>
-  )
-}
 
 function EventRow({ event, isLast, onClick }) {
   const [hovered, setHovered] = useState(false)
@@ -1041,8 +1032,18 @@ export default function DomainDetailPage({
   const [activeTab, setActiveTab] = useState('Overview')
   const [openEvent, setOpenEvent] = useState(null)
   const [showEdit,  setShowEdit]  = useState(false)
-  const [showMenu,  setShowMenu]  = useState(false)
-  const menuRef = useRef()
+  const tabBarRef  = useRef()
+  const tabBtnRefs = useRef({})
+  const [pillStyle, setPillStyle] = useState({ width: 0, left: 0, ready: false })
+
+  useLayoutEffect(() => {
+    const btn = tabBtnRefs.current[activeTab]
+    const bar = tabBarRef.current
+    if (!btn || !bar) return
+    const bRect = btn.getBoundingClientRect()
+    const cRect = bar.getBoundingClientRect()
+    setPillStyle(prev => ({ width: bRect.width, left: bRect.left - cRect.left, ready: prev.ready || true }))
+  }, [activeTab])
 
   const _today = new Date()
   const _schedEvs = domainEvents.filter(e => e.type !== 'exam' && e.type !== 'assignment')
@@ -1112,15 +1113,27 @@ export default function DomainDetailPage({
       </div>
 
       {/* Tab bar */}
-      <div data-tutorial-id="domain-detail-tabs" style={{ display: 'flex', gap: 4, marginBottom: 20, background: 'var(--bg-surface)', border: '1px solid var(--border)', borderRadius: 10, padding: 4 }}>
+      <div data-tutorial-id="domain-detail-tabs" ref={tabBarRef} style={{ position: 'relative', display: 'flex', gap: 4, marginBottom: 20, background: 'var(--bg-surface)', border: '1px solid var(--border)', borderRadius: 10, padding: 4 }}>
+        <div style={{
+          position: 'absolute', top: 4, height: 'calc(100% - 8px)',
+          left: pillStyle.left, width: pillStyle.width,
+          background: 'var(--nav-active)', borderRadius: 7,
+          transition: pillStyle.ready ? 'left 0.28s cubic-bezier(0.32, 0.72, 0, 1), width 0.28s cubic-bezier(0.32, 0.72, 0, 1)' : 'none',
+          pointerEvents: 'none',
+        }} />
         {TABS.map(tab => (
-          <button key={tab} onClick={() => setActiveTab(tab)} style={{
-            flex: 1, padding: '8px 12px', borderRadius: 7, border: 'none', cursor: 'pointer',
-            fontSize: 13, fontWeight: activeTab === tab ? 600 : 400,
-            background: activeTab === tab ? 'var(--nav-active)' : 'transparent',
-            color: activeTab === tab ? domain.color : 'var(--text-secondary)',
-            transition: 'all 0.15s ease',
-          }}
+          <button
+            key={tab}
+            ref={el => { if (el) tabBtnRefs.current[tab] = el; else delete tabBtnRefs.current[tab] }}
+            onClick={() => setActiveTab(tab)}
+            style={{
+              flex: 1, padding: '8px 12px', borderRadius: 7, border: 'none', cursor: 'pointer',
+              fontSize: 13, fontWeight: activeTab === tab ? 600 : 400,
+              background: 'transparent',
+              color: activeTab === tab ? domain.color : 'var(--text-secondary)',
+              transition: 'color 0.2s ease, font-weight 0.2s ease',
+              position: 'relative', zIndex: 1,
+            }}
             onMouseEnter={e => { if (activeTab !== tab) e.currentTarget.style.color = 'var(--text-bright)' }}
             onMouseLeave={e => { if (activeTab !== tab) e.currentTarget.style.color = 'var(--text-secondary)' }}>
             {tab}

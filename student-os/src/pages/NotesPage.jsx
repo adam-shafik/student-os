@@ -1,7 +1,7 @@
 import { useState, useMemo, useEffect, useRef } from 'react'
 import {
   PenLine, Plus, Trash2, ChevronRight, ChevronDown,
-  BookOpen, FolderOpen, Folder, Pencil, Check, X, MapPin, Type, FileText,
+  BookOpen, FolderOpen, Folder, Pencil, Check, X, MapPin, Type, FileText, Share2,
 } from 'lucide-react'
 import NoteCanvas from '../components/NoteCanvas'
 import { totalTeachingWeeks } from '../utils/semester'
@@ -428,10 +428,12 @@ export default function NotesPage({ notes, domains, noteToOpen, onClearNoteToOpe
   const [pdfBackgrounds,  setPdfBackgrounds]  = useState({}) // { [noteId]: string[] }
   const [isLoadingPdf,    setIsLoadingPdf]    = useState(false)
   const [pdfError,        setPdfError]        = useState('')
+  const [sharing,          setSharing]          = useState(false)
   const pdfInputRef        = useRef()
   const pendingPdfMeta     = useRef({})
   const autoSaveTimerRef   = useRef(null)
-  const openNoteBaseline   = useRef(null) // { id, updatedAt } at the moment the note was opened
+  const openNoteBaseline   = useRef(null)
+  const canvasRef          = useRef()
 
   async function handleSave(noteId) {
     setSaveState('saving')
@@ -445,6 +447,53 @@ export default function NotesPage({ notes, domains, noteToOpen, onClearNoteToOpe
       setSaveError(msg)
       setSaveState('error')
       setTimeout(() => { setSaveState('idle'); setSaveError('') }, 10000)
+    }
+  }
+
+  async function handleShare() {
+    if (!openNote || sharing) return
+    setSharing(true)
+    try {
+      if (openNote.type === 'typed') {
+        const file = new File([openNote.content || ''], `${openNote.title || 'Note'}.txt`, { type: 'text/plain' })
+        if (navigator.canShare?.({ files: [file] })) {
+          await navigator.share({ files: [file], title: openNote.title })
+        } else {
+          const url = URL.createObjectURL(file)
+          Object.assign(document.createElement('a'), { href: url, download: file.name }).click()
+          URL.revokeObjectURL(url)
+        }
+      } else if (openNote.type === 'pdf' && openNote.pdfStoragePath) {
+        const signedUrl = await onGetSignedPdfUrl(openNote.pdfStoragePath)
+        if (signedUrl) {
+          const res = await fetch(signedUrl)
+          const blob = await res.blob()
+          const file = new File([blob], `${openNote.title || 'Note'}.pdf`, { type: 'application/pdf' })
+          if (navigator.canShare?.({ files: [file] })) {
+            await navigator.share({ files: [file], title: openNote.title })
+          } else {
+            const url = URL.createObjectURL(file)
+            Object.assign(document.createElement('a'), { href: url, download: file.name }).click()
+            URL.revokeObjectURL(url)
+          }
+        }
+      } else if (openNote.type === 'handwritten' && canvasRef.current) {
+        const pdfBlob = await canvasRef.current.exportAsPdf()
+        if (pdfBlob) {
+          const file = new File([pdfBlob], `${openNote.title || 'Note'}.pdf`, { type: 'application/pdf' })
+          if (navigator.canShare?.({ files: [file] })) {
+            await navigator.share({ files: [file], title: openNote.title })
+          } else {
+            const url = URL.createObjectURL(file)
+            Object.assign(document.createElement('a'), { href: url, download: file.name }).click()
+            URL.revokeObjectURL(url)
+          }
+        }
+      }
+    } catch (e) {
+      if (e?.name !== 'AbortError') console.error('Share failed:', e)
+    } finally {
+      setSharing(false)
     }
   }
 
@@ -768,6 +817,15 @@ export default function NotesPage({ notes, domains, noteToOpen, onClearNoteToOpe
                 }}>
                   {saveState === 'saving' ? 'Saving…' : saveState === 'saved' ? <><Check size={11} style={{ verticalAlign: 'middle', marginRight: 3 }} />Saved</> : saveState === 'error' ? 'Save failed' : ''}
                 </span>
+                <button
+                  onClick={handleShare}
+                  disabled={sharing}
+                  style={{ display: 'flex', alignItems: 'center', gap: 5, padding: '5px 10px', borderRadius: 7, border: '1px solid var(--border)', background: 'none', color: sharing ? 'var(--text-muted)' : 'var(--text-secondary)', cursor: sharing ? 'default' : 'pointer', fontSize: 12, fontFamily: 'inherit' }}
+                  onMouseEnter={e => { if (!sharing) e.currentTarget.style.color = 'var(--accent-blue)' }}
+                  onMouseLeave={e => { e.currentTarget.style.color = sharing ? 'var(--text-muted)' : 'var(--text-secondary)' }}
+                >
+                  <Share2 size={12} /> {sharing ? 'Exporting…' : 'Share'}
+                </button>
                 {confirmDelNote ? (
                   <div style={{ display: 'flex', gap: 6 }}>
                     <button onClick={() => setConfirmDelNote(false)} style={{ padding: '5px 10px', borderRadius: 7, border: '1px solid var(--border-strong)', background: 'transparent', color: 'var(--text-muted)', fontSize: 12, cursor: 'pointer', fontFamily: 'inherit' }}>Cancel</button>
@@ -801,6 +859,7 @@ export default function NotesPage({ notes, domains, noteToOpen, onClearNoteToOpe
                 />
               ) : (
                 <NoteCanvas
+                  ref={canvasRef}
                   pages={openNote.pages || [{ id: 'page-legacy', strokes: [] }]}
                   onPagesChange={pages => onUpdateNote(openNote.id, { pages })}
                   template={openNote.template || 'blank'}

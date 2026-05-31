@@ -1,4 +1,4 @@
-import { useRef, useState, useEffect } from 'react'
+import { useRef, useState, useEffect, forwardRef, useImperativeHandle } from 'react'
 import { getStroke } from 'perfect-freehand'
 import {
   Undo2, Trash2, PenLine, Highlighter, Shapes, MousePointer2, Eraser,
@@ -235,7 +235,7 @@ function PageTemplate({ pageId, template, bgColor, lineSpacing }) {
 }
 
 // ─── Single page canvas ────────────────────────────────────────────────────────
-function PageCanvas({ page, pageH, pageIdx, totalPages, onStrokesChange, onTransferStrokes, penColor, penSize, tool, shapeType, opacity, smoothness, template, bgColor, lineSpacing, eraserMode, eraserRadius, readonly, onUndo, clipboard, onCopy, pageBackground }) {
+function PageCanvas({ page, pageH, maxW, pageIdx, totalPages, onStrokesChange, onTransferStrokes, penColor, penSize, tool, shapeType, opacity, smoothness, template, bgColor, lineSpacing, eraserMode, eraserRadius, readonly, onUndo, clipboard, onCopy, pageBackground }) {
   const svgRef        = useRef()
   const livePathRef   = useRef(null)
   const liveShapeRef  = useRef(null)
@@ -281,8 +281,11 @@ function PageCanvas({ page, pageH, pageIdx, totalPages, onStrokesChange, onTrans
     let stylusId = null // active Apple Pencil touch identifier
 
     function svgPt(touch) {
-      const r = svg.getBoundingClientRect()
-      return [touch.clientX - r.left, touch.clientY - r.top, touch.force || 0.5]
+      const r  = svg.getBoundingClientRect()
+      const vb = svg.viewBox.baseVal
+      const sx = vb.width / r.width
+      const sy = vb.height / r.height
+      return [(touch.clientX - r.left) * sx, (touch.clientY - r.top) * sy, touch.force || 0.5]
     }
 
     function finishStylusStroke() {
@@ -546,8 +549,11 @@ function PageCanvas({ page, pageH, pageIdx, totalPages, onStrokesChange, onTrans
   }
 
   function getPoint(e) {
-    const r = svgRef.current.getBoundingClientRect()
-    return [e.clientX - r.left, e.clientY - r.top, e.pressure || 0.5]
+    const r  = svgRef.current.getBoundingClientRect()
+    const vb = svgRef.current.viewBox.baseVal
+    const sx = vb.width / r.width
+    const sy = vb.height / r.height
+    return [(e.clientX - r.left) * sx, (e.clientY - r.top) * sy, e.pressure || 0.5]
   }
 
   function clearLiveShape() {
@@ -898,8 +904,10 @@ function PageCanvas({ page, pageH, pageIdx, totalPages, onStrokesChange, onTrans
 
       <svg
         ref={svgRef}
+        data-page={page.id}
+        viewBox={`0 0 ${maxW} ${pageH}`}
         tabIndex={tool === 'select' && !readonly ? 0 : undefined}
-        style={{ width: '100%', height: pageH, display: 'block', touchAction: 'pan-y', cursor, outline: 'none' }}
+        style={{ width: '100%', height: 'auto', display: 'block', touchAction: 'pan-y', cursor, outline: 'none' }}
         onPointerDown={readonly ? undefined : onPointerDown}
         onPointerMove={readonly ? undefined : onPointerMove}
         onPointerUp={readonly ? undefined : onPointerUp}
@@ -968,15 +976,44 @@ function PageCanvas({ page, pageH, pageIdx, totalPages, onStrokesChange, onTrans
   )
 }
 
+// ─── SVG → PNG helper for export ──────────────────────────────────────────────
+async function svgToPngBlob(svgEl, bgColor) {
+  const vb = svgEl.viewBox.baseVal
+  const w  = vb.width  || 900
+  const h  = vb.height || 1200
+  const clone = svgEl.cloneNode(true)
+  clone.setAttribute('width', w)
+  clone.setAttribute('height', h)
+  let svgStr = new XMLSerializer().serializeToString(clone)
+  if (!svgStr.includes('xmlns='))
+    svgStr = svgStr.replace('<svg', '<svg xmlns="http://www.w3.org/2000/svg"')
+  const url = URL.createObjectURL(new Blob([svgStr], { type: 'image/svg+xml' }))
+  return new Promise(resolve => {
+    const img = new Image()
+    img.onload = () => {
+      const canvas = document.createElement('canvas')
+      canvas.width = w; canvas.height = h
+      const ctx = canvas.getContext('2d')
+      ctx.fillStyle = bgColor || '#f8f7f2'
+      ctx.fillRect(0, 0, w, h)
+      ctx.drawImage(img, 0, 0, w, h)
+      URL.revokeObjectURL(url)
+      canvas.toBlob(resolve, 'image/png')
+    }
+    img.onerror = () => { URL.revokeObjectURL(url); resolve(null) }
+    img.src = url
+  })
+}
+
 // ─── Main multi-page canvas ────────────────────────────────────────────────────
-export default function NoteCanvas({
+const NoteCanvas = forwardRef(function NoteCanvas({
   pages, onPagesChange,
   template = 'blank', bgColor = '#f8f7f2', lineSpacing = 32,
   orientation = 'portrait', onSettingsChange,
   readonly = false,
   pageBackgrounds,
   isPdfNote = false,
-}) {
+}, ref) {
   const scrollRef        = useRef()
   const addingPageRef    = useRef(false)
   const undoStackRef     = useRef([])
@@ -1084,6 +1121,33 @@ export default function NoteCanvas({
   }
 
   const sep = <div style={{ width: 1, height: 18, background: 'rgba(255,255,255,0.1)', flexShrink: 0 }} />
+
+  useImperativeHandle(ref, () => ({
+    async exportAsPdf() {
+      const lastIdx = pages.length - 1
+      const exportPages = pages.filter((p, i) => i < lastIdx || p.strokes.length > 0)
+      if (exportPages.length === 0) return null
+      const exportIds = new Set(exportPages.map(p => p.id))
+      const svgs = Array.from(scrollRef.current?.querySelectorAll('svg[data-page]') ?? [])
+        .filter(s => exportIds.has(s.getAttribute('data-page')))
+      const pngBlobs = []
+      for (const svg of svgs) {
+        const blob = await svgToPngBlob(svg, bgColor)
+        if (blob) pngBlobs.push(blob)
+      }
+      if (pngBlobs.length === 0) return null
+      const { jsPDF } = await import('jspdf')
+      const pw = maxW; const ph = pageH
+      const orient = ph >= pw ? 'portrait' : 'landscape'
+      const doc = new jsPDF({ orientation: orient, unit: 'px', format: [pw, ph], hotfixes: ['px_scaling'] })
+      for (let i = 0; i < pngBlobs.length; i++) {
+        if (i > 0) doc.addPage([pw, ph], orient)
+        const dataUrl = await new Promise(res => { const r = new FileReader(); r.onload = () => res(r.result); r.readAsDataURL(pngBlobs[i]) })
+        doc.addImage(dataUrl, 'PNG', 0, 0, pw, ph)
+      }
+      return doc.output('blob')
+    },
+  }), [pages, bgColor, maxW, pageH])
 
   const outerStyle = isFullscreen
     ? { position: 'fixed', inset: 0, zIndex: 1000, display: 'flex', flexDirection: 'column', userSelect: 'none', background: 'var(--bg-elevated)' }
@@ -1349,6 +1413,7 @@ export default function NoteCanvas({
                 <PageCanvas
                   page={page}
                   pageH={pageH}
+                  maxW={maxW}
                   onStrokesChange={newStrokes => {
                     undoStackRef.current.push({ pageIdx, strokes: pages[pageIdx].strokes })
                     onPagesChange(pages.map((p, i) => i === pageIdx ? { ...p, strokes: newStrokes } : p))
@@ -1406,4 +1471,6 @@ export default function NoteCanvas({
       </div>
     </div>
   )
-}
+})
+
+export default NoteCanvas

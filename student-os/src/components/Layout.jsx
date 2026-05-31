@@ -1,3 +1,4 @@
+import { useRef, useLayoutEffect, useState } from 'react'
 import { BookOpen, Calendar, Timer, FileText, CheckSquare, Settings, GraduationCap, LogOut, HelpCircle } from 'lucide-react'
 
 const navItems = [
@@ -8,26 +9,28 @@ const navItems = [
   { id: 'todos',    label: 'To Do',         icon: CheckSquare },
 ]
 
-function NavBtn({ id, label, Icon, isActive, onClick }) {
+function NavBtn({ label, Icon, isActive, onClick, btnRef }) {
   return (
     <button
+      ref={btnRef}
       onClick={onClick}
       style={{
         display: 'flex', alignItems: 'center', gap: 10,
         padding: '9px 12px', borderRadius: 8, border: 'none',
         cursor: 'pointer',
-        background: isActive ? 'var(--nav-active)' : 'transparent',
+        background: 'transparent',
         color: isActive ? 'var(--accent-blue)' : 'var(--text-secondary)',
         fontSize: 14, fontWeight: isActive ? 600 : 400,
-        textAlign: 'left', transition: 'all 0.15s ease', width: '100%',
+        textAlign: 'left', transition: 'color 0.2s ease, font-weight 0.2s ease', width: '100%',
         boxShadow: isActive ? 'var(--glow-blue, none)' : 'none',
         fontFamily: 'inherit',
+        position: 'relative', zIndex: 1,
       }}
       onMouseEnter={e => {
-        if (!isActive) { e.currentTarget.style.background = 'var(--nav-hover)'; e.currentTarget.style.color = 'var(--text-bright)' }
+        if (!isActive) { e.currentTarget.style.color = 'var(--text-bright)' }
       }}
       onMouseLeave={e => {
-        if (!isActive) { e.currentTarget.style.background = 'transparent'; e.currentTarget.style.color = 'var(--text-secondary)' }
+        if (!isActive) { e.currentTarget.style.color = 'var(--text-secondary)' }
       }}
     >
       <Icon size={17} strokeWidth={isActive ? 2.2 : 1.8} />
@@ -37,6 +40,24 @@ function NavBtn({ id, label, Icon, isActive, onClick }) {
 }
 
 export default function Layout({ currentPage, onNavigate, onSignOut, onStartTutorial, children }) {
+  const navRef     = useRef()
+  const navBtnRefs = useRef({})
+  const [pillStyle, setPillStyle] = useState({ top: 0, height: 0, ready: false })
+
+  const activeId = navItems.find(item =>
+    currentPage === item.id || (currentPage === 'domain-detail' && item.id === 'domains')
+  )?.id
+
+  useLayoutEffect(() => {
+    if (!activeId) return
+    const btn = navBtnRefs.current[activeId]
+    const nav = navRef.current
+    if (!btn || !nav) return
+    const bRect = btn.getBoundingClientRect()
+    const cRect = nav.getBoundingClientRect()
+    setPillStyle(prev => ({ top: bRect.top - cRect.top, height: bRect.height, ready: prev.ready || true }))
+  }, [activeId])
+
   return (
     <>
       {/* Wallpaper photo layer — blurred, behind everything */}
@@ -94,15 +115,22 @@ export default function Layout({ currentPage, onNavigate, onSignOut, onStartTuto
         </span>
 
         {/* Nav items */}
-        <nav style={{ flex: 1, display: 'flex', flexDirection: 'column', gap: 2 }}>
+        <nav ref={navRef} style={{ flex: 1, display: 'flex', flexDirection: 'column', gap: 2, position: 'relative' }}>
+          <div style={{
+            position: 'absolute', left: 0, right: 0,
+            top: pillStyle.top, height: pillStyle.height,
+            background: 'var(--nav-active)', borderRadius: 8,
+            transition: pillStyle.ready ? 'top 0.28s cubic-bezier(0.32, 0.72, 0, 1), height 0.28s cubic-bezier(0.32, 0.72, 0, 1)' : 'none',
+            pointerEvents: 'none',
+          }} />
           {navItems.map(item => (
             <NavBtn
               key={item.id}
-              id={item.id}
               label={item.label}
               Icon={item.icon}
               isActive={currentPage === item.id || (currentPage === 'domain-detail' && item.id === 'domains')}
               onClick={() => onNavigate(item.id)}
+              btnRef={el => { if (el) navBtnRefs.current[item.id] = el; else delete navBtnRefs.current[item.id] }}
             />
           ))}
         </nav>
