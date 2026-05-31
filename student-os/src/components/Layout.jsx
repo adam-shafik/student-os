@@ -156,7 +156,7 @@ export default function Layout({ currentPage, onNavigate, onSignOut, onStartTuto
         borderTop: '1px solid var(--border)',
         borderLeft: '1px solid var(--border)',
       }}>
-        <div style={{ flex: 1, overflowY: 'auto', height: '100%' }}>
+        <div style={{ flex: 1, overflowY: 'auto', minHeight: 0 }}>
           {children}
         </div>
       </main>

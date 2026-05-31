@@ -1342,7 +1342,7 @@ export default function NoteCanvas({
         )}
 
         {/* Scroll container */}
-        <div ref={scrollRef} onScroll={onScroll} style={{ height: '100%', overflowY: 'auto', background: 'var(--canvas-outer, #14141e)' }}>
+        <div ref={scrollRef} onScroll={onScroll} style={{ height: '100%', overflowY: 'auto', overflowX: 'hidden', background: 'var(--canvas-outer, #14141e)' }}>
           <div style={{ padding: readonly ? 24 : '72px 24px 24px', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 16 }}>
             {pages.map((page, pageIdx) => (
               <div key={page.id} style={{ width: '100%', maxWidth: maxW, flexShrink: 0 }}>

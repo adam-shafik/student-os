@@ -2,7 +2,9 @@
   "permissions": {
     "allow": [
       "Bash(npm run *)",
-      "Bash(npm install *)"
+      "Bash(npm install *)",
+      "Bash(cat ~/.claude/skills/security-vulnerability-mitigation/SKILL.md)",
+      "Read(//Users/mac/.agents/skills/security-vulnerability-mitigation/**)"
     ]
   }
 }

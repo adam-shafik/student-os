@@ -363,7 +363,7 @@ export default function App() {
     if ('role'             in updates) patch.role             = updates.role ?? null
     if ('isPast'           in updates) patch.is_past          = updates.isPast
     if ('excludeFromGrade' in updates) patch.exclude_from_grade = updates.excludeFromGrade
-    supabase.from('domains').update(patch).eq('id', id).then(({ error }) => {
+    supabase.from('domains').update(patch).eq('id', id).eq('user_id', userId).then(({ error }) => {
       if (error) console.error('Domain update failed:', error)
     })
   }
@@ -393,7 +393,7 @@ export default function App() {
       weight: updates.weight ?? 0,
       grade: updates.grade ?? null,
       location: updates.location ?? null,
-    }).eq('id', id)
+    }).eq('id', id).eq('user_id', userId)
     if (error) setAssessments(snapshot)
     return { error }
   }
@@ -401,7 +401,7 @@ export default function App() {
   const handleDeleteAssessment = async (id) => {
     const snapshot = assessments.slice()
     setAssessments(prev => prev.filter(a => a.id !== id))
-    const { error } = await supabase.from('domain_assessments').delete().eq('id', id)
+    const { error } = await supabase.from('domain_assessments').delete().eq('id', id).eq('user_id', userId)
     if (error) setAssessments(snapshot)
     return { error }
   }
@@ -620,7 +620,7 @@ export default function App() {
       status: record.status, started_at: record.startedAt, ended_at: endedAt,
     }).then(() => {
       if (activeSession.noteId) {
-        supabase.from('notes').update({ study_session_id: record.id }).eq('id', activeSession.noteId)
+        supabase.from('notes').update({ study_session_id: record.id }).eq('id', activeSession.noteId).eq('user_id', userId)
       }
     })
     setActiveSession(null)
@@ -755,7 +755,7 @@ export default function App() {
     if (note.type === 'typed') {
       const { error } = await supabase.from('notes').update({
         ...metaFields, content: note.content || null, updated_at: now,
-      }).eq('id', noteId)
+      }).eq('id', noteId).eq('user_id', userId)
       if (error) { console.error('notes update failed:', error); throw error }
     } else {
       const extra = note.type === 'pdf'
@@ -763,7 +763,7 @@ export default function App() {
         : { template: note.template, bg_color: note.bgColor, line_spacing: note.lineSpacing, orientation: note.orientation }
       const { error: updateErr } = await supabase.from('notes').update({
         ...metaFields, ...extra, updated_at: now,
-      }).eq('id', noteId)
+      }).eq('id', noteId).eq('user_id', userId)
       if (updateErr) { console.error('notes update failed:', updateErr); throw updateErr }
 
       const { error: deleteErr } = await supabase.from('note_pages').delete().eq('note_id', noteId)
