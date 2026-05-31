@@ -6,37 +6,9 @@ import {
 } from 'lucide-react'
 import NoteCanvas from '../components/NoteCanvas'
 import { totalTeachingWeeks } from '../utils/semester'
+import { renderPdfToBackgrounds } from '../utils/pdf'
 
 const TOTAL_WEEKS = totalTeachingWeeks()
-
-// ─── PDF rendering (lazy-loads pdfjs-dist only when needed) ───────────────────
-let _pdfjsMod = null
-async function loadPdfJs() {
-  if (_pdfjsMod) return _pdfjsMod
-  _pdfjsMod = await import('pdfjs-dist')
-  _pdfjsMod.GlobalWorkerOptions.workerSrc = new URL(
-    'pdfjs-dist/build/pdf.worker.min.mjs',
-    import.meta.url,
-  ).href
-  return _pdfjsMod
-}
-
-async function renderPdfToBackgrounds(source) {
-  const pdfjsLib = await loadPdfJs()
-  const data = source instanceof ArrayBuffer || ArrayBuffer.isView(source) ? source : await source.arrayBuffer()
-  const pdf = await pdfjsLib.getDocument({ data }).promise
-  const backgrounds = []
-  for (let i = 1; i <= pdf.numPages; i++) {
-    const page = await pdf.getPage(i)
-    const viewport = page.getViewport({ scale: 1.5 })
-    const canvas = document.createElement('canvas')
-    canvas.width = viewport.width
-    canvas.height = viewport.height
-    await page.render({ canvasContext: canvas.getContext('2d'), viewport }).promise
-    backgrounds.push(canvas.toDataURL('image/jpeg', 0.88))
-  }
-  return backgrounds
-}
 
 function noteId() { return crypto.randomUUID() }
 function fmt(iso) {

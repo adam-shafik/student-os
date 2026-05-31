@@ -20,6 +20,9 @@ export default defineConfig(({ command }) => {
         },
       }])] : [VitePWA({
         registerType: 'autoUpdate',
+        strategies: 'injectManifest',
+        srcDir: 'src',
+        filename: 'sw.js',
         includeAssets: ['favicon.svg', 'icons/apple-touch-icon.png'],
         manifest: {
           name: 'StudentOS',
@@ -35,16 +38,17 @@ export default defineConfig(({ command }) => {
             { src: 'icons/icon-192.png', sizes: '192x192', type: 'image/png' },
             { src: 'icons/icon-512.png', sizes: '512x512', type: 'image/png', purpose: 'any maskable' },
           ],
-        },
-        workbox: {
-          globPatterns: ['**/*.{js,css,html,svg,png,woff2}'],
-          runtimeCaching: [
-            {
-              urlPattern: /^https:\/\/iygxmdezkwsjnvrtgpqv\.supabase\.co\/.*/i,
-              handler: 'NetworkFirst',
-              options: { cacheName: 'supabase-api', networkTimeoutSeconds: 10 },
+          share_target: {
+            action: '/share-target',
+            method: 'POST',
+            enctype: 'multipart/form-data',
+            params: {
+              files: [{ name: 'pdf', accept: ['application/pdf'] }],
             },
-          ],
+          },
+        },
+        injectManifest: {
+          globPatterns: ['**/*.{js,css,html,svg,png,woff2}'],
         },
       })]),
     ],

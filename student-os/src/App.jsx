@@ -17,6 +17,16 @@ import { supabase } from './lib/supabase'
 import { setSemesterConfig, getSemesterConfig, totalTeachingWeeks } from './utils/semester'
 import { buildScheduleEvents } from './utils/calendarEvents'
 
+// ── Shared PDF via Web Share Target ──────────────────────────────────────────
+function openShareDb() {
+  return new Promise((resolve, reject) => {
+    const req = indexedDB.open('studentos-share', 1)
+    req.onupgradeneeded = e => e.target.result.createObjectStore('shares')
+    req.onsuccess = e => resolve(e.target.result)
+    req.onerror = reject
+  })
+}
+
 export default function App() {
   const [session,        setSession]        = useState(null)
   const [authLoading,    setAuthLoading]    = useState(true)
@@ -34,6 +44,43 @@ export default function App() {
     })
     return () => subscription.unsubscribe()
   }, [])
+
+  // Capture share-incoming flag before auth redirects change the URL
+  useEffect(() => {
+    if (window.location.search.includes('share-incoming=1')) {
+      sessionStorage.setItem('pendingShare', '1')
+      window.history.replaceState({}, '', window.location.pathname)
+    }
+  }, [])
+
+  // Once logged in, process any pending shared PDF
+  useEffect(() => {
+    if (!userId) return
+    if (!sessionStorage.getItem('pendingShare')) return
+    sessionStorage.removeItem('pendingShare');
+    (async () => {
+      try {
+        const db = await openShareDb()
+        const pending = await new Promise((resolve, reject) => {
+          const tx = db.transaction('shares', 'readwrite')
+          const store = tx.objectStore('shares')
+          const get = store.get('pending')
+          get.onsuccess = () => { store.delete('pending'); resolve(get.result) }
+          get.onerror = reject
+        })
+        if (!pending) return
+        const { getPdfPageCount } = await import('./utils/pdf.js')
+        const file = new File([pending.blob], pending.name, { type: 'application/pdf' })
+        const pageCount = await getPdfPageCount(file)
+        const newId = crypto.randomUUID()
+        await handleAddPdfNote(newId, file, {}, pageCount)
+        setNoteToOpen(newId)
+        setCurrentPage('notes')
+      } catch (err) {
+        console.error('Failed to import shared PDF:', err)
+      }
+    })()
+  }, [userId]) // eslint-disable-line react-hooks/exhaustive-deps
 
   const [theme, setTheme] = useState(getStoredTheme)
   useEffect(() => { applyTheme(theme) }, [])
