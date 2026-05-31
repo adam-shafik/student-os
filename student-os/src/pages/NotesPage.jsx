@@ -513,9 +513,17 @@ export default function NotesPage({ notes, domains, noteToOpen, onClearNoteToOpe
     return () => { cancelled = true }
   }, [openNote?.id])
 
+  const hiddenDomainIds = useMemo(() => {
+    const s = new Set()
+    ;(domains || []).forEach(d => {
+      if (localStorage.getItem(`showLinked:${d.id}`) === 'false') s.add(d.id)
+    })
+    return s
+  }, [domains])
+
   const academicDomains = useMemo(
-    () => (domains || []).filter(d => d.category === 'academic' && !d.isPast),
-    [domains]
+    () => (domains || []).filter(d => d.category === 'academic' && !d.isPast && !hiddenDomainIds.has(d.id)),
+    [domains, hiddenDomainIds]
   )
 
   const domainMap = useMemo(() => {
@@ -524,19 +532,24 @@ export default function NotesPage({ notes, domains, noteToOpen, onClearNoteToOpe
     return m
   }, [domains])
 
-  function countFor(predicate) { return (notes || []).filter(predicate).length }
+  const visibleNotes = useMemo(
+    () => (notes || []).filter(n => !n.domainId || !hiddenDomainIds.has(n.domainId)),
+    [notes, hiddenDomainIds]
+  )
+
+  function countFor(predicate) { return visibleNotes.filter(predicate).length }
 
   const folderNotes = useMemo(() => {
     const f = selectedFolder
-    return (notes || []).filter(n => {
-      if (f.type === 'all')     return true
-      if (f.type === 'general') return !n.domainId
+    return visibleNotes.filter(n => {
+      if (f.type === 'all')          return true
+      if (f.type === 'general')      return !n.domainId
       if (f.type === 'domain')       return n.domainId === f.domainId
       if (f.type === 'domain-unweek') return n.domainId === f.domainId && !n.academicWeek
       if (f.type === 'week')         return n.domainId === f.domainId && n.academicWeek === f.week
       return true
     }).sort((a, b) => (b.updatedAt > a.updatedAt ? 1 : -1))
-  }, [notes, selectedFolder])
+  }, [visibleNotes, selectedFolder])
 
   function closeNote() {
     clearTimeout(autoSaveTimerRef.current)
@@ -609,7 +622,7 @@ export default function NotesPage({ notes, domains, noteToOpen, onClearNoteToOpe
   // Weeks that have notes, per domain
   function weeksForDomain(domainId) {
     const weeks = new Set(
-      (notes || []).filter(n => n.domainId === domainId && n.academicWeek).map(n => n.academicWeek)
+      visibleNotes.filter(n => n.domainId === domainId && n.academicWeek).map(n => n.academicWeek)
     )
     return [...weeks].sort((a, b) => a - b)
   }

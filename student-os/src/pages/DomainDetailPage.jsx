@@ -5,6 +5,7 @@ import {
   ChevronRight, StickyNote, Calendar, MapPin, TrendingUp,
   AlertCircle, ExternalLink, Tag, PenLine, Pencil, X,
   Plus, Trash2, Edit2, Check, BarChart2, MoreVertical, Archive, RotateCcw,
+  Eye, EyeOff,
 } from 'lucide-react'
 import { DOMAIN_CATEGORIES, DOMAIN_COLORS, DOMAIN_ICON_GROUPS, getDomainIcon } from '../data/domains'
 import { EVENT_TYPES, resolveTypeLabel, resolveTypeColor } from '../utils/calendarEvents'
@@ -239,7 +240,7 @@ function OverviewTab({ domain, domainEvents, assessments, calculatedProgress }) 
 }
 
 // ─── Schedule tab (lectures, labs, tutorials, seminars, etc.) ─────────────────
-function ScheduleTab({ domain, domainEvents, onNewNote, notes, eventNotes }) {
+function ScheduleTab({ domain, domainEvents, onNewNote, notes, eventNotes, showContent }) {
   const [sortBy,    setSortBy]    = useState('week')
   const [openWeeks, setOpenWeeks] = useState(() => {
     const o = {}
@@ -297,15 +298,17 @@ function ScheduleTab({ domain, domainEvents, onNewNote, notes, eventNotes }) {
           )}
         </div>
         <div style={{ display: 'flex', gap: 6, alignItems: 'center', flexShrink: 0 }}>
-          {linkedNotes.map(n => (
+          {showContent && linkedNotes.map(n => (
             <span key={n.id} style={{ fontSize: 10, color: 'var(--accent-purple)', background: 'rgba(167,139,250,0.12)',
               padding: '2px 7px', borderRadius: 4 }}><PenLine size={9} style={{ display:'inline', marginRight:3 }} />{n.title || 'Note'}</span>
           ))}
-          {hasEvNote && <span style={{ fontSize: 10, color: 'var(--accent-purple)', background: 'rgba(167,139,250,0.12)', padding: '2px 7px', borderRadius: 4 }}><StickyNote size={9} style={{ display:'inline', marginRight:3 }} />Notes</span>}
-          <NoteButton
-            onNewNote={onNewNote}
-            meta={{ domainId: domain.id, academicWeek: event.details?.week || null, eventId: event.id, title: noteTitle(event) }}
-          />
+          {showContent && hasEvNote && <span style={{ fontSize: 10, color: 'var(--accent-purple)', background: 'rgba(167,139,250,0.12)', padding: '2px 7px', borderRadius: 4 }}><StickyNote size={9} style={{ display:'inline', marginRight:3 }} />Notes</span>}
+          {showContent && (
+            <NoteButton
+              onNewNote={onNewNote}
+              meta={{ domainId: domain.id, academicWeek: event.details?.week || null, eventId: event.id, title: noteTitle(event) }}
+            />
+          )}
         </div>
       </div>
     )
@@ -373,11 +376,13 @@ function ScheduleTab({ domain, domainEvents, onNewNote, notes, eventNotes }) {
                 </div>
                 {isOpen ? <ChevronDown size={14} color="var(--text-muted)" /> : <ChevronRight size={14} color="var(--text-muted)" />}
               </button>
-              <NoteButton
-                onNewNote={onNewNote}
-                meta={{ domainId: domain.id, academicWeek: wNum > 0 ? wNum : null, title: wNum > 0 ? `Week ${week} Notes` : 'Notes' }}
-                label="Week Note"
-              />
+              {showContent && (
+                <NoteButton
+                  onNewNote={onNewNote}
+                  meta={{ domainId: domain.id, academicWeek: wNum > 0 ? wNum : null, title: wNum > 0 ? `Week ${week} Notes` : 'Notes' }}
+                  label="Week Note"
+                />
+              )}
               <div style={{ width: 14 }} />
             </div>
             {isOpen && (
@@ -682,7 +687,7 @@ function AssessmentsTab({ domain, assessments, onAddAssessment, onUpdateAssessme
 }
 
 // ─── Study tab ────────────────────────────────────────────────────────────────
-function StudyTab({ domain, studySessions, notes, weekConfidence, onSetWeekConfidence, onNewNote, onOpenNote }) {
+function StudyTab({ domain, studySessions, notes, weekConfidence, onSetWeekConfidence, onNewNote, onOpenNote, showContent }) {
   const [openWeeks, setOpenWeeks] = useState({})
   const domainConf = (weekConfidence || {})[domain.id] || {}
 
@@ -765,7 +770,7 @@ function StudyTab({ domain, studySessions, notes, weekConfidence, onSetWeekConfi
               </div>
               <div style={{ flex: 1 }}>
                 <span style={{ fontSize: 13, fontWeight: 500, color: 'var(--text-primary)' }}>Week {week}</span>
-                {hasData && (
+                {hasData && showContent && (
                   <span style={{ fontSize: 12, color: 'var(--text-muted)', marginLeft: 8 }}>
                     {[sessions.length > 0 && `${sessions.length} session${sessions.length > 1 ? 's' : ''}`,
                       weekNotes.length > 0 && `${weekNotes.length} note${weekNotes.length > 1 ? 's' : ''}`
@@ -773,21 +778,21 @@ function StudyTab({ domain, studySessions, notes, weekConfidence, onSetWeekConfi
                   </span>
                 )}
               </div>
-              <NoteButton onNewNote={onNewNote} meta={{ domainId: domain.id, academicWeek: week, title: `Week ${week} – Study Notes` }} />
+              {showContent && <NoteButton onNewNote={onNewNote} meta={{ domainId: domain.id, academicWeek: week, title: `Week ${week} – Study Notes` }} />}
               <button onClick={e => cycleConf(week, e)}
                 style={{ display: 'flex', alignItems: 'center', gap: 5, padding: '5px 10px', borderRadius: 6,
                   border: `1px solid ${confCfg.color}40`, background: confCfg.bg, color: confCfg.color,
                   cursor: 'pointer', fontSize: 11, fontWeight: 600, flexShrink: 0, transition: 'all 0.12s' }}>
                 {confCfg.label}
               </button>
-              {hasData && (
+              {hasData && showContent && (
                 <button onClick={() => setOpenWeeks(prev => ({ ...prev, [week]: !prev[week] }))}
                   style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--text-muted)', display: 'flex', padding: 4, borderRadius: 5, flexShrink: 0 }}>
                   {isOpen ? <ChevronDown size={15} /> : <ChevronRight size={15} />}
                 </button>
               )}
             </div>
-            {isOpen && hasData && (
+            {isOpen && hasData && showContent && (
               <div style={{ borderTop: '1px solid var(--border)' }}>
                 <WeekContent sessions={sessions} weekNotes={weekNotes} />
               </div>
@@ -797,7 +802,7 @@ function StudyTab({ domain, studySessions, notes, weekConfidence, onSetWeekConfi
       })}
 
       {/* General / no-week section */}
-      {(generalSessions.length > 0 || generalNotes.length > 0) && (
+      {showContent && (generalSessions.length > 0 || generalNotes.length > 0) && (
         <SectionCard style={{ marginTop: 8 }}>
           <div style={{ padding: '12px 20px', borderBottom: '1px solid var(--border)', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
             <span style={{ fontSize: 13, fontWeight: 600, color: 'var(--text-secondary)' }}>General</span>
@@ -1029,9 +1034,18 @@ export default function DomainDetailPage({
   const TABS = isAcademic
     ? ['Overview', 'Schedule', 'Assessments', 'Study']
     : ['Overview', 'Events']
-  const [activeTab,  setActiveTab]  = useState('Overview')
-  const [openEvent,  setOpenEvent]  = useState(null)
-  const [showEdit,   setShowEdit]   = useState(false)
+  const [activeTab,    setActiveTab]    = useState('Overview')
+  const [openEvent,    setOpenEvent]    = useState(null)
+  const [showEdit,     setShowEdit]     = useState(false)
+  const [showLinked, setShowLinked] = useState(() => {
+    const stored = localStorage.getItem(`showLinked:${domain.id}`)
+    return stored === null ? true : stored === 'true'
+  })
+  function toggleShowLinked() {
+    const next = !showLinked
+    setShowLinked(next)
+    localStorage.setItem(`showLinked:${domain.id}`, String(next))
+  }
   const [showMenu,   setShowMenu]   = useState(false)
   const [menuPos,    setMenuPos]    = useState({ top: 0, left: 0 })
   const menuBtnRef      = useRef()
@@ -1084,12 +1098,23 @@ export default function DomainDetailPage({
           onMouseLeave={e => e.currentTarget.style.color = 'var(--text-secondary)'}>
           <ArrowLeft size={15} /> Back to Domains
         </button>
-        <button onClick={() => setShowEdit(true)}
-          style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '7px 14px', borderRadius: 8, border: '1px solid var(--border-strong)', background: 'none', color: 'var(--text-secondary)', fontSize: 13, cursor: 'pointer', transition: 'all 0.15s' }}
-          onMouseEnter={e => { e.currentTarget.style.borderColor = domain.color; e.currentTarget.style.color = domain.color }}
-          onMouseLeave={e => { e.currentTarget.style.borderColor = 'var(--border-strong)'; e.currentTarget.style.color = 'var(--text-secondary)' }}>
-          <Pencil size={13} /> Edit Domain
-        </button>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+          <button
+            onClick={toggleShowLinked}
+            style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '7px 14px', borderRadius: 8, border: '1px solid var(--border-strong)', background: showLinked ? 'none' : 'var(--bg-overlay)', color: showLinked ? 'var(--text-secondary)' : 'var(--text-muted)', fontSize: 13, cursor: 'pointer', transition: 'all 0.15s' }}
+            onMouseEnter={e => { e.currentTarget.style.borderColor = 'var(--accent-purple)'; e.currentTarget.style.color = 'var(--accent-purple)' }}
+            onMouseLeave={e => { e.currentTarget.style.borderColor = 'var(--border-strong)'; e.currentTarget.style.color = showLinked ? 'var(--text-secondary)' : 'var(--text-muted)' }}
+          >
+            {showLinked ? <EyeOff size={13} /> : <Eye size={13} />}
+            {showLinked ? 'Hide sessions & notes' : 'Show sessions & notes'}
+          </button>
+          <button onClick={() => setShowEdit(true)}
+            style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '7px 14px', borderRadius: 8, border: '1px solid var(--border-strong)', background: 'none', color: 'var(--text-secondary)', fontSize: 13, cursor: 'pointer', transition: 'all 0.15s' }}
+            onMouseEnter={e => { e.currentTarget.style.borderColor = domain.color; e.currentTarget.style.color = domain.color }}
+            onMouseLeave={e => { e.currentTarget.style.borderColor = 'var(--border-strong)'; e.currentTarget.style.color = 'var(--text-secondary)' }}>
+            <Pencil size={13} /> Edit Domain
+          </button>
+        </div>
       </div>
 
       {showEdit && (
@@ -1222,9 +1247,9 @@ export default function DomainDetailPage({
       {isAcademic ? (
         <>
           {activeTab === 'Overview'    && <OverviewTab    domain={domain} domainEvents={domainEvents} assessments={assessments} calculatedProgress={calculatedProgress} />}
-          {activeTab === 'Schedule'    && <ScheduleTab    domain={domain} domainEvents={domainEvents} onNewNote={onNewNote} notes={notes} eventNotes={eventNotes} />}
+          {activeTab === 'Schedule'    && <ScheduleTab    domain={domain} domainEvents={domainEvents} onNewNote={onNewNote} notes={notes} eventNotes={eventNotes} showContent={showLinked} />}
           {activeTab === 'Assessments' && <AssessmentsTab domain={domain} assessments={assessments} onAddAssessment={onAddAssessment} onUpdateAssessment={onUpdateAssessment} onDeleteAssessment={onDeleteAssessment} />}
-          {activeTab === 'Study'       && <StudyTab       domain={domain} studySessions={studySessions} notes={notes} weekConfidence={weekConfidence} onSetWeekConfidence={onSetWeekConfidence} onNewNote={onNewNote} onOpenNote={onOpenNote} />}
+          {activeTab === 'Study'       && <StudyTab       domain={domain} studySessions={studySessions} notes={notes} weekConfidence={weekConfidence} onSetWeekConfidence={onSetWeekConfidence} onNewNote={onNewNote} onOpenNote={onOpenNote} showContent={showLinked} />}
         </>
       ) : (
         <>

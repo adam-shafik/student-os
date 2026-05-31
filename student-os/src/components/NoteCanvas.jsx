@@ -1052,6 +1052,8 @@ const NoteCanvas = forwardRef(function NoteCanvas({
   const maxW         = PAGE_MAX_WIDTHS[orientation] ?? 900
   const opacity      = tool === 'highlighter' ? 0.35 : 1
   const eraserRadius = penSize * 4
+  // pages beyond the PDF backgrounds are user-added blank pages
+  const hasUserPages = isPdfNote && pages.length > (pageBackgrounds?.length ?? 0)
   const totalStrokes = pages.reduce((s, p) => s + p.strokes.length, 0)
 
   function addPage() {
@@ -1195,21 +1197,25 @@ const NoteCanvas = forwardRef(function NoteCanvas({
               borderBottom: '1px solid var(--border)', flexShrink: 0,
               background: 'var(--bg-elevated)', flexWrap: 'wrap',
             }}>
-              {!isPdfNote && (
+              {(!isPdfNote || hasUserPages) && (
                 <>
-                  <div style={{ display: 'flex', alignItems: 'center', gap: 7 }}>
-                    <span style={{ fontSize: 10, fontWeight: 700, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.5px' }}>Orientation</span>
-                    {['portrait', 'landscape'].map(o => (
-                      <button key={o} onClick={() => onSettingsChange({ orientation: o })} style={{
-                        padding: '4px 9px', borderRadius: 6, border: '1px solid transparent',
-                        cursor: 'pointer', fontSize: 11, textTransform: 'capitalize',
-                        background: orientation === o ? 'rgba(91,140,255,0.15)' : 'none',
-                        color: orientation === o ? 'var(--accent-blue)' : 'var(--text-muted)',
-                        borderColor: orientation === o ? 'rgba(91,140,255,0.3)' : 'transparent',
-                      }}>{o}</button>
-                    ))}
-                  </div>
-                  {sep}
+                  {!isPdfNote && (
+                    <>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: 7 }}>
+                        <span style={{ fontSize: 10, fontWeight: 700, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.5px' }}>Orientation</span>
+                        {['portrait', 'landscape'].map(o => (
+                          <button key={o} onClick={() => onSettingsChange({ orientation: o })} style={{
+                            padding: '4px 9px', borderRadius: 6, border: '1px solid transparent',
+                            cursor: 'pointer', fontSize: 11, textTransform: 'capitalize',
+                            background: orientation === o ? 'rgba(91,140,255,0.15)' : 'none',
+                            color: orientation === o ? 'var(--accent-blue)' : 'var(--text-muted)',
+                            borderColor: orientation === o ? 'rgba(91,140,255,0.3)' : 'transparent',
+                          }}>{o}</button>
+                        ))}
+                      </div>
+                      {sep}
+                    </>
+                  )}
                   <div style={{ display: 'flex', alignItems: 'center', gap: 7 }}>
                     <span style={{ fontSize: 10, fontWeight: 700, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.5px' }}>Template</span>
                     {TEMPLATES.map(t => (
@@ -1261,8 +1267,8 @@ const NoteCanvas = forwardRef(function NoteCanvas({
                   )}
                 </>
               )}
-              {isPdfNote && (
-                <span style={{ fontSize: 11, color: 'var(--text-muted)' }}>PDF annotation — page settings locked</span>
+              {isPdfNote && !hasUserPages && (
+                <span style={{ fontSize: 11, color: 'var(--text-muted)' }}>PDF pages — add a page below to set template</span>
               )}
             </div>
           )}
