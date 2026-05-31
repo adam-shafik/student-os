@@ -39,7 +39,6 @@ function CategoryBadge({ category }) {
 
 // ─── Academic domain card ─────────────────────────────────────────────────────
 function AcademicCard({ domain, pendingTasks, domainEvents = [], assessments = [], onClick, muted = false }) {
-  const [hovered, setHovered] = useState(false)
   const today = new Date()
   const schedEvs = domainEvents.filter(e => e.type !== 'exam' && e.type !== 'assignment')
   const lectures = schedEvs.filter(e => e.type === 'lecture')
@@ -51,21 +50,14 @@ function AcademicCard({ domain, pendingTasks, domainEvents = [], assessments = [
 
   return (
     <div
+      className="domain-card"
       onClick={onClick}
-      onMouseEnter={() => setHovered(true)}
-      onMouseLeave={() => setHovered(false)}
       style={{
-        background: hovered ? 'var(--bg-hover)' : 'var(--bg-surface)',
-        border: `1px solid ${hovered ? 'var(--border-strong)' : 'var(--border)'}`,
         borderRadius: 14, padding: '22px 22px 18px',
         cursor: 'pointer', position: 'relative', overflow: 'hidden',
-        transform: hovered ? 'translateY(-2px)' : 'none',
-        boxShadow: hovered ? 'var(--shadow-card)' : 'none',
-        transition: 'all 0.18s ease',
         opacity: muted ? 0.65 : 1,
       }}
     >
-      <div style={{ position: 'absolute', top: 0, left: 0, right: 0, height: 3, background: domain.color, borderRadius: '14px 14px 0 0' }} />
 
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 12 }}>
         <div>
@@ -113,25 +105,16 @@ function AcademicCard({ domain, pendingTasks, domainEvents = [], assessments = [
 
 // ─── General (non-academic) domain card ───────────────────────────────────────
 function GeneralCard({ domain, linkedEventCount, onClick }) {
-  const [hovered, setHovered] = useState(false)
-  const catCfg = DOMAIN_CATEGORIES[domain.category] || DOMAIN_CATEGORIES.other
 
   return (
     <div
+      className="domain-card"
       onClick={onClick}
-      onMouseEnter={() => setHovered(true)}
-      onMouseLeave={() => setHovered(false)}
       style={{
-        background: hovered ? 'var(--bg-hover)' : 'var(--bg-surface)',
-        border: `1px solid ${hovered ? 'var(--border-strong)' : 'var(--border)'}`,
         borderRadius: 14, padding: '22px 22px 18px',
         cursor: 'pointer', position: 'relative', overflow: 'hidden',
-        transform: hovered ? 'translateY(-2px)' : 'none',
-        boxShadow: hovered ? 'var(--shadow-card)' : 'none',
-        transition: 'all 0.18s ease',
       }}
     >
-      <div style={{ position: 'absolute', top: 0, left: 0, right: 0, height: 3, background: domain.color, borderRadius: '14px 14px 0 0' }} />
 
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 12 }}>
         <div>

@@ -640,13 +640,12 @@ export default function StudyPage({ domains, studySessions, activeSession, onSta
               return (
                 <button
                   key={domain.id}
+                  className="domain-card"
                   onClick={() => { setModalDomain(domain); setShowModal(true) }}
                   style={{
                     display: 'flex', flexDirection: 'column', alignItems: 'flex-start', gap: 7,
                     padding: '14px', borderRadius: 10, cursor: 'pointer', textAlign: 'left',
-                    background: 'var(--bg-surface)',
-                    border: '1px solid var(--border)',
-                    borderLeft: `3px solid ${domain.color}`,
+                    fontFamily: 'inherit',
                   }}
                 >
                   <div style={{
