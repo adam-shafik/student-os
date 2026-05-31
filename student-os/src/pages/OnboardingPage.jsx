@@ -1,5 +1,6 @@
 import { useState } from 'react'
 import { GraduationCap, Plus, X, ChevronRight, ChevronLeft, Check, Trash2, Pencil } from 'lucide-react'
+import AppSelect, { AppSelectItem } from '../components/AppSelect'
 import { DOMAIN_COLORS } from '../data/domains'
 
 // ─── Schedule grid constants ──────────────────────────────────────────────────
@@ -905,12 +906,9 @@ export default function OnboardingPage({ userId, onComplete }) {
               <div style={{ padding: 20, display: 'flex', flexDirection: 'column', gap: 14 }}>
                 <div>
                   <label style={labelStyle()}>Module</label>
-                  <select
-                    value={pickDomainId} onChange={e => setPickDomainId(e.target.value)}
-                    style={{ width: '100%', padding: '9px 12px', background: BG, border: `1px solid ${BORDER}`, borderRadius: 8, color: TEXT, fontSize: 13, outline: 'none' }}
-                  >
-                    {modules.map(m => <option key={m.id} value={m.id}>{m.name}{m.code ? ` (${m.code})` : ''}</option>)}
-                  </select>
+                  <AppSelect value={pickDomainId} onChange={v => setPickDomainId(v)}>
+                    {modules.map(m => <AppSelectItem key={m.id} value={m.id}>{m.name}{m.code ? ` (${m.code})` : ''}</AppSelectItem>)}
+                  </AppSelect>
                 </div>
 
                 <div>

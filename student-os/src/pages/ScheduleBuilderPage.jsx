@@ -1,5 +1,6 @@
 import { useState } from 'react'
 import { ChevronLeft, X, Save, Loader2 } from 'lucide-react'
+import AppSelect, { AppSelectItem } from '../components/AppSelect'
 
 const GRID_START  = 8
 const GRID_END    = 21
@@ -272,12 +273,9 @@ export default function ScheduleBuilderPage({ domains, scheduleSlots: initialSlo
             <div style={{ padding: 20, display: 'flex', flexDirection: 'column', gap: 14 }}>
               <div>
                 {label('Module')}
-                <select
-                  value={pickDomainId} onChange={e => setPickDomainId(e.target.value)}
-                  style={{ width: '100%', padding: '9px 12px', background: 'var(--bg-elevated)', border: '1px solid var(--border-strong)', borderRadius: 8, color: 'var(--text-primary)', fontSize: 13, outline: 'none', fontFamily: 'inherit' }}
-                >
-                  {domains.map(d => <option key={d.id} value={d.id}>{d.name}{d.code ? ` (${d.code})` : ''}</option>)}
-                </select>
+                <AppSelect value={pickDomainId} onChange={v => setPickDomainId(v)}>
+                  {domains.map(d => <AppSelectItem key={d.id} value={d.id}>{d.name}{d.code ? ` (${d.code})` : ''}</AppSelectItem>)}
+                </AppSelect>
               </div>
 
               <div>

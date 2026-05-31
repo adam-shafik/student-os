@@ -1,4 +1,5 @@
 import { useState } from 'react'
+import AppSelect, { AppSelectItem } from '../components/AppSelect'
 import {
   Play, Pause, SkipForward, Square, Volume2, VolumeX,
   Eye, EyeOff, BookOpen, Timer, X, ChevronRight, Pencil, Check, Brain, Trash2,
@@ -287,12 +288,12 @@ function StartSessionModal({ initialDomain, domains, onClose, onStart, isTutoria
         {/* Domain */}
         <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
           <label style={sectionLabel}>Domain</label>
-          <select value={domainId} onChange={e => setDomainId(e.target.value)} style={inp}>
-            <option value="">— General (no domain) —</option>
+          <AppSelect value={domainId} onChange={v => setDomainId(v)} style={inp}>
+            <AppSelectItem value="">— General (no domain) —</AppSelectItem>
             {domains.filter(d => !d.isPast).map(d => (
-              <option key={d.id} value={d.id}>{d.code ? `${d.code} · ` : ''}{d.name}</option>
+              <AppSelectItem key={d.id} value={d.id}>{d.code ? `${d.code} · ` : ''}{d.name}</AppSelectItem>
             ))}
-          </select>
+          </AppSelect>
         </div>
 
         {/* Topic */}

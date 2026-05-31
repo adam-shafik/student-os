@@ -1,4 +1,5 @@
 import { useState, useMemo, useEffect, useRef } from 'react'
+import AppSelect, { AppSelectItem } from '../components/AppSelect'
 import {
   PenLine, Plus, Trash2, ChevronRight, ChevronDown,
   BookOpen, FolderOpen, Folder, Pencil, Check, X, MapPin, Type, FileText, Share2,
@@ -358,40 +359,32 @@ function NoteLocationPicker({ note, domains, onSave }) {
             {/* Domain selector */}
             <div>
               <label style={{ fontSize: 11, color: 'var(--text-muted)', display: 'block', marginBottom: 5 }}>Domain</label>
-              <select
+              <AppSelect
                 value={domainId}
-                onChange={e => { setDomainId(e.target.value); setWeek('') }}
-                style={{
-                  width: '100%', padding: '7px 10px', borderRadius: 7,
-                  border: '1px solid var(--border-strong)', background: 'var(--bg-input)',
-                  color: 'var(--text-primary)', fontSize: 12, outline: 'none',
-                }}
+                onChange={v => { setDomainId(v); setWeek('') }}
+                style={{ padding: '7px 10px', fontSize: 12 }}
               >
-                <option value="">— General (no domain) —</option>
+                <AppSelectItem value="">— General (no domain) —</AppSelectItem>
                 {allDomains.map(d => (
-                  <option key={d.id} value={d.id}>{d.code} — {d.name}</option>
+                  <AppSelectItem key={d.id} value={d.id}>{d.code} — {d.name}</AppSelectItem>
                 ))}
-              </select>
+              </AppSelect>
             </div>
 
             {/* Week selector — only for academic domains */}
             {isAcademic && (
               <div>
                 <label style={{ fontSize: 11, color: 'var(--text-muted)', display: 'block', marginBottom: 5 }}>Academic Week (optional)</label>
-                <select
+                <AppSelect
                   value={week}
-                  onChange={e => setWeek(e.target.value)}
-                  style={{
-                    width: '100%', padding: '7px 10px', borderRadius: 7,
-                    border: '1px solid var(--border-strong)', background: 'var(--bg-input)',
-                    color: 'var(--text-primary)', fontSize: 12, outline: 'none',
-                  }}
+                  onChange={v => setWeek(v)}
+                  style={{ padding: '7px 10px', fontSize: 12 }}
                 >
-                  <option value="">— No specific week —</option>
+                  <AppSelectItem value="">— No specific week —</AppSelectItem>
                   {Array.from({ length: TOTAL_WEEKS }, (_, i) => i + 1).map(w => (
-                    <option key={w} value={w}>Week {w}</option>
+                    <AppSelectItem key={w} value={String(w)}>Week {w}</AppSelectItem>
                   ))}
-                </select>
+                </AppSelect>
               </div>
             )}
 

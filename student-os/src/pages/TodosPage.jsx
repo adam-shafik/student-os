@@ -1,4 +1,5 @@
 import { useState, useMemo } from 'react'
+import AppSelect, { AppSelectItem } from '../components/AppSelect'
 import { Plus, X, CheckSquare, Square, Trash2, ChevronDown, AlertTriangle, CheckCircle2, FileText, CalendarDays } from 'lucide-react'
 import { getAcademicWeek, getBreakForDate, totalTeachingWeeks } from '../utils/semester'
 
@@ -22,9 +23,6 @@ function todayMidnight() {
 function parseDue(dateStr) {
   const [y, m, d] = dateStr.split('-').map(Number)
   return new Date(y, m - 1, d)
-}
-function toDateKey(date) {
-  return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}-${String(date.getDate()).padStart(2, '0')}`
 }
 
 function PriorityDot({ priority }) {
@@ -122,13 +120,12 @@ function AddTaskModal({ domains, onClose, onSave, initialDomainId, defaultDueDat
 
           <div>
             <Label>Domain (optional)</Label>
-            <select style={{ ...inputStyle, cursor: 'pointer' }} value={form.domainId}
-              onChange={e => { set('domainId', e.target.value); set('academicWeek', '') }}>
-              <option value="">— General / No domain —</option>
+            <AppSelect value={form.domainId} onChange={v => { set('domainId', v); set('academicWeek', '') }}>
+              <AppSelectItem value="">— General / No domain —</AppSelectItem>
               {domains.map(d => (
-                <option key={d.id} value={d.id}>{d.code ? `${d.code} · ` : ''}{d.name}</option>
+                <AppSelectItem key={d.id} value={d.id}>{d.code ? `${d.code} · ` : ''}{d.name}</AppSelectItem>
               ))}
-            </select>
+            </AppSelect>
           </div>
 
           <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 }}>
@@ -161,13 +158,12 @@ function AddTaskModal({ domains, onClose, onSave, initialDomainId, defaultDueDat
           {isAcademic && (
             <div>
               <Label>Academic week (optional)</Label>
-              <select style={{ ...inputStyle, cursor: 'pointer' }} value={form.academicWeek}
-                onChange={e => set('academicWeek', e.target.value)}>
-                <option value="">— Not week-specific —</option>
+              <AppSelect value={form.academicWeek} onChange={v => set('academicWeek', v)}>
+                <AppSelectItem value="">— Not week-specific —</AppSelectItem>
                 {Array.from({ length: TOTAL_WEEKS }, (_, i) => i + 1).map(w => (
-                  <option key={w} value={w}>Week {w}</option>
+                  <AppSelectItem key={w} value={String(w)}>Week {w}</AppSelectItem>
                 ))}
-              </select>
+              </AppSelect>
             </div>
           )}
         </div>
@@ -248,11 +244,10 @@ function TaskDetailModal({ task, domains, notes, studySessions, domainMap, onClo
 
           <div>
             <Label>Domain</Label>
-            <select style={{ ...inputStyle, cursor: 'pointer' }} value={form.domainId}
-              onChange={e => { set('domainId', e.target.value); set('academicWeek', '') }}>
-              <option value="">— General / No domain —</option>
-              {domains.map(d => <option key={d.id} value={d.id}>{d.code ? `${d.code} · ` : ''}{d.name}</option>)}
-            </select>
+            <AppSelect value={form.domainId} onChange={v => { set('domainId', v); set('academicWeek', '') }}>
+              <AppSelectItem value="">— General / No domain —</AppSelectItem>
+              {domains.map(d => <AppSelectItem key={d.id} value={d.id}>{d.code ? `${d.code} · ` : ''}{d.name}</AppSelectItem>)}
+            </AppSelect>
           </div>
 
           <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 }}>
@@ -284,10 +279,10 @@ function TaskDetailModal({ task, domains, notes, studySessions, domainMap, onClo
           {isAcademic && (
             <div>
               <Label>Academic week</Label>
-              <select style={{ ...inputStyle, cursor: 'pointer' }} value={form.academicWeek} onChange={e => set('academicWeek', e.target.value)}>
-                <option value="">— Not week-specific —</option>
-                {Array.from({ length: TOTAL_WEEKS }, (_, i) => i + 1).map(w => <option key={w} value={w}>Week {w}</option>)}
-              </select>
+              <AppSelect value={form.academicWeek} onChange={v => set('academicWeek', v)}>
+                <AppSelectItem value="">— Not week-specific —</AppSelectItem>
+                {Array.from({ length: TOTAL_WEEKS }, (_, i) => i + 1).map(w => <AppSelectItem key={w} value={String(w)}>Week {w}</AppSelectItem>)}
+              </AppSelect>
             </div>
           )}
 
@@ -296,21 +291,21 @@ function TaskDetailModal({ task, domains, notes, studySessions, domainMap, onClo
 
             <div>
               <Label>Linked note</Label>
-              <select style={{ ...inputStyle, cursor: 'pointer' }} value={form.noteId} onChange={e => set('noteId', e.target.value)}>
-                <option value="">— None —</option>
-                {notes.map(n => <option key={n.id} value={n.id}>{n.title || 'Untitled'} · {fmt(n.updatedAt)}</option>)}
-              </select>
+              <AppSelect value={form.noteId} onChange={v => set('noteId', v)}>
+                <AppSelectItem value="">— None —</AppSelectItem>
+                {notes.map(n => <AppSelectItem key={n.id} value={n.id}>{n.title || 'Untitled'} · {fmt(n.updatedAt)}</AppSelectItem>)}
+              </AppSelect>
             </div>
 
             <div>
               <Label>Linked study session</Label>
-              <select style={{ ...inputStyle, cursor: 'pointer' }} value={form.studySessionId} onChange={e => set('studySessionId', e.target.value)}>
-                <option value="">— None —</option>
+              <AppSelect value={form.studySessionId} onChange={v => set('studySessionId', v)}>
+                <AppSelectItem value="">— None —</AppSelectItem>
                 {studySessions.map(s => {
                   const d = s.domainId ? domainMap[s.domainId] : null
-                  return <option key={s.id} value={s.id}>{d ? `[${d.code}] ` : ''}{s.topic} · {fmt(s.startedAt)}</option>
+                  return <AppSelectItem key={s.id} value={s.id}>{d ? `[${d.code}] ` : ''}{s.topic} · {fmt(s.startedAt)}</AppSelectItem>
                 })}
-              </select>
+              </AppSelect>
             </div>
           </div>
         </div>
