@@ -177,8 +177,7 @@ export default function Layout({ currentPage, onNavigate, onSignOut, onStartTuto
         background: 'linear-gradient(to right, var(--bg-hover) 0%, var(--bg-overlay) 100%)',
       }} />
 
-      {/* Corner cap: an L-shape (square with bottom-right carved by a quarter circle)
-          that fills the gap between sidebar/header and the rounded main content corner */}
+      {/* Left corner cap */}
       <div style={{
         position: 'absolute',
         top: 52,
@@ -190,6 +189,18 @@ export default function Layout({ currentPage, onNavigate, onSignOut, onStartTuto
         zIndex: 5,
       }} />
 
+      {/* Right corner cap — mirrors the left, bite carved at bottom-left */}
+      <div style={{
+        position: 'absolute',
+        top: 52,
+        right: 0,
+        width: 16,
+        height: 16,
+        background: 'radial-gradient(circle at 0% 100%, transparent 0, transparent 16px, var(--bg-overlay) 16px)',
+        pointerEvents: 'none',
+        zIndex: 5,
+      }} />
+
       {/* Main content */}
       <main style={{
         gridColumn: '2', gridRow: '2',
@@ -197,6 +208,7 @@ export default function Layout({ currentPage, onNavigate, onSignOut, onStartTuto
         borderTop: '1px solid var(--border)',
         borderLeft: '1px solid var(--border)',
         borderTopLeftRadius: 16,
+        borderTopRightRadius: 16,
       }}>
         <div className="page-scroll" style={{ flex: 1, overflowY: 'auto', minHeight: 0 }}>
           {children}
