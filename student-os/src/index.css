@@ -558,6 +558,36 @@ html.theme-akatsuki {
   --row-hover:         rgba(232,37,37,0.07);
 }
 
+/* ── Text legibility over gradient backgrounds ─────────────────────────────── */
+:root {
+  --text-shadow: none;
+  --content-scrim: transparent;
+}
+
+/* Dark themes with bg-body-image gradients get a shadow behind all text */
+html.theme-space,
+html.theme-cyberpunk,
+html.theme-aurora,
+html.theme-sakura,
+html.theme-frost,
+html.theme-forest,
+html.theme-ocean,
+html.theme-akatsuki {
+  --text-shadow: 0 1px 4px rgba(0,0,0,0.85), 0 0 10px rgba(0,0,0,0.55);
+  --content-scrim: rgba(0,0,0,0.18);
+}
+
+/* Cyberpunk and aurora have the strongest gradients — boost the scrim */
+html.theme-cyberpunk  { --content-scrim: rgba(0,0,0,0.28); }
+html.theme-aurora     { --content-scrim: rgba(0,0,0,0.25); }
+
+/* Apply text shadow to all text inside the layout shell — inherited by children */
+aside, main { text-shadow: var(--text-shadow); }
+
+/* Scrim: a very dark layer behind the page content that dulls the bg gradient.
+   Cards are unaffected because they have their own opaque --bg-surface background. */
+.page-scroll { background: var(--content-scrim); }
+
 /* ── Global resets ───────────────────────────────────────────────────────────── */
 * { box-sizing: border-box; }
 

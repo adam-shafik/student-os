@@ -4,7 +4,7 @@ import {
   GraduationCap, CheckCircle2, Clock, ChevronDown,
   ChevronRight, StickyNote, Calendar, MapPin, TrendingUp,
   AlertCircle, ExternalLink, Tag, PenLine, Pencil, X,
-  Plus, Trash2, Edit2, Check, BarChart2,
+  Plus, Trash2, Edit2, Check, BarChart2, MoreVertical, Archive, RotateCcw,
 } from 'lucide-react'
 import { DOMAIN_CATEGORIES, DOMAIN_COLORS, DOMAIN_ICON_GROUPS, getDomainIcon } from '../data/domains'
 import { EVENT_TYPES, resolveTypeLabel, resolveTypeColor } from '../utils/calendarEvents'
@@ -1029,11 +1029,33 @@ export default function DomainDetailPage({
   const TABS = isAcademic
     ? ['Overview', 'Schedule', 'Assessments', 'Study']
     : ['Overview', 'Events']
-  const [activeTab, setActiveTab] = useState('Overview')
-  const [openEvent, setOpenEvent] = useState(null)
-  const [showEdit,  setShowEdit]  = useState(false)
-  const tabBarRef  = useRef()
-  const tabBtnRefs = useRef({})
+  const [activeTab,  setActiveTab]  = useState('Overview')
+  const [openEvent,  setOpenEvent]  = useState(null)
+  const [showEdit,   setShowEdit]   = useState(false)
+  const [showMenu,   setShowMenu]   = useState(false)
+  const [menuPos,    setMenuPos]    = useState({ top: 0, left: 0 })
+  const menuBtnRef      = useRef()
+  const menuDropdownRef = useRef()
+  const tabBarRef       = useRef()
+  const tabBtnRefs      = useRef({})
+
+  useEffect(() => {
+    if (!showMenu) return
+    function onDown(e) {
+      if (
+        !menuBtnRef.current?.contains(e.target) &&
+        !menuDropdownRef.current?.contains(e.target)
+      ) setShowMenu(false)
+    }
+    document.addEventListener('mousedown', onDown)
+    return () => document.removeEventListener('mousedown', onDown)
+  }, [showMenu])
+
+  function openContextMenu() {
+    const r = menuBtnRef.current.getBoundingClientRect()
+    setMenuPos({ top: r.bottom + 4, left: r.right })
+    setShowMenu(true)
+  }
   const [pillStyle, setPillStyle] = useState({ width: 0, left: 0, ready: false })
 
   useLayoutEffect(() => {
@@ -1077,6 +1099,62 @@ export default function DomainDetailPage({
 
       {/* Domain header */}
       <div style={{ background: 'var(--bg-surface)', border: '1px solid var(--border)', borderRadius: 16, padding: '26px 30px', marginBottom: 22, position: 'relative', overflow: 'hidden' }}>
+        {/* 3-dot menu */}
+        <button
+          ref={menuBtnRef}
+          onClick={openContextMenu}
+          style={{
+            position: 'absolute', top: 14, right: 14, zIndex: 2,
+            width: 28, height: 28, borderRadius: 7, border: '1px solid var(--border)',
+            background: 'none', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center',
+            color: 'var(--text-muted)', transition: 'all 0.15s',
+          }}
+          onMouseEnter={e => { e.currentTarget.style.background = 'var(--bg-hover)'; e.currentTarget.style.color = 'var(--text-secondary)' }}
+          onMouseLeave={e => { e.currentTarget.style.background = 'none'; e.currentTarget.style.color = 'var(--text-muted)' }}
+        >
+          <MoreVertical size={14} />
+        </button>
+
+        {showMenu && (
+          <div
+            ref={menuDropdownRef}
+            style={{
+              position: 'fixed', top: menuPos.top, left: menuPos.left, transform: 'translateX(-100%)',
+              zIndex: 9999, background: 'var(--bg-surface)', border: '1px solid var(--border-strong)',
+              borderRadius: 9, boxShadow: 'var(--shadow-modal)', overflow: 'hidden', minWidth: 190,
+            }}
+          >
+            <button
+              onClick={() => { onUpdateDomain?.(domain.id, { isPast: !domain.isPast }); setShowMenu(false) }}
+              style={{
+                display: 'flex', alignItems: 'center', gap: 9, width: '100%',
+                padding: '10px 14px', background: 'none', border: 'none', cursor: 'pointer',
+                fontSize: 13, color: domain.isPast ? 'var(--accent-green)' : 'var(--text-secondary)',
+                textAlign: 'left', fontFamily: 'inherit',
+              }}
+              onMouseEnter={e => e.currentTarget.style.background = 'var(--bg-hover)'}
+              onMouseLeave={e => e.currentTarget.style.background = 'none'}
+            >
+              {domain.isPast ? <RotateCcw size={13} /> : <Archive size={13} />}
+              {domain.isPast ? 'Mark as active' : 'Mark as past module'}
+            </button>
+            <div style={{ height: 1, background: 'var(--border)', margin: '0 10px' }} />
+            <button
+              onClick={() => { onUpdateDomain?.(domain.id, { excludeFromGrade: !domain.excludeFromGrade }); setShowMenu(false) }}
+              style={{
+                display: 'flex', alignItems: 'center', gap: 9, width: '100%',
+                padding: '10px 14px', background: 'none', border: 'none', cursor: 'pointer',
+                fontSize: 13, color: 'var(--text-secondary)',
+                textAlign: 'left', fontFamily: 'inherit',
+              }}
+              onMouseEnter={e => e.currentTarget.style.background = 'var(--bg-hover)'}
+              onMouseLeave={e => e.currentTarget.style.background = 'none'}
+            >
+              <BarChart2 size={13} />
+              {domain.excludeFromGrade ? 'Include in grade avg' : 'Exclude from grade avg'}
+            </button>
+          </div>
+        )}
         <div style={{ position: 'absolute', left: 0, top: 0, bottom: 0, width: 4, background: domain.color, borderRadius: '16px 0 0 16px' }} />
         <div style={{ position: 'absolute', top: 0, left: 0, right: 0, bottom: 0, background: `radial-gradient(ellipse at 0% 50%, ${domain.color}07 0%, transparent 60%)`, pointerEvents: 'none' }} />
 
