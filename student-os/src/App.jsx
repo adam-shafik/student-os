@@ -55,6 +55,13 @@ export default function App() {
 
   const [theme,           setTheme]           = useState(getStoredTheme)
   const [wallpaperEnabled, setWallpaperEnabled] = useState(getStoredWallpaper)
+  const [notifStatus,      setNotifStatus]      = useState(() => {
+    if (typeof window === 'undefined' || !('Notification' in window)) return 'unsupported'
+    return Notification.permission
+  })
+  const [reminderDays,     setReminderDays]     = useState(() => {
+    try { return JSON.parse(localStorage.getItem('sos-reminder-days') || '[1]') } catch { return [1] }
+  })
   useEffect(() => { applyTheme(theme, wallpaperEnabled) }, [])
 
   const handleThemeChange = (id) => {
@@ -62,6 +69,51 @@ export default function App() {
     applyTheme(id, wallpaperEnabled)
     if (userId) {
       supabase.from('user_preferences').upsert({ user_id: userId, theme: id }, { onConflict: 'user_id' })
+    }
+  }
+
+  function urlBase64ToUint8Array(base64String) {
+    const padding = '='.repeat((4 - base64String.length % 4) % 4)
+    const base64  = (base64String + padding).replace(/-/g, '+').replace(/_/g, '/')
+    const raw     = window.atob(base64)
+    return Uint8Array.from([...raw].map(c => c.charCodeAt(0)))
+  }
+
+  const handleEnableNotifications = async () => {
+    if (!('Notification' in window) || !('serviceWorker' in navigator)) return
+    const permission = await Notification.requestPermission()
+    setNotifStatus(permission)
+    if (permission !== 'granted') return
+    const reg = await navigator.serviceWorker.ready
+    const existing = await reg.pushManager.getSubscription()
+    const sub = existing ?? await reg.pushManager.subscribe({
+      userVisibleOnly: true,
+      applicationServerKey: urlBase64ToUint8Array(import.meta.env.VITE_VAPID_PUBLIC_KEY),
+    })
+    await supabase.from('push_subscriptions').upsert(
+      { user_id: userId, subscription: sub.toJSON(), reminder_days: reminderDays },
+      { onConflict: 'user_id' }
+    )
+  }
+
+  const handleDisableNotifications = async () => {
+    if (!('serviceWorker' in navigator)) return
+    const reg = await navigator.serviceWorker.ready
+    const sub = await reg.pushManager.getSubscription()
+    if (sub) {
+      await sub.unsubscribe()
+      await supabase.from('push_subscriptions').delete().eq('user_id', userId)
+    }
+    setNotifStatus('default')
+  }
+
+  const handleUpdateReminderDays = async (days) => {
+    setReminderDays(days)
+    try { localStorage.setItem('sos-reminder-days', JSON.stringify(days)) } catch {}
+    if (notifStatus === 'granted') {
+      await supabase.from('push_subscriptions')
+        .update({ reminder_days: days })
+        .eq('user_id', userId)
     }
   }
 
@@ -84,6 +136,7 @@ export default function App() {
   const [weekConfidence, setWeekConfidence] = useState({})
   const [todos,              setTodos]              = useState([])
   const [semConfig,          setSemConfig]          = useState(null)
+  const [semBreaks,          setSemBreaks]          = useState([])
   const [cancelledEventIds,  setCancelledEventIds]  = useState(() => new Set())
   const [eventTypeColors,    setEventTypeColors]    = useState({})
 
@@ -135,8 +188,9 @@ export default function App() {
           supabase.from('semester_breaks').select('*').eq('user_id', userId)
             .then(({ data: breaks }) => {
               const config = buildSemesterConfig(data, breaks || [])
-              setSemesterConfig(config)  // Updates the semester utils module
+              setSemesterConfig(config)
               setSemConfig(config)
+              setSemBreaks((breaks || []).map(b => ({ id: b.id, name: b.name, startMonday: b.start_monday, returnMonday: b.return_monday })))
             })
         }
         setProfileChecked(true)
@@ -888,6 +942,47 @@ export default function App() {
     return { error }
   }
 
+  const handleUpdateSemester = async ({ start, end, breaks }) => {
+    const { error } = await supabase.from('user_profiles').update({
+      semester_start: start, semester_end: end, updated_at: new Date().toISOString(),
+    }).eq('id', userId)
+    if (error) return { error }
+    await supabase.from('semester_breaks').delete().eq('user_id', userId)
+    if (breaks.length) {
+      await supabase.from('semester_breaks').insert(
+        breaks.map(b => ({ id: b.id || crypto.randomUUID(), user_id: userId, name: b.name, start_monday: b.startMonday, return_monday: b.returnMonday }))
+      )
+    }
+    const updatedProfile = { ...userProfile, semester_start: start, semester_end: end }
+    setUserProfile(updatedProfile)
+    setSemBreaks(breaks)
+    const config = buildSemesterConfig(updatedProfile, breaks.map(b => ({ name: b.name, start_monday: b.startMonday, return_monday: b.returnMonday })))
+    setSemConfig(config)
+    setSemesterConfig(config)
+    return { error: null }
+  }
+
+  const handleExportData = () => {
+    const payload = {
+      exportedAt: new Date().toISOString(),
+      profile: userProfile,
+      semBreaks,
+      domains,
+      scheduleSlots,
+      assessments,
+      todos,
+      notes: notes.map(n => ({ ...n, pages: undefined })),
+      studySessions,
+    }
+    const blob = new Blob([JSON.stringify(payload, null, 2)], { type: 'application/json' })
+    const url  = URL.createObjectURL(blob)
+    const a    = document.createElement('a')
+    a.href     = url
+    a.download = `studentos-export-${new Date().toISOString().slice(0, 10)}.json`
+    a.click()
+    URL.revokeObjectURL(url)
+  }
+
   const handleChangePassword = async (newPassword) => {
     const { error } = await supabase.auth.updateUser({ password: newPassword })
     return { error }
@@ -1052,6 +1147,14 @@ export default function App() {
           onThemeChange={handleThemeChange}
           wallpaperEnabled={wallpaperEnabled}
           onToggleWallpaper={handleToggleWallpaper}
+          semBreaks={semBreaks}
+          onUpdateSemester={handleUpdateSemester}
+          onExportData={handleExportData}
+          notifStatus={notifStatus}
+          onEnableNotifications={handleEnableNotifications}
+          onDisableNotifications={handleDisableNotifications}
+          reminderDays={reminderDays}
+          onUpdateReminderDays={handleUpdateReminderDays}
           onUpdateProfile={handleUpdateProfile}
           onChangePassword={handleChangePassword}
           onResetOnboarding={handleDevResetOnboarding}

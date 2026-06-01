@@ -18,10 +18,8 @@ More actionable for day-to-day planning.
 On the Study page — total hours this week, breakdown by domain (bar chart), study streak counter.
 All data already exists in `study_sessions`.
 
-### 3. Settings Page (complete it)
-Currently has profile edit, theme switcher, and wallpaper toggle. Still needs:
-- Semester reconfiguration (edit sem start/end + breaks)
-- Data export
+### ~~3. Settings Page~~ ✅
+Profile, password, schedule, semester reconfiguration, appearance + wallpaper toggle, data export.
 
 ### 4. Notifications / Reminders
 Push notifications + email for upcoming exams and assignment deadlines.

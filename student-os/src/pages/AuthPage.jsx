@@ -100,7 +100,7 @@ export default function AuthPage() {
 
         {/* Card */}
         <div style={{ background: '#0f1018', border: '1px solid #1e2030', borderRadius: 16, padding: '28px 28px 24px' }}>
-          <div style={{ fontSize: 18, fontWeight: 700, color: '#e8e9f0', marginBottom: 4 }}>
+<div style={{ fontSize: 18, fontWeight: 700, color: '#e8e9f0', marginBottom: 4 }}>
             {mode === 'signin' ? 'Welcome back' : 'Create account'}
           </div>
           <div style={{ fontSize: 13, color: '#7c7e96', marginBottom: 24 }}>

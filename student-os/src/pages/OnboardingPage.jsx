@@ -1,7 +1,8 @@
 import { useState } from 'react'
-import { GraduationCap, Plus, X, ChevronRight, ChevronLeft, Check, Trash2, Pencil } from 'lucide-react'
+import { GraduationCap, Plus, X, ChevronRight, ChevronLeft, Check, Trash2, Pencil, ArrowLeft } from 'lucide-react'
 import AppSelect, { AppSelectItem } from '../components/AppSelect'
 import { DOMAIN_COLORS } from '../data/domains'
+import { supabase } from '../lib/supabase'
 
 // ─── Schedule grid constants ──────────────────────────────────────────────────
 const GRID_START  = 8
@@ -367,6 +368,14 @@ export default function OnboardingPage({ userId, onComplete }) {
   if (step === 1) return (
     <Wrap>
       <Logo />
+      <button
+        onClick={() => supabase.auth.signOut()}
+        style={{ position: 'fixed', top: 20, left: 20, display: 'flex', alignItems: 'center', gap: 6, background: 'none', border: 'none', color: '#7c7e96', cursor: 'pointer', fontSize: 13, padding: 0 }}
+        onMouseEnter={e => e.currentTarget.style.color = '#e8e9f0'}
+        onMouseLeave={e => e.currentTarget.style.color = '#7c7e96'}
+      >
+        <ArrowLeft size={14} /> Back
+      </button>
       <StepDots step={1} totalSteps={totalSteps} />
       <Heading>Let's get to know you</Heading>
       <Sub>A few quick things to make StudentOS feel like yours.</Sub>

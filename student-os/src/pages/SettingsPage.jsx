@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import { User, Lock, Palette, AlertTriangle, Check, Eye, EyeOff, Save, Loader2, Calendar } from 'lucide-react'
+import { User, Lock, Palette, AlertTriangle, Check, Eye, EyeOff, Save, Loader2, Calendar, Download, Plus, Trash2, Bell } from 'lucide-react'
 import { THEMES } from '../theme'
 
 function SectionCard({ title, Icon, accentColor = 'var(--accent-blue)', children, tutorialId }) {
@@ -63,7 +63,7 @@ function ErrorBanner({ message }) {
   )
 }
 
-export default function SettingsPage({ userProfile, userEmail, theme, onThemeChange, wallpaperEnabled, onToggleWallpaper, onUpdateProfile, onChangePassword, onResetOnboarding, onEditSchedule }) {
+export default function SettingsPage({ userProfile, userEmail, theme, onThemeChange, wallpaperEnabled, onToggleWallpaper, semBreaks = [], onUpdateSemester, onExportData, notifStatus = 'unsupported', onEnableNotifications, onDisableNotifications, reminderDays = [1], onUpdateReminderDays, onUpdateProfile, onChangePassword, onResetOnboarding, onEditSchedule }) {
   const [firstName,  setFirstName]  = useState(userProfile?.first_name    || '')
   const [lastName,   setLastName]   = useState(userProfile?.last_name     || '')
   const [dob,        setDob]        = useState(userProfile?.date_of_birth || '')
@@ -84,6 +84,46 @@ export default function SettingsPage({ userProfile, userEmail, theme, onThemeCha
 
   const [resetConfirm, setResetConfirm] = useState(false)
   const [resetBusy,    setResetBusy]    = useState(false)
+
+  const [semStart,    setSemStart]    = useState(userProfile?.semester_start || '')
+  const [semEnd,      setSemEnd]      = useState(userProfile?.semester_end   || '')
+  const [breaks,      setBreaks]      = useState(() => semBreaks.map(b => ({ ...b, id: b.id || crypto.randomUUID() })))
+  const [semSaving,   setSemSaving]   = useState(false)
+  const [semSaved,    setSemSaved]    = useState(false)
+  const [semError,    setSemError]    = useState(null)
+
+  const isSunThu  = userProfile?.week_start === 'sunday'
+  const startDay  = isSunThu ? 0 : 1   // 0=Sun, 1=Mon
+  const endDay    = isSunThu ? 4 : 5   // 4=Thu, 5=Fri
+  const breakDay  = isSunThu ? 0 : 1
+  const DOW_NAMES = { 0: 'Sunday', 1: 'Monday', 4: 'Thursday', 5: 'Friday' }
+
+  function getDow(str) { return str ? new Date(str + 'T12:00:00').getDay() : null }
+  function dowName(str) { const d = getDow(str); return d != null ? ['Sun','Mon','Tue','Wed','Thu','Fri','Sat'][d] : '' }
+
+  const addBreak = () => setBreaks(prev => [...prev, { id: crypto.randomUUID(), name: '', startMonday: '', returnMonday: '' }])
+  const removeBreak = id => setBreaks(prev => prev.filter(b => b.id !== id))
+  const updateBreak = (id, key, val) => setBreaks(prev => prev.map(b => b.id === id ? { ...b, [key]: val } : b))
+
+  const startValid  = !semStart  || getDow(semStart) === startDay
+  const endValid    = !semEnd    || getDow(semEnd)   === endDay
+
+  const handleSaveSemester = async () => {
+    if (!semStart || !semEnd) { setSemError('Start and end dates are required'); return }
+    if (!startValid) { setSemError(`Semester start must be a ${DOW_NAMES[startDay]}`); return }
+    if (!endValid)   { setSemError(`Semester end must be a ${DOW_NAMES[endDay]}`); return }
+    if (semStart >= semEnd) { setSemError('End date must be after start date'); return }
+    const incomplete = breaks.find(b => !b.name.trim() || !b.startMonday || !b.returnMonday)
+    if (incomplete) { setSemError('All break fields are required'); return }
+    const badBreak = breaks.find(b => getDow(b.startMonday) !== breakDay || getDow(b.returnMonday) !== breakDay)
+    if (badBreak) { setSemError(`Break dates must be ${DOW_NAMES[breakDay]}s`); return }
+    setSemSaving(true); setSemError(null)
+    const { error } = await onUpdateSemester?.({ start: semStart, end: semEnd, breaks })
+    setSemSaving(false)
+    if (error) { setSemError(error.message || 'Save failed'); return }
+    setSemSaved(true)
+    setTimeout(() => setSemSaved(false), 2500)
+  }
 
   const initials = [firstName[0], lastName[0]].filter(Boolean).join('').toUpperCase() || '?'
 
@@ -250,6 +290,79 @@ export default function SettingsPage({ userProfile, userEmail, theme, onThemeCha
         </div>
       </SectionCard>
 
+      {/* Notifications */}
+      <SectionCard title="Notifications" Icon={Bell} accentColor="var(--accent-blue)">
+        {notifStatus === 'unsupported' ? (
+          <p style={{ margin: 0, fontSize: 13, color: 'var(--text-muted)' }}>Push notifications aren't supported on this device or browser.</p>
+        ) : notifStatus === 'denied' ? (
+          <div>
+            <div style={{ fontSize: 13, fontWeight: 600, color: 'var(--text-primary)', marginBottom: 4 }}>Notifications blocked</div>
+            <div style={{ fontSize: 12, color: 'var(--text-muted)', lineHeight: 1.5 }}>
+              You've blocked notifications for this app. To re-enable, go to <strong style={{ color: 'var(--text-secondary)' }}>Settings → StudentOS → Notifications</strong> on your device.
+            </div>
+          </div>
+        ) : (
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 16 }}>
+              <div>
+                <div style={{ fontSize: 13, fontWeight: 600, color: 'var(--text-primary)', marginBottom: 4 }}>
+                  {notifStatus === 'granted' ? 'Reminders enabled' : 'Enable reminders'}
+                </div>
+                <div style={{ fontSize: 12, color: 'var(--text-muted)', lineHeight: 1.5, maxWidth: 380 }}>
+                  Get push notifications before upcoming exams and assignments — even when the app is closed.
+                </div>
+              </div>
+              <button
+                onClick={notifStatus === 'granted' ? onDisableNotifications : onEnableNotifications}
+                style={{
+                  width: 44, height: 24, borderRadius: 12, border: 'none', cursor: 'pointer',
+                  background: notifStatus === 'granted' ? 'var(--accent-blue)' : 'var(--border-strong)',
+                  position: 'relative', flexShrink: 0, transition: 'background 0.2s',
+                }}
+              >
+                <div style={{
+                  width: 18, height: 18, borderRadius: '50%', background: '#fff',
+                  position: 'absolute', top: 3,
+                  left: notifStatus === 'granted' ? 23 : 3,
+                  transition: 'left 0.2s',
+                }} />
+              </button>
+            </div>
+
+            {notifStatus === 'granted' && (
+              <div style={{ paddingTop: 14, borderTop: '1px solid var(--border)' }}>
+                <div style={{ fontSize: 11, fontWeight: 600, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.5px', marginBottom: 10 }}>Remind me</div>
+                <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+                  {[
+                    { days: 0, label: 'Day of' },
+                    { days: 1, label: '1 day before' },
+                    { days: 3, label: '3 days before' },
+                  ].map(opt => {
+                    const active = reminderDays.includes(opt.days)
+                    return (
+                      <button key={opt.days} onClick={() => {
+                        const next = active
+                          ? reminderDays.filter(d => d !== opt.days)
+                          : [...reminderDays, opt.days]
+                        if (next.length > 0) onUpdateReminderDays?.(next)
+                      }} style={{
+                        padding: '6px 14px', borderRadius: 20, fontSize: 13, cursor: 'pointer',
+                        border: `1px solid ${active ? 'var(--accent-blue)' : 'var(--border-strong)'}`,
+                        background: active ? 'rgba(91,140,255,0.12)' : 'none',
+                        color: active ? 'var(--accent-blue)' : 'var(--text-secondary)',
+                        fontWeight: active ? 600 : 400, transition: 'all 0.15s', fontFamily: 'inherit',
+                      }}>
+                        {opt.label}
+                      </button>
+                    )
+                  })}
+                </div>
+              </div>
+            )}
+          </div>
+        )}
+      </SectionCard>
+
       {/* Schedule */}
       <SectionCard title="Schedule" Icon={Calendar} accentColor="var(--accent-blue)">
         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 16, flexWrap: 'wrap' }}>
@@ -271,6 +384,98 @@ export default function SettingsPage({ userProfile, userEmail, theme, onThemeCha
           >
             <Calendar size={14} /> Edit Schedule
           </button>
+        </div>
+      </SectionCard>
+
+      {/* Semester */}
+      <SectionCard title="Semester" Icon={Calendar} accentColor="var(--accent-amber)">
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
+          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 14 }}>
+            <div>
+              <Field label={`Semester Start — must be a ${DOW_NAMES[startDay]}`}>
+                <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
+                  <TextInput type="date" value={semStart} onChange={e => setSemStart(e.target.value)} style={{ colorScheme: 'dark' }} />
+                  {semStart && (
+                    <span style={{ fontSize: 12, fontWeight: 600, padding: '4px 9px', borderRadius: 6, flexShrink: 0,
+                      background: startValid ? 'rgba(52,211,153,0.12)' : 'rgba(251,113,133,0.12)',
+                      color: startValid ? '#34d399' : '#fb7185',
+                      border: `1px solid ${startValid ? 'rgba(52,211,153,0.25)' : 'rgba(251,113,133,0.25)'}`,
+                    }}>{dowName(semStart)}</span>
+                  )}
+                </div>
+              </Field>
+            </div>
+            <div>
+              <Field label={`Semester End — must be a ${DOW_NAMES[endDay]}`}>
+                <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
+                  <TextInput type="date" value={semEnd} onChange={e => setSemEnd(e.target.value)} style={{ colorScheme: 'dark' }} />
+                  {semEnd && (
+                    <span style={{ fontSize: 12, fontWeight: 600, padding: '4px 9px', borderRadius: 6, flexShrink: 0,
+                      background: endValid ? 'rgba(52,211,153,0.12)' : 'rgba(251,113,133,0.12)',
+                      color: endValid ? '#34d399' : '#fb7185',
+                      border: `1px solid ${endValid ? 'rgba(52,211,153,0.25)' : 'rgba(251,113,133,0.25)'}`,
+                    }}>{dowName(semEnd)}</span>
+                  )}
+                </div>
+              </Field>
+            </div>
+          </div>
+
+          <div>
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 10 }}>
+              <span style={{ fontSize: 11, fontWeight: 600, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.6px' }}>Breaks</span>
+              <button onClick={addBreak} style={{ display: 'flex', alignItems: 'center', gap: 5, padding: '4px 10px', borderRadius: 6, border: '1px solid var(--border-strong)', background: 'none', color: 'var(--text-secondary)', fontSize: 12, cursor: 'pointer', fontFamily: 'inherit' }}>
+                <Plus size={11} /> Add Break
+              </button>
+            </div>
+            {breaks.length === 0 && (
+              <p style={{ margin: 0, fontSize: 12, color: 'var(--text-muted)' }}>No breaks added yet.</p>
+            )}
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+              {breaks.map(b => (
+                <div key={b.id} style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr auto', gap: 8, alignItems: 'end' }}>
+                  <Field label="Name">
+                    <TextInput value={b.name} onChange={e => updateBreak(b.id, 'name', e.target.value)} placeholder="e.g. Reading Week" />
+                  </Field>
+                  <Field label={`Break starts — ${DOW_NAMES[breakDay]}`}>
+                    <div style={{ display: 'flex', gap: 6, alignItems: 'center' }}>
+                      <TextInput type="date" value={b.startMonday} onChange={e => updateBreak(b.id, 'startMonday', e.target.value)} style={{ colorScheme: 'dark' }} />
+                      {b.startMonday && (() => { const ok = getDow(b.startMonday) === breakDay; return (
+                        <span style={{ fontSize: 11, fontWeight: 600, padding: '3px 7px', borderRadius: 5, flexShrink: 0,
+                          background: ok ? 'rgba(52,211,153,0.12)' : 'rgba(251,113,133,0.12)',
+                          color: ok ? '#34d399' : '#fb7185',
+                          border: `1px solid ${ok ? 'rgba(52,211,153,0.25)' : 'rgba(251,113,133,0.25)'}`,
+                        }}>{dowName(b.startMonday)}</span>
+                      )})()}
+                    </div>
+                  </Field>
+                  <Field label={`Classes resume — ${DOW_NAMES[breakDay]}`}>
+                    <div style={{ display: 'flex', gap: 6, alignItems: 'center' }}>
+                      <TextInput type="date" value={b.returnMonday} onChange={e => updateBreak(b.id, 'returnMonday', e.target.value)} style={{ colorScheme: 'dark' }} />
+                      {b.returnMonday && (() => { const ok = getDow(b.returnMonday) === breakDay; return (
+                        <span style={{ fontSize: 11, fontWeight: 600, padding: '3px 7px', borderRadius: 5, flexShrink: 0,
+                          background: ok ? 'rgba(52,211,153,0.12)' : 'rgba(251,113,133,0.12)',
+                          color: ok ? '#34d399' : '#fb7185',
+                          border: `1px solid ${ok ? 'rgba(52,211,153,0.25)' : 'rgba(251,113,133,0.25)'}`,
+                        }}>{dowName(b.returnMonday)}</span>
+                      )})()}
+                    </div>
+                  </Field>
+                  <button onClick={() => removeBreak(b.id)} style={{ width: 32, height: 36, borderRadius: 7, border: 'none', background: 'var(--bg-overlay)', color: 'var(--text-muted)', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}
+                    onMouseEnter={e => { e.currentTarget.style.background = 'rgba(251,113,133,0.12)'; e.currentTarget.style.color = '#fb7185' }}
+                    onMouseLeave={e => { e.currentTarget.style.background = 'var(--bg-overlay)'; e.currentTarget.style.color = 'var(--text-muted)' }}>
+                    <Trash2 size={12} />
+                  </button>
+                </div>
+              ))}
+            </div>
+          </div>
+
+          <ErrorBanner message={semError} />
+
+          <div style={{ display: 'flex', justifyContent: 'flex-end' }}>
+            <SaveBtn saving={semSaving} saved={semSaved} onClick={handleSaveSemester} color="var(--accent-amber)" label="Save Semester" />
+          </div>
         </div>
       </SectionCard>
 
@@ -332,6 +537,24 @@ export default function SettingsPage({ userProfile, userEmail, theme, onThemeCha
             </button>
           </div>
         )}
+      </SectionCard>
+
+      {/* Data */}
+      <SectionCard title="Data" Icon={Download} accentColor="var(--accent-green)">
+        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 16, flexWrap: 'wrap' }}>
+          <div>
+            <div style={{ fontSize: 13, fontWeight: 600, color: 'var(--text-primary)', marginBottom: 4 }}>Export Your Data</div>
+            <div style={{ fontSize: 12, color: 'var(--text-muted)', lineHeight: 1.5, maxWidth: 380 }}>
+              Download a JSON file of all your domains, assessments, notes, todos, and study sessions.
+            </div>
+          </div>
+          <button
+            onClick={onExportData}
+            style={{ display: 'flex', alignItems: 'center', gap: 7, padding: '9px 18px', borderRadius: 9, border: 'none', background: 'var(--accent-green)', color: '#030a06', fontSize: 13, fontWeight: 600, cursor: 'pointer', flexShrink: 0, fontFamily: 'inherit' }}
+          >
+            <Download size={14} /> Export JSON
+          </button>
+        </div>
       </SectionCard>
 
       {/* Danger Zone */}
