@@ -237,8 +237,8 @@ export default function App() {
         if (data) setAssessments(data.map(r => ({
           id: r.id, domainId: r.domain_id, type: r.type,
           title: r.title, date: r.date, weight: r.weight,
-          grade: r.grade ?? null, location: r.location ?? null,
-          createdAt: r.created_at,
+          grade: r.grade ?? null, predictedGrade: r.predicted_grade ?? null,
+          location: r.location ?? null, createdAt: r.created_at,
         })))
       })
   }, [userId])
@@ -410,6 +410,7 @@ export default function App() {
       date: updates.date ?? null,
       weight: updates.weight ?? 0,
       grade: updates.grade ?? null,
+      predicted_grade: updates.predictedGrade ?? null,
       location: updates.location ?? null,
     }).eq('id', id).eq('user_id', userId)
     if (error) setAssessments(snapshot)

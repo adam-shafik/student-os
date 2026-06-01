@@ -523,32 +523,78 @@ function GradeInput({ assessment, onSave, onCancel }) {
   )
 }
 
+function PredictInput({ assessment, onSave, onCancel }) {
+  const [val, setVal] = useState(assessment.predictedGrade != null ? String(assessment.predictedGrade) : '')
+  const num = parseFloat(val)
+  const valid = !isNaN(num) && num >= 0 && num <= 100
+  return (
+    <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+      <input autoFocus type="number" min={0} max={100} step={0.1}
+        value={val} onChange={e => setVal(e.target.value)}
+        onKeyDown={e => { if (e.key === 'Enter' && valid) onSave(num); if (e.key === 'Escape') onCancel() }}
+        style={{ width: 72, padding: '4px 8px', borderRadius: 6, border: '1px solid rgba(167,139,250,0.6)',
+          background: 'var(--bg-input)', color: 'var(--text-primary)', fontSize: 13, outline: 'none' }}
+      />
+      <span style={{ fontSize: 13, color: 'var(--text-muted)' }}>%</span>
+      <button onClick={() => valid && onSave(num)}
+        style={{ width: 24, height: 24, borderRadius: 5, border: 'none', background: valid ? 'var(--accent-purple)' : 'var(--border)', color: valid ? '#fff' : 'var(--text-muted)', cursor: valid ? 'pointer' : 'default', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+        <Check size={12} />
+      </button>
+      <button onClick={onCancel} style={{ width: 24, height: 24, borderRadius: 5, border: 'none', background: 'var(--bg-overlay)', color: 'var(--text-muted)', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+        <X size={12} />
+      </button>
+    </div>
+  )
+}
+
 function AssessmentsTab({ domain, assessments, onAddAssessment, onUpdateAssessment, onDeleteAssessment }) {
   const [showAdd,        setShowAdd]        = useState(false)
   const [editing,        setEditing]        = useState(null)
   const [gradingId,      setGradingId]      = useState(null)
+  const [predictingId,   setPredictingId]   = useState(null)
+  const [targetGrade,    setTargetGrade]    = useState(70)
   const [saveError,      setSaveError]      = useState(null)
   const [confirmDelId,   setConfirmDelId]   = useState(null)
 
   const exams       = assessments.filter(a => a.type === 'exam').sort((a, b) => (a.date || '') < (b.date || '') ? -1 : 1)
   const assignments = assessments.filter(a => a.type === 'assignment').sort((a, b) => (a.date || '') < (b.date || '') ? -1 : 1)
 
-  const graded      = assessments.filter(a => a.grade != null)
-  const totalWeight = graded.reduce((s, a) => s + (a.weight || 0), 0)
-  const weightedAvg = totalWeight > 0
-    ? (graded.reduce((s, a) => s + (a.grade * a.weight), 0) / totalWeight).toFixed(1)
+  const totalWeight    = assessments.reduce((s, a) => s + (a.weight || 0), 0)
+  const graded         = assessments.filter(a => a.grade != null)
+  const gradedWeight   = graded.reduce((s, a) => s + (a.weight || 0), 0)
+  const gradedSum      = graded.reduce((s, a) => s + a.grade * (a.weight || 0), 0)
+  const weightedAvg    = gradedWeight > 0 ? (gradedSum / gradedWeight).toFixed(1) : null
+
+  const predicted      = assessments.filter(a => a.grade == null && a.predictedGrade != null)
+  const predictedWeight = predicted.reduce((s, a) => s + (a.weight || 0), 0)
+  const predictedSum   = predicted.reduce((s, a) => s + a.predictedGrade * (a.weight || 0), 0)
+  const coveredWeight  = gradedWeight + predictedWeight
+  const coveredSum     = gradedSum + predictedSum
+  const projectedAvg   = coveredWeight > 0 ? (coveredSum / coveredWeight).toFixed(1) : null
+
+  const ungradedWeight = assessments.filter(a => a.grade == null && a.predictedGrade == null).reduce((s, a) => s + (a.weight || 0), 0)
+  const neededRaw      = ungradedWeight > 0 && totalWeight > 0
+    ? (targetGrade * totalWeight - coveredSum) / ungradedWeight
     : null
-  const ungraded    = assessments.filter(a => a.grade == null)
+  const neededAvg      = neededRaw != null ? neededRaw.toFixed(1) : null
+  const neededColor    = neededRaw == null ? 'var(--text-muted)'
+    : neededRaw > 100 ? 'var(--accent-red)'
+    : neededRaw >= 70 ? 'var(--accent-amber)'
+    : 'var(--accent-green)'
+
+  function gradeColor(v) {
+    const n = Number(v)
+    return n >= 50 ? 'var(--accent-green)' : n >= 30 ? 'var(--accent-amber)' : 'var(--accent-red)'
+  }
 
   function AssessmentRow({ item }) {
-    const isExam    = item.type === 'exam'
-    const color     = isExam ? '#fb7185' : '#fbbf24'
-    const isGrading = gradingId === item.id
-    const today     = new Date()
-    const isPast    = item.date && new Date(item.date + 'T12:00:00') < today
-    const gradeColor = item.grade != null
-      ? (item.grade >= 70 ? 'var(--accent-green)' : item.grade >= 50 ? 'var(--accent-amber)' : 'var(--accent-red)')
-      : 'var(--text-muted)'
+    const isExam      = item.type === 'exam'
+    const color       = isExam ? '#fb7185' : '#fbbf24'
+    const isGrading   = gradingId === item.id
+    const isPredicting = predictingId === item.id
+    const today       = new Date()
+    const isPast      = item.date && new Date(item.date + 'T12:00:00') < today
+
     return (
       <div style={{ display: 'flex', alignItems: 'center', gap: 14, padding: '14px 20px', borderBottom: '1px solid var(--border)' }}>
         <div style={{ width: 3, alignSelf: 'stretch', borderRadius: 2, background: color, flexShrink: 0 }} />
@@ -561,25 +607,45 @@ function AssessmentsTab({ domain, assessments, onAddAssessment, onUpdateAssessme
           </div>
         </div>
         <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexShrink: 0 }}>
-          {isGrading
-            ? <GradeInput assessment={item} onSave={async g => { const { error } = await onUpdateAssessment(item.id, { ...item, grade: g }); if (error) setSaveError(error.message || 'Unknown error'); else setGradingId(null) }} onCancel={() => setGradingId(null)} />
-            : item.grade != null
-              ? (
-                <button onClick={() => setGradingId(item.id)} title="Edit grade"
-                  style={{ background: `${gradeColor}15`, color: gradeColor, fontSize: 14, fontWeight: 700, padding: '5px 12px', borderRadius: 7, border: `1px solid ${gradeColor}30`, cursor: 'pointer' }}>
-                  {item.grade}%
+          {isGrading ? (
+            <GradeInput assessment={item} onSave={async g => {
+              const { error } = await onUpdateAssessment(item.id, { ...item, grade: g, predictedGrade: null })
+              if (error) setSaveError(error.message || 'Unknown error'); else setGradingId(null)
+            }} onCancel={() => setGradingId(null)} />
+          ) : isPredicting ? (
+            <PredictInput assessment={item} onSave={async g => {
+              const { error } = await onUpdateAssessment(item.id, { ...item, predictedGrade: g })
+              if (error) setSaveError(error.message || 'Unknown error'); else setPredictingId(null)
+            }} onCancel={() => setPredictingId(null)} />
+          ) : item.grade != null ? (
+            <button onClick={() => { setGradingId(item.id); setPredictingId(null) }} title="Edit grade"
+              style={{ background: `${gradeColor(item.grade)}18`, color: gradeColor(item.grade), fontSize: 14, fontWeight: 700, padding: '5px 12px', borderRadius: 7, border: `1px solid ${gradeColor(item.grade)}40`, cursor: 'pointer' }}>
+              {item.grade}%
+            </button>
+          ) : (
+            <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+              <button onClick={() => { setGradingId(item.id); setPredictingId(null) }}
+                style={{ padding: '5px 10px', borderRadius: 7, border: '1px dashed var(--border-strong)', background: 'none',
+                  color: 'var(--text-muted)', fontSize: 12, cursor: isPast ? 'pointer' : 'default', opacity: isPast ? 1 : 0.45 }}
+                title={isPast ? 'Enter actual grade' : 'Date not yet reached'}>
+                + Grade
+              </button>
+              {item.predictedGrade != null ? (
+                <button onClick={() => { setPredictingId(item.id); setGradingId(null) }} title="Edit prediction"
+                  style={{ padding: '5px 10px', borderRadius: 7, border: '1px solid rgba(167,139,250,0.35)',
+                    background: 'rgba(167,139,250,0.1)', color: 'var(--accent-purple)', fontSize: 12, fontWeight: 600, cursor: 'pointer' }}>
+                  ~{item.predictedGrade}%
                 </button>
-              )
-              : (
-                <button onClick={() => setGradingId(item.id)}
-                  style={{ padding: '5px 10px', borderRadius: 7, border: '1px dashed var(--border-strong)', background: 'none',
-                    color: 'var(--text-muted)', fontSize: 12, cursor: isPast ? 'pointer' : 'default',
-                    opacity: isPast ? 1 : 0.45 }}
-                  title={isPast ? 'Enter grade' : 'Date not yet reached'}>
-                  + Grade
+              ) : (
+                <button onClick={() => { setPredictingId(item.id); setGradingId(null) }}
+                  style={{ padding: '5px 10px', borderRadius: 7, border: '1px dashed rgba(167,139,250,0.4)', background: 'none',
+                    color: 'rgba(167,139,250,0.7)', fontSize: 12, cursor: 'pointer' }}
+                  title="Add predicted grade">
+                  ~ Predict
                 </button>
-              )
-          }
+              )}
+            </div>
+          )}
           <button onClick={() => setEditing(item)}
             style={{ width: 28, height: 28, borderRadius: 6, border: 'none', background: 'var(--bg-overlay)', color: 'var(--text-muted)', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
             <Edit2 size={12} />
@@ -597,28 +663,63 @@ function AssessmentsTab({ domain, assessments, onAddAssessment, onUpdateAssessme
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
-      {/* Header row */}
-      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-        <div style={{ display: 'flex', alignItems: 'center', gap: 16 }}>
+      {/* Header stats + add button */}
+      <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: 16, flexWrap: 'wrap' }}>
+        <div style={{ display: 'flex', alignItems: 'stretch', gap: 12, flexWrap: 'wrap' }}>
+
+          {/* Current avg */}
           {weightedAvg != null && (
-            <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-              <div style={{ fontSize: 28, fontWeight: 700, color: Number(weightedAvg) >= 70 ? 'var(--accent-green)' : Number(weightedAvg) >= 50 ? 'var(--accent-amber)' : 'var(--accent-red)' }}>
-                {weightedAvg}%
-              </div>
-              <div style={{ fontSize: 12, color: 'var(--text-muted)', lineHeight: 1.4 }}>
-                weighted avg<br />
-                {graded.length} marked{ungraded.length > 0 && `, ${ungraded.length} pending`}
+            <div style={{ background: 'var(--bg-surface)', border: '1px solid var(--border)', borderRadius: 12, padding: '14px 18px' }}>
+              <div style={{ fontSize: 10, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.5px', marginBottom: 6 }}>Current Avg</div>
+              <div style={{ display: 'flex', alignItems: 'baseline', gap: 6 }}>
+                <span style={{ fontSize: 26, fontWeight: 700, color: gradeColor(weightedAvg) }}>{weightedAvg}%</span>
+                <span style={{ fontSize: 11, color: 'var(--text-muted)' }}>{graded.length} graded</span>
               </div>
             </div>
           )}
-          {weightedAvg == null && assessments.length > 0 && (
-            <span style={{ fontSize: 13, color: 'var(--text-muted)' }}>No grades entered yet</span>
+
+          {/* Projected */}
+          {projectedAvg != null && predicted.length > 0 && (
+            <div style={{ background: 'var(--bg-surface)', border: '1px solid rgba(167,139,250,0.25)', borderRadius: 12, padding: '14px 18px' }}>
+              <div style={{ fontSize: 10, color: 'rgba(167,139,250,0.7)', textTransform: 'uppercase', letterSpacing: '0.5px', marginBottom: 6 }}>Projected</div>
+              <div style={{ display: 'flex', alignItems: 'baseline', gap: 6 }}>
+                <span style={{ fontSize: 26, fontWeight: 700, color: 'var(--accent-purple)' }}>~{projectedAvg}%</span>
+                <span style={{ fontSize: 11, color: 'var(--text-muted)' }}>{predicted.length}/{assessments.length} predicted</span>
+              </div>
+            </div>
+          )}
+
+          {/* What do I need */}
+          {neededAvg != null && (
+            <div style={{ background: 'var(--bg-surface)', border: '1px solid var(--border)', borderRadius: 12, padding: '14px 18px' }}>
+              <div style={{ fontSize: 10, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.5px', marginBottom: 8 }}>What Do I Need?</div>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
+                <span style={{ fontSize: 12, color: 'var(--text-secondary)' }}>Target</span>
+                <input
+                  type="number" value={targetGrade} min={0} max={100}
+                  onChange={e => setTargetGrade(Math.max(0, Math.min(100, Number(e.target.value))))}
+                  style={{ width: 52, padding: '4px 8px', borderRadius: 6, border: '1px solid var(--border-strong)',
+                    background: 'var(--bg-input)', color: 'var(--text-primary)', fontSize: 13, outline: 'none',
+                    textAlign: 'center', fontFamily: 'inherit' }}
+                  onFocus={e => e.target.style.borderColor = 'var(--border-focus)'}
+                  onBlur={e => e.target.style.borderColor = 'var(--border-strong)'}
+                />
+                <span style={{ fontSize: 12, color: 'var(--text-secondary)' }}>%</span>
+                <span style={{ fontSize: 12, color: 'var(--text-muted)' }}>→ Need</span>
+                <span style={{ fontSize: 20, fontWeight: 700, color: neededColor }}>{neededAvg}%</span>
+                <span style={{ fontSize: 11, color: 'var(--text-muted)' }}>avg on {ungradedWeight}% left</span>
+              </div>
+            </div>
+          )}
+
+          {assessments.length > 0 && weightedAvg == null && projectedAvg == null && (
+            <span style={{ fontSize: 13, color: 'var(--text-muted)', alignSelf: 'center' }}>No grades entered yet — add actual grades or predictions</span>
           )}
         </div>
         <button
           onClick={() => setShowAdd(true)}
           style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '8px 14px', borderRadius: 8,
-            border: 'none', background: domain.color, color: '#fff', cursor: 'pointer', fontSize: 13, fontWeight: 600 }}>
+            border: 'none', background: domain.color, color: '#fff', cursor: 'pointer', fontSize: 13, fontWeight: 600, flexShrink: 0 }}>
           <Plus size={14} /> Add Assessment
         </button>
       </div>
