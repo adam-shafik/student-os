@@ -10,7 +10,7 @@
 
 ## To Build
 
-### 1. Weekly Calendar View
+### ~~1. Weekly Calendar View~~ ✅
 Toggle on CalendarPage between monthly grid and a weekly view with time slots.
 More actionable for day-to-day planning.
 
@@ -19,7 +19,7 @@ On the Study page — total hours this week, breakdown by domain (bar chart), st
 All data already exists in `study_sessions`.
 
 ### 3. Settings Page (complete it)
-Currently has profile edit and theme switcher. Still needs:
+Currently has profile edit, theme switcher, and wallpaper toggle. Still needs:
 - Semester reconfiguration (edit sem start/end + breaks)
 - Data export
 

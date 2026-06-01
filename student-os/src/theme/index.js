@@ -97,7 +97,11 @@ export function getStoredTheme() {
   try { return localStorage.getItem('sos-theme') || 'default' } catch { return 'default' }
 }
 
-export function applyTheme(id) {
+export function getStoredWallpaper() {
+  try { return localStorage.getItem('sos-wallpaper') !== 'false' } catch { return true }
+}
+
+export function applyTheme(id, showWallpaper = getStoredWallpaper()) {
   const html = document.documentElement
   THEMES.forEach(t => html.classList.remove(`theme-${t.id}`))
   html.style.removeProperty('--bg-body-image')
@@ -110,7 +114,7 @@ export function applyTheme(id) {
   if (id !== 'default') html.classList.add(`theme-${id}`)
 
   const themeData = THEMES.find(t => t.id === id)
-  if (themeData?.wallpaper) {
+  if (themeData?.wallpaper && showWallpaper) {
     html.style.setProperty('--bg-wallpaper-photo', `url('/wallpapers/${themeData.wallpaper}')`)
     html.style.setProperty('--wallpaper-overlay', themeData.wallpaperOverlay || 'rgba(0,0,0,0.76)')
     html.style.setProperty('--wallpaper-blur', themeData.wallpaperBlur || '0px')

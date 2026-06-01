@@ -63,7 +63,7 @@ function ErrorBanner({ message }) {
   )
 }
 
-export default function SettingsPage({ userProfile, userEmail, theme, onThemeChange, onUpdateProfile, onChangePassword, onResetOnboarding, onEditSchedule }) {
+export default function SettingsPage({ userProfile, userEmail, theme, onThemeChange, wallpaperEnabled, onToggleWallpaper, onUpdateProfile, onChangePassword, onResetOnboarding, onEditSchedule }) {
   const [firstName,  setFirstName]  = useState(userProfile?.first_name    || '')
   const [lastName,   setLastName]   = useState(userProfile?.last_name     || '')
   const [dob,        setDob]        = useState(userProfile?.date_of_birth || '')
@@ -308,6 +308,30 @@ export default function SettingsPage({ userProfile, userEmail, theme, onThemeCha
             )
           })}
         </div>
+
+        {THEMES.find(t => t.id === theme)?.wallpaper && (
+          <div style={{ marginTop: 16, paddingTop: 16, borderTop: '1px solid var(--border)', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+            <div>
+              <div style={{ fontSize: 13, fontWeight: 600, color: 'var(--text-primary)', marginBottom: 2 }}>Background photo</div>
+              <div style={{ fontSize: 12, color: 'var(--text-muted)' }}>Show the wallpaper for this theme, or use solid colors only</div>
+            </div>
+            <button
+              onClick={() => onToggleWallpaper?.(!wallpaperEnabled)}
+              style={{
+                width: 44, height: 24, borderRadius: 12, border: 'none', cursor: 'pointer',
+                background: wallpaperEnabled ? 'var(--accent-purple)' : 'var(--border-strong)',
+                position: 'relative', flexShrink: 0, transition: 'background 0.2s',
+              }}
+            >
+              <div style={{
+                width: 18, height: 18, borderRadius: '50%', background: '#fff',
+                position: 'absolute', top: 3,
+                left: wallpaperEnabled ? 23 : 3,
+                transition: 'left 0.2s',
+              }} />
+            </button>
+          </div>
+        )}
       </SectionCard>
 
       {/* Danger Zone */}

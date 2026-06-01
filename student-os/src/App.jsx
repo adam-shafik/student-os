@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef, useMemo } from 'react'
-import { getStoredTheme, applyTheme } from './theme'
+import { getStoredTheme, getStoredWallpaper, applyTheme } from './theme'
 import './App.css'
 import Layout from './components/Layout'
 import DomainsPage from './pages/DomainsPage'
@@ -53,15 +53,22 @@ export default function App() {
     }
   }, [])
 
-  const [theme, setTheme] = useState(getStoredTheme)
-  useEffect(() => { applyTheme(theme) }, [])
+  const [theme,           setTheme]           = useState(getStoredTheme)
+  const [wallpaperEnabled, setWallpaperEnabled] = useState(getStoredWallpaper)
+  useEffect(() => { applyTheme(theme, wallpaperEnabled) }, [])
 
   const handleThemeChange = (id) => {
     setTheme(id)
-    applyTheme(id)
+    applyTheme(id, wallpaperEnabled)
     if (userId) {
       supabase.from('user_preferences').upsert({ user_id: userId, theme: id }, { onConflict: 'user_id' })
     }
+  }
+
+  const handleToggleWallpaper = (enabled) => {
+    setWallpaperEnabled(enabled)
+    try { localStorage.setItem('sos-wallpaper', String(enabled)) } catch {}
+    applyTheme(theme, enabled)
   }
 
   const [currentPage,    setCurrentPage]    = useState('domains')
@@ -1043,6 +1050,8 @@ export default function App() {
           userEmail={session?.user?.email || ''}
           theme={theme}
           onThemeChange={handleThemeChange}
+          wallpaperEnabled={wallpaperEnabled}
+          onToggleWallpaper={handleToggleWallpaper}
           onUpdateProfile={handleUpdateProfile}
           onChangePassword={handleChangePassword}
           onResetOnboarding={handleDevResetOnboarding}
