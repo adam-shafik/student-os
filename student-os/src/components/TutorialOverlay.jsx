@@ -36,6 +36,25 @@ function buildSteps(name) {
       tooltipSide: 'bottom-corner',
     },
     {
+      id: 'assessments-tab',
+      type: 'click',
+      page: null,
+      targetId: 'assessments-tab-btn',
+      title: 'Track your grades',
+      body: `The Assessments tab is where all your exams and assignments live — with weights, deadlines, and grades. Click Assessments to see it.`,
+      tooltipSide: 'bottom',
+    },
+    {
+      id: 'assessments-showcase',
+      type: 'next',
+      page: null,
+      targetId: 'assessments-stats',
+      title: 'Grade tracker & predictor',
+      body: `Add your exams and assignments with their weights. Enter grades as results come in, or add a predicted grade for upcoming ones. Set a target final grade and StudentOS tells you exactly what you need to get across the rest to hit it.`,
+      nextLabel: 'Got it',
+      tooltipSide: 'bottom-corner',
+    },
+    {
       id: 'calendar',
       type: 'next',
       page: 'calendar',
@@ -95,12 +114,14 @@ function buildSteps(name) {
     },
     {
       id: 'themes',
-      type: 'center',
-      page: 'domains',
-      targetId: null,
+      type: 'next',
+      page: 'settings',
+      targetId: 'theme-switcher',
       title: 'Make StudentOS yours',
-      body: `Head to Settings anytime to switch themes — Space Observatory, Sakura Glass, Deep Ocean, Rainy Akatsuki, and more. Your theme syncs across all your devices so it always feels like home.`,
+      body: `Switch themes anytime from Settings. Pick whatever feels right — your choice syncs across all your devices.`,
       nextLabel: 'Got it',
+      tooltipSide: 'bottom-corner',
+      scrollTo: true,
     },
     {
       id: 'done',
@@ -130,20 +151,36 @@ export default function TutorialOverlay({ userName, stepIndex, currentPage, onNa
   // Find target element — re-runs when currentPage changes so new page DOM is ready
   useEffect(() => {
     if (!step.targetId) { setRect(null); return }
-    let cleanup = () => {}
+    let t1, t2
     const raf = requestAnimationFrame(() => {
-      const el = document.querySelector(`[data-tutorial-id="${step.targetId}"]`)
+      const find = () => document.querySelector(`[data-tutorial-id="${step.targetId}"]`)
+      const measure = (el) => {
+        if (step.scrollTo) {
+          const container = document.querySelector('.page-scroll')
+          if (container) {
+            let offsetTop = 0
+            let node = el
+            while (node && node !== container) { offsetTop += node.offsetTop + 400; node = node.offsetParent }
+            container.scrollTo({ top: Math.max(0, offsetTop - 150), behavior: 'smooth' })
+          } else {
+            el.scrollIntoView({ behavior: 'smooth', block: 'start' })
+          }
+          t2 = setTimeout(() => setRect(el.getBoundingClientRect()), 420)
+        } else {
+          setRect(el.getBoundingClientRect())
+        }
+      }
+      const el = find()
       if (el) {
-        setRect(el.getBoundingClientRect())
+        measure(el)
       } else {
-        const t = setTimeout(() => {
-          const el2 = document.querySelector(`[data-tutorial-id="${step.targetId}"]`)
-          setRect(el2 ? el2.getBoundingClientRect() : null)
+        t1 = setTimeout(() => {
+          const el2 = find()
+          if (el2) measure(el2); else setRect(null)
         }, 150)
-        cleanup = () => clearTimeout(t)
       }
     })
-    return () => { cancelAnimationFrame(raf); cleanup() }
+    return () => { cancelAnimationFrame(raf); clearTimeout(t1); clearTimeout(t2) }
   }, [step.id, step.targetId, currentPage])
 
   const handleAdvance = useCallback(() => {
@@ -204,8 +241,8 @@ export default function TutorialOverlay({ userName, stepIndex, currentPage, onNa
     <>
       <style>{`
         @keyframes _tut-pulse {
-          0%,100% { box-shadow: 0 0 0 3px rgba(91,140,255,0.55),0 0 18px rgba(91,140,255,0.18); }
-          50%      { box-shadow: 0 0 0 6px rgba(91,140,255,0.2),0 0 32px rgba(91,140,255,0.38); }
+          0%,100% { box-shadow: 0 0 0 9999px rgba(0,0,0,0.72), 0 0 0 2px rgba(91,140,255,0.7), 0 0 20px rgba(91,140,255,0.18); }
+          50%      { box-shadow: 0 0 0 9999px rgba(0,0,0,0.72), 0 0 0 5px rgba(91,140,255,0.25), 0 0 36px rgba(91,140,255,0.42); }
         }
         @keyframes _tut-dot  { 0%,100%{opacity:1} 50%{opacity:0.12} }
         @keyframes _tut-in   { from{opacity:0;transform:scale(0.94)} to{opacity:1;transform:scale(1)} }
@@ -215,19 +252,14 @@ export default function TutorialOverlay({ userName, stepIndex, currentPage, onNa
       {isCenter ? (
         <div style={{ position:'fixed', inset:0, background:'rgba(0,0,0,0.8)', zIndex:9990 }} />
       ) : rect ? (
-        <>
-          {rect.top - PAD > 0 && <div style={{ position:'fixed', top:0, left:0, right:0, height:rect.top - PAD, background:'rgba(0,0,0,0.72)', zIndex:9990 }} />}
-          <div style={{ position:'fixed', top:rect.bottom + PAD, left:0, right:0, bottom:0, background:'rgba(0,0,0,0.72)', zIndex:9990 }} />
-          {rect.left - PAD > 0 && <div style={{ position:'fixed', top:rect.top - PAD, left:0, width:rect.left - PAD, height:rect.height + PAD*2, background:'rgba(0,0,0,0.72)', zIndex:9990 }} />}
-          <div style={{ position:'fixed', top:rect.top - PAD, left:rect.right + PAD, right:0, height:rect.height + PAD*2, background:'rgba(0,0,0,0.72)', zIndex:9990 }} />
-          <div style={{
-            position:'fixed', pointerEvents:'none', zIndex:9991,
-            top:rect.top - PAD, left:rect.left - PAD,
-            width:rect.width + PAD*2, height:rect.height + PAD*2,
-            border:'2px solid rgba(91,140,255,0.85)', borderRadius:14,
-            animation:'_tut-pulse 2s ease-in-out infinite',
-          }} />
-        </>
+        <div style={{
+          position:'fixed', pointerEvents:'none', zIndex:9990,
+          top: rect.top - PAD, left: rect.left - PAD,
+          width: rect.width + PAD*2, height: rect.height + PAD*2,
+          borderRadius: 14,
+          animation: '_tut-pulse 2s ease-in-out infinite',
+          transition: 'top 0.35s cubic-bezier(0.32,0.72,0,1), left 0.35s cubic-bezier(0.32,0.72,0,1), width 0.35s cubic-bezier(0.32,0.72,0,1), height 0.35s cubic-bezier(0.32,0.72,0,1)',
+        }} />
       ) : (
         <div style={{ position:'fixed', inset:0, background:'rgba(0,0,0,0.72)', zIndex:9990 }} />
       )}

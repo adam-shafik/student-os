@@ -664,7 +664,7 @@ function AssessmentsTab({ domain, assessments, onAddAssessment, onUpdateAssessme
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
       {/* Header stats + add button */}
-      <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: 16, flexWrap: 'wrap' }}>
+      <div data-tutorial-id="assessments-stats" style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: 16, flexWrap: 'wrap' }}>
         <div style={{ display: 'flex', alignItems: 'stretch', gap: 12, flexWrap: 'wrap' }}>
 
           {/* Current avg */}
@@ -1330,6 +1330,7 @@ export default function DomainDetailPage({
             key={tab}
             ref={el => { if (el) tabBtnRefs.current[tab] = el; else delete tabBtnRefs.current[tab] }}
             onClick={() => setActiveTab(tab)}
+            {...(tab === 'Assessments' ? { 'data-tutorial-id': 'assessments-tab-btn' } : {})}
             style={{
               flex: 1, padding: '8px 12px', borderRadius: 7, border: 'none', cursor: 'pointer',
               fontSize: 13, fontWeight: activeTab === tab ? 600 : 400,

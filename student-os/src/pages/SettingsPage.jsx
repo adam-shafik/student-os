@@ -2,9 +2,9 @@ import { useState } from 'react'
 import { User, Lock, Palette, AlertTriangle, Check, Eye, EyeOff, Save, Loader2, Calendar } from 'lucide-react'
 import { THEMES } from '../theme'
 
-function SectionCard({ title, Icon, accentColor = 'var(--accent-blue)', children }) {
+function SectionCard({ title, Icon, accentColor = 'var(--accent-blue)', children, tutorialId }) {
   return (
-    <div style={{ background: 'var(--bg-surface)', border: '1px solid var(--border)', borderRadius: 14, overflow: 'hidden' }}>
+    <div data-tutorial-id={tutorialId} style={{ background: 'var(--bg-surface)', border: '1px solid var(--border)', borderRadius: 14, overflow: 'hidden' }}>
       <div style={{
         padding: '14px 22px', borderBottom: '1px solid var(--border)',
         display: 'flex', alignItems: 'center', gap: 9,
@@ -275,7 +275,7 @@ export default function SettingsPage({ userProfile, userEmail, theme, onThemeCha
       </SectionCard>
 
       {/* Appearance */}
-      <SectionCard title="Appearance" Icon={Palette} accentColor="var(--accent-purple)">
+      <SectionCard title="Appearance" Icon={Palette} accentColor="var(--accent-purple)" tutorialId="theme-switcher">
         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(200px, 1fr))', gap: 10 }}>
           {THEMES.map(t => {
             const isActive = theme === t.id
