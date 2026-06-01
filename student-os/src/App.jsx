@@ -878,18 +878,24 @@ export default function App() {
       }).eq('id', noteId).eq('user_id', userId)
       if (updateErr) { console.error('notes update failed:', updateErr); throw updateErr }
 
-      const { error: deleteErr } = await supabase.from('note_pages').delete().eq('note_id', noteId)
-      if (deleteErr) { console.error('note_pages delete failed:', deleteErr); throw deleteErr }
-
       if (note.pages.length > 0) {
-        const { error: insertErr } = await supabase.from('note_pages').insert(
-          note.pages.map((p, i) => ({ note_id: noteId, page_order: i, strokes: p.strokes }))
+        // Upsert all current pages in one shot — no delete + insert round-trip
+        const { error: upsertErr } = await supabase.from('note_pages').upsert(
+          note.pages.map((p, i) => ({ id: p.id, note_id: noteId, page_order: i, strokes: p.strokes })),
+          { onConflict: 'id' }
         )
-        if (insertErr) { console.error('note_pages insert failed:', insertErr); throw insertErr }
+        if (upsertErr) { console.error('note_pages upsert failed:', upsertErr); throw upsertErr }
+        // Remove pages that were deleted (page_order beyond current length)
+        await supabase.from('note_pages').delete()
+          .eq('note_id', noteId)
+          .gte('page_order', note.pages.length)
+      } else {
+        await supabase.from('note_pages').delete().eq('note_id', noteId)
       }
     }
 
     setNotes(prev => prev.map(n => n.id === noteId ? { ...n, updatedAt: now } : n))
+    return now
   }
 
   // Called from DomainDetailPage — creates note, navigates, signals NotesPage to auto-open it

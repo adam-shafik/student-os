@@ -404,7 +404,11 @@ export default function NotesPage({ notes, domains, noteToOpen, onClearNoteToOpe
     setSaveState('saving')
     setSaveError('')
     try {
-      await onSaveNote(noteId)
+      const savedAt = await onSaveNote(noteId)
+      // Update baseline so the autosave effect doesn't re-trigger after save
+      if (openNoteBaseline.current?.id === noteId && savedAt) {
+        openNoteBaseline.current = { id: noteId, updatedAt: savedAt }
+      }
       setSaveState('saved')
       setTimeout(() => setSaveState('idle'), 2000)
     } catch (err) {
