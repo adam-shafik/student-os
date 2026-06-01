@@ -63,7 +63,7 @@ function ErrorBanner({ message }) {
   )
 }
 
-export default function SettingsPage({ userProfile, userEmail, theme, onThemeChange, wallpaperEnabled, onToggleWallpaper, semBreaks = [], onUpdateSemester, onExportData, notifStatus = 'unsupported', onEnableNotifications, onDisableNotifications, reminderDays = [1], onUpdateReminderDays, onUpdateProfile, onChangePassword, onResetOnboarding, onEditSchedule }) {
+export default function SettingsPage({ userProfile, userEmail, theme, onThemeChange, wallpaperEnabled, onToggleWallpaper, semBreaks = [], onUpdateSemester, onExportData, notifStatus = 'unsupported', onEnableNotifications, onDisableNotifications, onUpdateProfile, onChangePassword, onResetOnboarding, onEditSchedule }) {
   const [firstName,  setFirstName]  = useState(userProfile?.first_name    || '')
   const [lastName,   setLastName]   = useState(userProfile?.last_name     || '')
   const [dob,        setDob]        = useState(userProfile?.date_of_birth || '')
@@ -330,33 +330,8 @@ export default function SettingsPage({ userProfile, userEmail, theme, onThemeCha
             </div>
 
             {notifStatus === 'granted' && (
-              <div style={{ paddingTop: 14, borderTop: '1px solid var(--border)' }}>
-                <div style={{ fontSize: 11, fontWeight: 600, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.5px', marginBottom: 10 }}>Remind me</div>
-                <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
-                  {[
-                    { days: 0, label: 'Day of' },
-                    { days: 1, label: '1 day before' },
-                    { days: 3, label: '3 days before' },
-                  ].map(opt => {
-                    const active = reminderDays.includes(opt.days)
-                    return (
-                      <button key={opt.days} onClick={() => {
-                        const next = active
-                          ? reminderDays.filter(d => d !== opt.days)
-                          : [...reminderDays, opt.days]
-                        if (next.length > 0) onUpdateReminderDays?.(next)
-                      }} style={{
-                        padding: '6px 14px', borderRadius: 20, fontSize: 13, cursor: 'pointer',
-                        border: `1px solid ${active ? 'var(--accent-blue)' : 'var(--border-strong)'}`,
-                        background: active ? 'rgba(91,140,255,0.12)' : 'none',
-                        color: active ? 'var(--accent-blue)' : 'var(--text-secondary)',
-                        fontWeight: active ? 600 : 400, transition: 'all 0.15s', fontFamily: 'inherit',
-                      }}>
-                        {opt.label}
-                      </button>
-                    )
-                  })}
-                </div>
+              <div style={{ paddingTop: 14, borderTop: '1px solid var(--border)', fontSize: 12, color: 'var(--text-muted)', lineHeight: 1.5 }}>
+                Reminder timing is configured per event — set it when adding or editing an exam, assignment, or calendar event.
               </div>
             )}
           </div>

@@ -412,12 +412,19 @@ function SortBtn({ active, onClick, label }) {
 // ─── Assessments tab ──────────────────────────────────────────────────────────
 function AssessmentModal({ domain, initial, onClose, onSave }) {
   const [form, setForm] = useState({
-    type:     initial?.type     || 'exam',
-    title:    initial?.title    || '',
-    date:     initial?.date     || '',
-    weight:   initial?.weight   != null ? String(initial.weight) : '',
-    location: initial?.location || '',
+    type:         initial?.type         || 'exam',
+    title:        initial?.title        || '',
+    date:         initial?.date         || '',
+    weight:       initial?.weight       != null ? String(initial.weight) : '',
+    location:     initial?.location     || '',
+    reminderDays: initial?.reminderDays || [],
   })
+  const toggleReminder = (d) => setForm(prev => ({
+    ...prev,
+    reminderDays: prev.reminderDays.includes(d)
+      ? prev.reminderDays.filter(x => x !== d)
+      : [...prev.reminderDays, d],
+  }))
   const set = (k, v) => setForm(prev => ({ ...prev, [k]: v }))
   const canSave = form.title.trim() && form.weight !== ''
 
@@ -483,11 +490,29 @@ function AssessmentModal({ domain, initial, onClose, onSave }) {
                 onFocus={e => e.target.style.borderColor = 'var(--border-focus)'} onBlur={e => e.target.style.borderColor = 'var(--border-strong)'} />
             </div>
           )}
+
+          <div>
+            <div style={{ fontSize: 11, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.5px', marginBottom: 7 }}>Remind me (optional)</div>
+            <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
+              {[{ d: 0, label: 'Day of' }, { d: 1, label: '1 day before' }, { d: 3, label: '3 days before' }].map(({ d, label }) => {
+                const on = form.reminderDays.includes(d)
+                return (
+                  <button key={d} type="button" onClick={() => toggleReminder(d)} style={{
+                    padding: '5px 12px', borderRadius: 20, fontSize: 12, cursor: 'pointer',
+                    border: `1px solid ${on ? 'var(--accent-blue)' : 'var(--border-strong)'}`,
+                    background: on ? 'rgba(91,140,255,0.12)' : 'none',
+                    color: on ? 'var(--accent-blue)' : 'var(--text-secondary)',
+                    fontWeight: on ? 600 : 400, transition: 'all 0.12s', fontFamily: 'inherit',
+                  }}>{label}</button>
+                )
+              })}
+            </div>
+          </div>
         </div>
 
         <div style={{ padding: '12px 20px', borderTop: '1px solid var(--border)', display: 'flex', justifyContent: 'flex-end', gap: 8 }}>
           <button onClick={onClose} style={{ padding: '8px 16px', borderRadius: 8, border: '1px solid var(--border-strong)', background: 'none', color: 'var(--text-secondary)', cursor: 'pointer', fontSize: 13 }}>Cancel</button>
-          <button onClick={() => { if (!canSave) return; onSave({ type: form.type, title: form.title.trim(), date: form.date || null, weight: parseInt(form.weight) || 0, location: form.location.trim() || null }); onClose() }}
+          <button onClick={() => { if (!canSave) return; onSave({ type: form.type, title: form.title.trim(), date: form.date || null, weight: parseInt(form.weight) || 0, location: form.location.trim() || null, reminderDays: form.reminderDays }); onClose() }}
             disabled={!canSave} style={{ padding: '8px 18px', borderRadius: 8, border: 'none', fontSize: 13, fontWeight: 600,
               background: canSave ? domain.color : 'var(--border)', color: canSave ? '#fff' : 'var(--text-muted)',
               cursor: canSave ? 'pointer' : 'default', transition: 'all 0.15s' }}>

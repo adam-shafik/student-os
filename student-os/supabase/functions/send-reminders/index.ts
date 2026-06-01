@@ -13,6 +13,15 @@ function dateStr(offset: number): string {
   return d.toISOString().slice(0, 10)
 }
 
+const OFFSETS = [0, 1, 3]
+const dates: Record<number, string> = Object.fromEntries(OFFSETS.map(o => [o, dateStr(o)]))
+
+function offsetLabel(offset: number): string {
+  if (offset === 0) return 'today'
+  if (offset === 1) return 'tomorrow'
+  return 'in 3 days'
+}
+
 Deno.serve(async () => {
   const supabase = createClient(
     Deno.env.get('SUPABASE_URL')!,
@@ -20,53 +29,61 @@ Deno.serve(async () => {
     { auth: { persistSession: false } }
   )
 
-  const dates = { 0: dateStr(0), 1: dateStr(1), 3: dateStr(3) }
-
+  // Fetch assessments that have a reminder for one of today's target dates
+  // reminder_days stores offsets — e.g. [1] means "remind 1 day before"
+  // So an assessment due in 1 day should fire if reminder_days contains 1
   const { data: assessments } = await supabase
     .from('domain_assessments')
-    .select('user_id, title, type, date')
-    .in('date', Object.values(dates))
+    .select('user_id, title, type, date, reminder_days')
+    .not('reminder_days', 'eq', '{}')
+    .in('date', OFFSETS.map(o => dateStr(o)))
 
-  if (!assessments?.length) {
-    return new Response(JSON.stringify({ sent: 0 }), { status: 200 })
+  const { data: customEvents } = await supabase
+    .from('custom_calendar_events')
+    .select('user_id, title, date, reminder_days')
+    .not('reminder_days', 'eq', '{}')
+    .in('date', OFFSETS.map(o => dateStr(o)))
+
+  // Build per-user list of items due today after applying their per-item offset filter
+  const byUser: Record<string, { title: string; type?: string; offset: number }[]> = {}
+
+  const addItem = (userId: string, item: { title: string; type?: string; offset: number }) => {
+    if (!byUser[userId]) byUser[userId] = []
+    byUser[userId].push(item)
   }
 
-  const byUser: Record<string, typeof assessments> = {}
-  for (const a of assessments) {
-    if (!byUser[a.user_id]) byUser[a.user_id] = []
-    byUser[a.user_id].push(a)
+  for (const a of assessments ?? []) {
+    const reminderDays: number[] = a.reminder_days ?? []
+    const offset = OFFSETS.find(o => dates[o] === a.date && reminderDays.includes(o))
+    if (offset !== undefined) addItem(a.user_id, { title: a.title, type: a.type, offset })
+  }
+
+  for (const e of customEvents ?? []) {
+    const reminderDays: number[] = (e as any).reminder_days ?? []
+    const offset = OFFSETS.find(o => dates[o] === e.date && reminderDays.includes(o))
+    if (offset !== undefined) addItem(e.user_id, { title: e.title, offset })
+  }
+
+  if (!Object.keys(byUser).length) {
+    return new Response(JSON.stringify({ sent: 0 }), { status: 200 })
   }
 
   const { data: subs } = await supabase
     .from('push_subscriptions')
-    .select('user_id, subscription, reminder_days')
+    .select('user_id, subscription')
     .in('user_id', Object.keys(byUser))
 
   let sent = 0
   for (const sub of subs ?? []) {
-    const reminderDays: number[] = sub.reminder_days ?? [1]
-    const allItems = byUser[sub.user_id] ?? []
-
-    // Only include items whose offset matches what the user enabled
-    const items = allItems.filter(a =>
-      Object.entries(dates).some(([offset, date]) =>
-        a.date === date && reminderDays.includes(Number(offset))
-      )
-    )
-    if (!items.length) continue
-
-    const offsetLabel = (date: string) => {
-      if (date === dates[0]) return 'today'
-      if (date === dates[1]) return 'tomorrow'
-      return 'in 3 days'
-    }
+    const items = byUser[sub.user_id]
+    if (!items?.length) continue
 
     const title = items.length === 1
-      ? `Due ${offsetLabel(items[0].date)}: ${items[0].title}`
-      : `${items.length} assessments coming up`
+      ? `${items[0].title} — ${offsetLabel(items[0].offset)}`
+      : `${items.length} things coming up`
     const body = items.length === 1
-      ? `${items[0].type === 'exam' ? 'Exam' : 'Assignment'} due ${offsetLabel(items[0].date)}`
-      : items.map(a => `${a.title} (${offsetLabel(a.date)})`).join(', ')
+      ? `${items[0].type === 'exam' ? 'Exam' : items[0].type === 'assignment' ? 'Assignment' : 'Event'} due ${offsetLabel(items[0].offset)}`
+      : items.map(i => `${i.title} (${offsetLabel(i.offset)})`).join(', ')
 
     try {
       await webpush.sendNotification(sub.subscription, JSON.stringify({ title, body, url: '/' }))

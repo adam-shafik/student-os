@@ -213,8 +213,12 @@ function groupDomains(domains) {
 function AddEventModal({ initialDate, initialTime, domains, onClose, onSave }) {
   const [form, setForm] = useState({
     title: '', date: toInputDate(initialDate || new Date()),
-    time: initialTime || '', type: 'social', customTypeName: '', notes: '', domainId: null,
+    time: initialTime || '', type: 'social', customTypeName: '', notes: '', domainId: null, reminderDays: [],
   })
+  const toggleReminder = (d) => setForm(prev => ({
+    ...prev,
+    reminderDays: prev.reminderDays.includes(d) ? prev.reminderDays.filter(x => x !== d) : [...prev.reminderDays, d],
+  }))
   const [domainPickerOpen, setDomainPickerOpen] = useState(false)
   const set = (k, v) => setForm(prev => ({ ...prev, [k]: v }))
 
@@ -240,6 +244,7 @@ function AddEventModal({ initialDate, initialTime, domains, onClose, onSave }) {
       domainName:  domain?.name || null,
       domainColor: domain?.color || null,
       details: { time: form.time, notes: form.notes, customTypeName: form.type === 'other' ? form.customTypeName.trim() : undefined },
+      reminderDays: form.reminderDays,
     })
     onClose()
   }
@@ -379,6 +384,24 @@ function AddEventModal({ initialDate, initialTime, domains, onClose, onSave }) {
                 )}
               </div>
             )}
+          </div>
+
+          <div>
+            <Label>Remind me (optional)</Label>
+            <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
+              {[{ d: 0, label: 'Day of' }, { d: 1, label: '1 day before' }, { d: 3, label: '3 days before' }].map(({ d, label }) => {
+                const on = form.reminderDays.includes(d)
+                return (
+                  <button key={d} type="button" onClick={() => toggleReminder(d)} style={{
+                    padding: '5px 12px', borderRadius: 20, fontSize: 12, cursor: 'pointer',
+                    border: `1px solid ${on ? 'var(--accent-blue)' : 'var(--border-strong)'}`,
+                    background: on ? 'rgba(91,140,255,0.12)' : 'none',
+                    color: on ? 'var(--accent-blue)' : 'var(--text-secondary)',
+                    fontWeight: on ? 600 : 400, transition: 'all 0.12s', fontFamily: 'inherit',
+                  }}>{label}</button>
+                )
+              })}
+            </div>
           </div>
 
           <div>

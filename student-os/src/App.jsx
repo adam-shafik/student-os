@@ -59,9 +59,6 @@ export default function App() {
     if (typeof window === 'undefined' || !('Notification' in window)) return 'unsupported'
     return Notification.permission
   })
-  const [reminderDays,     setReminderDays]     = useState(() => {
-    try { return JSON.parse(localStorage.getItem('sos-reminder-days') || '[1]') } catch { return [1] }
-  })
   useEffect(() => { applyTheme(theme, wallpaperEnabled) }, [])
 
   const handleThemeChange = (id) => {
@@ -91,7 +88,7 @@ export default function App() {
       applicationServerKey: urlBase64ToUint8Array(import.meta.env.VITE_VAPID_PUBLIC_KEY),
     })
     await supabase.from('push_subscriptions').upsert(
-      { user_id: userId, subscription: sub.toJSON(), reminder_days: reminderDays },
+      { user_id: userId, subscription: sub.toJSON() },
       { onConflict: 'user_id' }
     )
   }
@@ -105,16 +102,6 @@ export default function App() {
       await supabase.from('push_subscriptions').delete().eq('user_id', userId)
     }
     setNotifStatus('default')
-  }
-
-  const handleUpdateReminderDays = async (days) => {
-    setReminderDays(days)
-    try { localStorage.setItem('sos-reminder-days', JSON.stringify(days)) } catch {}
-    if (notifStatus === 'granted') {
-      await supabase.from('push_subscriptions')
-        .update({ reminder_days: days })
-        .eq('user_id', userId)
-    }
   }
 
   const handleToggleWallpaper = (enabled) => {
@@ -299,6 +286,7 @@ export default function App() {
           id: r.id, domainId: r.domain_id, type: r.type,
           title: r.title, date: r.date, weight: r.weight,
           grade: r.grade ?? null, predictedGrade: r.predicted_grade ?? null,
+          reminderDays: r.reminder_days ?? [],
           location: r.location ?? null, createdAt: r.created_at,
         })))
       })
@@ -457,6 +445,7 @@ export default function App() {
       type: assessment.type, title: assessment.title,
       date: assessment.date || null, weight: assessment.weight || 0,
       grade: null, location: assessment.location || null,
+      reminder_days: assessment.reminderDays ?? [],
       created_at: now,
     })
     if (error) setAssessments(prev => prev.filter(a => a.id !== id))
@@ -473,6 +462,7 @@ export default function App() {
       grade: updates.grade ?? null,
       predicted_grade: updates.predictedGrade ?? null,
       location: updates.location ?? null,
+      reminder_days: updates.reminderDays ?? [],
     }).eq('id', id).eq('user_id', userId)
     if (error) setAssessments(snapshot)
     return { error }
@@ -1153,8 +1143,6 @@ export default function App() {
           notifStatus={notifStatus}
           onEnableNotifications={handleEnableNotifications}
           onDisableNotifications={handleDisableNotifications}
-          reminderDays={reminderDays}
-          onUpdateReminderDays={handleUpdateReminderDays}
           onUpdateProfile={handleUpdateProfile}
           onChangePassword={handleChangePassword}
           onResetOnboarding={handleDevResetOnboarding}
