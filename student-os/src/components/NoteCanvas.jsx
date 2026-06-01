@@ -1465,6 +1465,15 @@ const NoteCanvas = forwardRef(function NoteCanvas({
                       <Trash2 size={11} />
                     </button>
                   )}
+                  {!readonly && pages.length - pageIdx - 1 > 1 && (
+                    <button
+                      onClick={() => onPagesChange(pages.slice(0, pageIdx + 1))}
+                      title={`Delete pages ${pageIdx + 2}–${pages.length}`}
+                      style={{ background: 'none', border: 'none', cursor: 'pointer', padding: 2, color: 'rgba(255,255,255,0.15)', fontSize: 9 }}
+                    >
+                      delete all after
+                    </button>
+                  )}
                 </div>
               </div>
             ))}
