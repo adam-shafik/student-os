@@ -255,6 +255,15 @@ function PageCanvas({ page, pageH, maxW, pageIdx, totalPages, onStrokesChange, o
   const [selRect,         setSelRect]         = useState(null)
   const [selectedIndices, setSelectedIndices] = useState(() => new Set())
   const [moveStart,       setMoveStart]       = useState(null)
+
+  // Clear stale selection indices when strokes shrink (e.g. after undo removes duplicated strokes)
+  useEffect(() => {
+    const len = page.strokes.length
+    setSelectedIndices(prev => {
+      const valid = [...prev].filter(i => i < len)
+      return valid.length === prev.size ? prev : new Set(valid)
+    })
+  }, [page.strokes.length])
   const [moveOff,         setMoveOff]         = useState({ dx: 0, dy: 0 })
   const [isMoving,        setIsMoving]        = useState(false)
   const [eraserPos,       setEraserPos]       = useState(null)
