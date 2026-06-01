@@ -210,10 +210,10 @@ function groupDomains(domains) {
   }
 }
 
-function AddEventModal({ initialDate, domains, onClose, onSave }) {
+function AddEventModal({ initialDate, initialTime, domains, onClose, onSave }) {
   const [form, setForm] = useState({
     title: '', date: toInputDate(initialDate || new Date()),
-    time: '', type: 'social', customTypeName: '', notes: '', domainId: null,
+    time: initialTime || '', type: 'social', customTypeName: '', notes: '', domainId: null,
   })
   const [domainPickerOpen, setDomainPickerOpen] = useState(false)
   const set = (k, v) => setForm(prev => ({ ...prev, [k]: v }))
@@ -487,20 +487,200 @@ const navBtn = {
   display: 'flex', alignItems: 'center', justifyContent: 'center',
 }
 
+const HOUR_START = 7
+const HOUR_END   = 22
+const HOUR_H     = 64
+
+function getWeekStart(date, weekStartSunday) {
+  const d   = new Date(date)
+  const day = d.getDay()
+  const diff = weekStartSunday ? day : (day === 0 ? -6 : 1 - day)
+  d.setDate(d.getDate() - diff)
+  d.setHours(0, 0, 0, 0)
+  return d
+}
+
+// ─── Weekly view ──────────────────────────────────────────────────────────────
+function WeekView({ weekDate, allEvents, onEventClick, onAddClick, customColors }) {
+  const today    = new Date()
+  const todayKey = dateKey(today)
+  const nowH     = today.getHours()
+  const nowM     = today.getMinutes()
+
+  const days = Array.from({ length: 7 }, (_, i) => {
+    const d = new Date(weekDate)
+    d.setDate(d.getDate() + i)
+    return d
+  })
+
+  const dayData = days.map(day => {
+    const k   = dateKey(day)
+    const evs = allEvents.filter(ev => dateKey(ev.date) === k)
+    return { date: day, key: k, timed: evs.filter(ev => ev.details?.time), allDay: evs.filter(ev => !ev.details?.time) }
+  })
+
+  const hasAllDay = dayData.some(d => d.allDay.length > 0)
+  const hours     = Array.from({ length: HOUR_END - HOUR_START }, (_, i) => HOUR_START + i)
+
+  return (
+    <div style={{ border: '1px solid var(--border)', borderRadius: 12, overflow: 'hidden', height: 'calc(100vh - 188px)', display: 'flex', flexDirection: 'column' }}>
+
+      {/* Single scroll container — header is sticky so it stays aligned with the time grid (no scrollbar offset) */}
+      <div style={{ overflowY: 'auto', flex: 1 }}>
+
+        {/* Sticky day header row */}
+        <div style={{ position: 'sticky', top: 0, zIndex: 10, display: 'grid', gridTemplateColumns: '52px repeat(7, 1fr)', borderBottom: '1px solid var(--border)', background: 'var(--bg-elevated)' }}>
+          <div />
+          {dayData.map(({ date, key }, i) => {
+            const isToday = key === todayKey
+            return (
+              <div key={i} style={{ padding: '10px 8px', textAlign: 'center', borderLeft: '1px solid var(--border)', background: isToday ? 'rgba(91,140,255,0.04)' : 'var(--bg-elevated)' }}>
+                <div style={{ fontSize: 10, fontWeight: 600, color: isToday ? 'var(--accent-blue)' : 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.5px' }}>
+                  {date.toLocaleDateString('en-GB', { weekday: 'short' })}
+                </div>
+                <div style={{
+                  width: 28, height: 28, borderRadius: '50%', margin: '4px auto 0',
+                  background: isToday ? 'var(--accent-blue)' : 'transparent',
+                  boxShadow: isToday ? 'var(--glow-blue)' : 'none',
+                  display: 'flex', alignItems: 'center', justifyContent: 'center',
+                }}>
+                  <span style={{ fontSize: 14, fontWeight: isToday ? 700 : 400, color: isToday ? '#fff' : 'var(--text-primary)' }}>
+                    {date.getDate()}
+                  </span>
+                </div>
+              </div>
+            )
+          })}
+        </div>
+
+        {/* Sticky all-day row */}
+        {hasAllDay && (
+          <div style={{ position: 'sticky', top: 62, zIndex: 9, display: 'grid', gridTemplateColumns: '52px repeat(7, 1fr)', borderBottom: '1px solid var(--border)', background: 'var(--bg-elevated)' }}>
+            <div style={{ padding: '6px 8px 6px 0', textAlign: 'right', fontSize: 9, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.4px', alignSelf: 'center' }}>all‑day</div>
+            {dayData.map(({ allDay }, i) => (
+              <div key={i} style={{ borderLeft: '1px solid var(--border)', padding: '4px 4px', minWidth: 0, overflow: 'hidden' }}>
+                {allDay.map(ev => {
+                  const color = resolveTypeColor(ev, customColors)
+                  return (
+                    <div key={ev.id} onClick={() => onEventClick(ev)}
+                      style={{ fontSize: 11, padding: '2px 6px', borderRadius: 4, marginBottom: 2,
+                        background: `${color}18`, borderLeft: `2.5px solid ${color}`,
+                        color: 'var(--text-bright)', cursor: 'pointer',
+                        overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}
+                      onMouseEnter={e => e.currentTarget.style.filter = 'brightness(1.25)'}
+                      onMouseLeave={e => e.currentTarget.style.filter = 'brightness(1)'}>
+                      {ev.title}
+                    </div>
+                  )
+                })}
+              </div>
+            ))}
+          </div>
+        )}
+
+        {/* Time grid */}
+        <div style={{ display: 'grid', gridTemplateColumns: '52px repeat(7, 1fr)', position: 'relative' }}>
+
+          {/* Hour labels */}
+          <div style={{ position: 'relative', height: (HOUR_END - HOUR_START) * HOUR_H }}>
+            {hours.map((h, i) => (
+              <div key={h} style={{ position: 'absolute', top: i * HOUR_H, left: 0, right: 0, height: HOUR_H, display: 'flex', alignItems: 'flex-start', paddingTop: 5, boxSizing: 'border-box' }}>
+                <span style={{ fontSize: 10, color: 'var(--text-muted)', width: '100%', textAlign: 'right', paddingRight: 8 }}>{fmtTime(`${h}:00`)}</span>
+              </div>
+            ))}
+          </div>
+
+          {/* Day columns */}
+          {dayData.map(({ date, key, timed }, di) => {
+            const isToday = key === todayKey
+            return (
+              <div key={di} onClick={e => {
+                  const rect = e.currentTarget.getBoundingClientRect()
+                  const y = e.clientY - rect.top
+                  const mins = Math.round((y / HOUR_H) * 60 / 15) * 15
+                  const h = Math.min(HOUR_END - 1, Math.floor(mins / 60) + HOUR_START)
+                  const m = mins % 60
+                  onAddClick(date, `${String(h).padStart(2,'0')}:${String(m).padStart(2,'0')}`)
+                }} style={{ position: 'relative', borderLeft: '1px solid var(--border)', background: isToday ? 'var(--bg-elevated)' : 'var(--bg-page)', cursor: 'cell', minHeight: (HOUR_END - HOUR_START) * HOUR_H, minWidth: 0, overflow: 'hidden' }}>
+                {/* Hour gridlines */}
+                {hours.map((_, i) => (
+                  <div key={i} style={{ position: 'absolute', top: i * HOUR_H, left: 0, right: 0, borderTop: '1px solid var(--border)', pointerEvents: 'none' }} />
+                ))}
+                {/* Half-hour gridlines */}
+                {hours.map((_, i) => (
+                  <div key={`h${i}`} style={{ position: 'absolute', top: i * HOUR_H + HOUR_H / 2, left: 0, right: 0, borderTop: '1px dashed var(--border)', opacity: 0.5, pointerEvents: 'none' }} />
+                ))}
+
+                {/* Timed events */}
+                {timed.map(ev => {
+                  const [h, m]  = ev.details.time.split(':').map(Number)
+                  const top     = (h - HOUR_START + m / 60) * HOUR_H
+                  const dur     = ev.details?.duration || 60
+                  const height  = Math.max(28, (dur / 60) * HOUR_H - 2)
+                  const color   = resolveTypeColor(ev, customColors)
+                  return (
+                    <div key={ev.id} onClick={e => { e.stopPropagation(); onEventClick(ev) }}
+                      style={{ position: 'absolute', top, left: 3, right: 3, height, borderRadius: 5,
+                        background: `${color}15`, borderLeft: `2.5px solid ${color}`,
+                        padding: '3px 6px', overflow: 'hidden', cursor: 'pointer', zIndex: 1,
+                        transition: 'filter 0.1s' }}
+                      onMouseEnter={e => e.currentTarget.style.filter = 'brightness(1.25)'}
+                      onMouseLeave={e => e.currentTarget.style.filter = 'brightness(1)'}>
+                      <div style={{ fontSize: 9, fontWeight: 700, color, textTransform: 'uppercase', letterSpacing: '0.3px', whiteSpace: 'nowrap' }}>{resolveTypeLabel(ev)}</div>
+                      <div style={{ fontSize: 11, color: 'var(--text-bright)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{ev.title}</div>
+                      {height > 44 && (
+                        <div style={{ fontSize: 9, color, opacity: 0.85, marginTop: 1 }}>{fmtTime(ev.details.time)}{dur ? ` · ${fmtDuration(dur)}` : ''}</div>
+                      )}
+                    </div>
+                  )
+                })}
+
+                {/* Current time indicator */}
+                {isToday && nowH >= HOUR_START && nowH < HOUR_END && (() => {
+                  const top = (nowH - HOUR_START + nowM / 60) * HOUR_H
+                  return (
+                    <div style={{ position: 'absolute', top, left: 0, right: 0, height: 2, background: '#fb7185', zIndex: 2, pointerEvents: 'none' }}>
+                      <div style={{ width: 8, height: 8, borderRadius: '50%', background: '#fb7185', position: 'absolute', left: -3, top: -3 }} />
+                    </div>
+                  )
+                })()}
+              </div>
+            )
+          })}
+        </div>
+      </div>
+    </div>
+  )
+}
+
 // ─── Calendar page ────────────────────────────────────────────────────────────
 export default function CalendarPage({ domains = [], domainEvents = [], customEvents = [], onViewDomain, onAddCalendarEvent, onDeleteCalendarEvent, onCancelScheduleEvent, eventNotes = {}, onUpdateNote, eventTypeColors = {}, onUpdateEventTypeColor, isTutorial = false, weekStartSunday = false }) {
   const today = new Date()
+  const [view,             setView]             = useState('month')
   const [viewDate,         setViewDate]         = useState(new Date(today.getFullYear(), today.getMonth(), 1))
+  const [weekDate,         setWeekDate]         = useState(() => getWeekStart(today, weekStartSunday))
   const [selectedEvent,    setSelectedEvent]    = useState(null)
   const [addModalDate,     setAddModalDate]     = useState(null)
-  const [openColorPicker,  setOpenColorPicker]  = useState(null) // type string
+  const [addModalTime,     setAddModalTime]     = useState(null)
+  const [openColorPicker,  setOpenColorPicker]  = useState(null)
 
   const year  = viewDate.getFullYear()
   const month = viewDate.getMonth()
 
   const prevMonth = () => setViewDate(new Date(year, month - 1, 1))
   const nextMonth = () => setViewDate(new Date(year, month + 1, 1))
-  const goToday   = () => setViewDate(new Date(today.getFullYear(), today.getMonth(), 1))
+  const prevWeek  = () => setWeekDate(d => { const n = new Date(d); n.setDate(n.getDate() - 7); return n })
+  const nextWeek  = () => setWeekDate(d => { const n = new Date(d); n.setDate(n.getDate() + 7); return n })
+  const goToday   = () => {
+    setViewDate(new Date(today.getFullYear(), today.getMonth(), 1))
+    setWeekDate(getWeekStart(today, weekStartSunday))
+  }
+
+  const switchView = (v) => {
+    if (v === 'week' && view === 'month') setWeekDate(getWeekStart(today, weekStartSunday))
+    if (v === 'month' && view === 'week') setViewDate(new Date(weekDate.getFullYear(), weekDate.getMonth(), 1))
+    setView(v)
+  }
 
   const allEvents    = useMemo(() => [...domainEvents, ...customEvents], [domainEvents, customEvents])
   const presentTypes = useMemo(() => {
@@ -526,31 +706,51 @@ export default function CalendarPage({ domains = [], domainEvents = [], customEv
   }, [days])
   const todayKey = dateKey(today)
 
+  // Week view header label
+  const weekEnd = new Date(weekDate); weekEnd.setDate(weekEnd.getDate() + 6)
+  const sameMonth = weekDate.getMonth() === weekEnd.getMonth()
+  const weekLabel = sameMonth
+    ? `${weekDate.getDate()} – ${weekEnd.getDate()} ${MONTHS[weekDate.getMonth()]} ${weekDate.getFullYear()}`
+    : `${weekDate.getDate()} ${MONTHS[weekDate.getMonth()]} – ${weekEnd.getDate()} ${MONTHS[weekEnd.getMonth()]} ${weekEnd.getFullYear()}`
+
   return (
     <div style={{ padding: '28px 32px 32px', display: 'flex', flexDirection: 'column' }}>
 
-      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 16 }}>
+      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 16, flexShrink: 0 }}>
         <div>
           <h1 style={{ margin: 0, fontSize: 24, fontWeight: 700, color: 'var(--text-primary)', letterSpacing: '-0.4px' }}>Calendar</h1>
           <p style={{ margin: '3px 0 0', fontSize: 13, color: 'var(--text-muted)' }}>All lectures, labs, deadlines and exams in one place</p>
         </div>
         <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-          <button onClick={prevMonth} style={navBtn}><ChevronLeft size={16} /></button>
-          <span style={{ fontSize: 15, fontWeight: 600, color: 'var(--text-primary)', minWidth: 148, textAlign: 'center' }}>
-            {MONTHS[month]} {year}
+          {/* View toggle */}
+          <div style={{ display: 'flex', background: 'var(--bg-surface)', border: '1px solid var(--border-strong)', borderRadius: 8, overflow: 'hidden', marginRight: 4 }}>
+            {['month', 'week'].map(v => (
+              <button key={v} onClick={() => switchView(v)} style={{
+                padding: '6px 14px', border: 'none', cursor: 'pointer', fontSize: 13, fontWeight: view === v ? 600 : 400,
+                background: view === v ? 'var(--nav-active)' : 'transparent',
+                color: view === v ? 'var(--accent-blue)' : 'var(--text-secondary)',
+                transition: 'all 0.15s', textTransform: 'capitalize',
+              }}>
+                {v}
+              </button>
+            ))}
+          </div>
+          <button onClick={view === 'month' ? prevMonth : prevWeek} style={navBtn}><ChevronLeft size={16} /></button>
+          <span style={{ fontSize: 15, fontWeight: 600, color: 'var(--text-primary)', width: 220, textAlign: 'center', display: 'inline-block', flexShrink: 0 }}>
+            {view === 'month' ? `${MONTHS[month]} ${year}` : weekLabel}
           </span>
-          <button onClick={nextMonth} style={navBtn}><ChevronRight size={16} /></button>
+          <button onClick={view === 'month' ? nextMonth : nextWeek} style={navBtn}><ChevronRight size={16} /></button>
           <button onClick={goToday} style={{ ...navBtn, padding: '6px 14px', width: 'auto', marginLeft: 6, fontSize: 13 }}>Today</button>
           <button
             onClick={() => setAddModalDate(new Date())}
-            style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '7px 14px', borderRadius: 8, border: 'none', background: 'var(--accent-green)', color: 'var(--bg-page)', fontSize: 13, fontWeight: 600, cursor: 'pointer', marginLeft: 4 }}
+            style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '7px 14px', borderRadius: 8, border: 'none', background: 'var(--accent-green)', color: 'var(--bg-page)', fontSize: 13, fontWeight: 600, cursor: 'pointer', marginLeft: 4, whiteSpace: 'nowrap' }}
           >
             <Plus size={14} /> Add Event
           </button>
         </div>
       </div>
 
-      <div style={{ display: 'flex', gap: 8, marginBottom: 14, flexWrap: 'wrap', alignItems: 'center' }}>
+      <div style={{ display: 'flex', gap: 8, marginBottom: 14, flexWrap: 'wrap', alignItems: 'center', flexShrink: 0 }}>
         {presentTypes.map(key => {
           const cfg   = EVENT_TYPES[key]
           const color = getTypeColor(key, eventTypeColors)
@@ -590,6 +790,18 @@ export default function CalendarPage({ domains = [], domainEvents = [], customEv
         )}
       </div>
 
+      {view === 'week' ? (
+        <div data-tutorial-id="calendar-grid">
+          <WeekView
+            weekDate={weekDate}
+            allEvents={allEvents}
+            onEventClick={setSelectedEvent}
+            onAddClick={(date, time) => { setAddModalDate(date); setAddModalTime(time ?? null) }}
+            eventNotes={eventNotes}
+            customColors={eventTypeColors}
+          />
+        </div>
+      ) : (
       <div data-tutorial-id="calendar-grid" style={{
         display: 'grid',
         gridTemplateColumns: '28px repeat(7, 1fr)',
@@ -615,8 +827,8 @@ export default function CalendarPage({ domains = [], domainEvents = [], customEv
               const k = dateKey(day.date)
               const dow = day.date.getDay()
               const isWeekend = weekStartSunday
-                ? (dow === 5 || dow === 6)   // Fri + Sat for Sun–Thu schools
-                : (dow === 0 || dow === 6)   // Sun + Sat for Mon–Fri schools
+                ? (dow === 5 || dow === 6)
+                : (dow === 0 || dow === 6)
               return (
                 <DayCell
                   key={`${wi}-${di}`}
@@ -624,7 +836,7 @@ export default function CalendarPage({ domains = [], domainEvents = [], customEv
                   events={eventsMap[k] || []}
                   isToday={k === todayKey}
                   onEventClick={setSelectedEvent}
-                  onAddClick={setAddModalDate}
+                  onAddClick={d => setAddModalDate(d)}
                   eventNotes={eventNotes}
                   isBreak={info.isBreak}
                   isWeekend={isWeekend}
@@ -635,6 +847,7 @@ export default function CalendarPage({ domains = [], domainEvents = [], customEv
           ]
         })}
       </div>
+      )}
 
       {selectedEvent && (
         <EventDetailModal
@@ -657,9 +870,10 @@ export default function CalendarPage({ domains = [], domainEvents = [], customEv
       {addModalDate && (
         <AddEventModal
           initialDate={addModalDate}
+          initialTime={addModalTime}
           domains={domains}
-          onClose={() => setAddModalDate(null)}
-          onSave={ev => { onAddCalendarEvent?.(ev); setAddModalDate(null) }}
+          onClose={() => { setAddModalDate(null); setAddModalTime(null) }}
+          onSave={ev => { onAddCalendarEvent?.(ev); setAddModalDate(null); setAddModalTime(null) }}
         />
       )}
     </div>
