@@ -677,7 +677,7 @@ function WeekView({ weekDate, allEvents, onEventClick, onAddClick, customColors 
 }
 
 // ─── Calendar page ────────────────────────────────────────────────────────────
-export default function CalendarPage({ domains = [], domainEvents = [], customEvents = [], onViewDomain, onAddCalendarEvent, onDeleteCalendarEvent, onCancelScheduleEvent, eventNotes = {}, onUpdateNote, eventTypeColors = {}, onUpdateEventTypeColor, isTutorial = false, weekStartSunday = false }) {
+export default function CalendarPage({ domains = [], domainEvents = [], customEvents = [], onViewDomain, onAddCalendarEvent, onDeleteCalendarEvent, onCancelScheduleEvent, onUpdateEventReminder, onUpdateAssessmentReminder, eventNotes = {}, onUpdateNote, eventTypeColors = {}, onUpdateEventTypeColor, isTutorial = false, weekStartSunday = false }) {
   const today = new Date()
   const [view,             setView]             = useState('month')
   const [viewDate,         setViewDate]         = useState(new Date(today.getFullYear(), today.getMonth(), 1))
@@ -888,6 +888,13 @@ export default function CalendarPage({ domains = [], domainEvents = [], customEv
             setSelectedEvent(null)
           }}
           isTutorial={isTutorial}
+          onUpdateReminder={
+            customEvents.some(ev => ev.id === selectedEvent.id)
+              ? (days) => onUpdateEventReminder?.(selectedEvent.id, days)
+              : selectedEvent.assessmentId
+              ? (days) => onUpdateAssessmentReminder?.(selectedEvent.assessmentId, days)
+              : null
+          }
         />
       )}
       {addModalDate && (

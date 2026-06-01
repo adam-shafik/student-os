@@ -215,6 +215,7 @@ export default function App() {
           id: r.id, type: r.type, title: r.title,
           date: new Date(r.date + 'T00:00:00'),
           domainId: r.domain_id, academicWeek: r.academic_week,
+          reminderDays: r.reminder_days ?? [],
         })))
       })
 
@@ -337,6 +338,7 @@ export default function App() {
           status: a.grade != null ? 'graded' : dateObj < new Date() ? 'submitted' : 'upcoming',
         },
         assessmentId: a.id,
+        reminderDays: a.reminderDays ?? [],
       }
     }).filter(Boolean)
     return [...schedEvents, ...assessEvents]
@@ -482,6 +484,16 @@ export default function App() {
     if (error) console.error('calendar event delete failed:', error.message)
   }
 
+  const handleUpdateEventReminder = async (id, reminderDays) => {
+    setCustomCalendarEvents(prev => prev.map(ev => ev.id === id ? { ...ev, reminderDays } : ev))
+    await supabase.from('custom_calendar_events').update({ reminder_days: reminderDays }).eq('id', id).eq('user_id', userId)
+  }
+
+  const handleUpdateAssessmentReminder = async (id, reminderDays) => {
+    setAssessments(prev => prev.map(a => a.id === id ? { ...a, reminderDays } : a))
+    await supabase.from('domain_assessments').update({ reminder_days: reminderDays }).eq('id', id).eq('user_id', userId)
+  }
+
   const handleCancelScheduleEvent = async (eventId) => {
     setCancelledEventIds(prev => new Set([...prev, eventId]))
     const { error } = await supabase.from('cancelled_schedule_events').insert({ user_id: userId, event_id: eventId })
@@ -508,6 +520,7 @@ export default function App() {
     const { error } = await supabase.from('custom_calendar_events').insert({
       id, user_id: userId, type: event.type, title: event.title,
       date: dateStr, domain_id: event.domainId || null, academic_week: event.academicWeek || null,
+      reminder_days: event.reminderDays ?? [],
     })
     if (error) {
       console.error('add calendar event failed:', error.message)
@@ -1077,6 +1090,8 @@ export default function App() {
           onAddCalendarEvent={handleAddCalendarEvent}
           onDeleteCalendarEvent={handleDeleteCalendarEvent}
           onCancelScheduleEvent={handleCancelScheduleEvent}
+          onUpdateEventReminder={handleUpdateEventReminder}
+          onUpdateAssessmentReminder={handleUpdateAssessmentReminder}
           eventNotes={eventNotes}
           onUpdateNote={handleUpdateNote}
           eventTypeColors={eventTypeColors}

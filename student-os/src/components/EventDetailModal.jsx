@@ -49,8 +49,15 @@ function fmtDuration(mins) {
   return h && m ? `${h}h ${m}m` : h ? `${h}h` : `${m}m`
 }
 
-export default function EventDetailModal({ event, onClose, onViewDomain, note, onUpdateNote, onDelete, isTutorial = false }) {
-  const [confirmDelete, setConfirmDelete] = useState(false)
+export default function EventDetailModal({ event, onClose, onViewDomain, note, onUpdateNote, onDelete, onUpdateReminder, isTutorial = false }) {
+  const [confirmDelete,  setConfirmDelete]  = useState(false)
+  const [reminderDays,   setReminderDays]   = useState(event?.reminderDays || [])
+
+  const toggleReminder = (d) => {
+    const next = reminderDays.includes(d) ? reminderDays.filter(x => x !== d) : [...reminderDays, d]
+    setReminderDays(next)
+    onUpdateReminder?.(next)
+  }
   if (!event) return null
   const typeColor = resolveTypeColor(event)
   const typeLabel = resolveTypeLabel(event)
@@ -178,6 +185,27 @@ export default function EventDetailModal({ event, onClose, onViewDomain, note, o
               <div style={{ display: 'flex', alignItems: 'flex-start', gap: 8 }}>
                 <AlignLeft size={13} color="var(--text-muted)" style={{ marginTop: 2, flexShrink: 0 }} />
                 <span style={{ fontSize: 13, color: 'var(--text-secondary)', lineHeight: 1.5 }}>{d.notes}</span>
+              </div>
+            )}
+
+            {/* Reminder — only for custom events */}
+            {onUpdateReminder && (
+              <div style={{ borderTop: '1px solid var(--border)', paddingTop: 14 }}>
+                <div style={{ fontSize: 11, fontWeight: 600, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.5px', marginBottom: 8 }}>Remind me</div>
+                <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
+                  {[{ d: 0, label: 'Day of' }, { d: 1, label: '1 day before' }, { d: 3, label: '3 days before' }].map(({ d, label }) => {
+                    const on = reminderDays.includes(d)
+                    return (
+                      <button key={d} onClick={() => toggleReminder(d)} style={{
+                        padding: '5px 12px', borderRadius: 20, fontSize: 12, cursor: 'pointer',
+                        border: `1px solid ${on ? 'var(--accent-blue)' : 'var(--border-strong)'}`,
+                        background: on ? 'rgba(91,140,255,0.12)' : 'none',
+                        color: on ? 'var(--accent-blue)' : 'var(--text-secondary)',
+                        fontWeight: on ? 600 : 400, transition: 'all 0.12s', fontFamily: 'inherit',
+                      }}>{label}</button>
+                    )
+                  })}
+                </div>
               </div>
             )}
 
