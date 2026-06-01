@@ -275,9 +275,17 @@ export default function App() {
           template: n.template, bgColor: n.bg_color, lineSpacing: n.line_spacing,
           orientation: n.orientation, createdAt: n.created_at, updatedAt: n.updated_at,
           pdfStoragePath: n.pdf_storage_path || null,
-          pages: (n.note_pages || []).sort((a, b) => a.page_order - b.page_order).map(p => ({
-            id: p.id, strokes: p.strokes || [],
-          })),
+          pages: (() => {
+            const pageMap = new Map()
+            for (const p of (n.note_pages || [])) {
+              const prev = pageMap.get(p.page_order)
+              if (!prev || (p.strokes || []).length > (prev.strokes || []).length)
+                pageMap.set(p.page_order, p)
+            }
+            return [...pageMap.values()]
+              .sort((a, b) => a.page_order - b.page_order)
+              .map(p => ({ id: p.id, strokes: p.strokes || [] }))
+          })(),
         })))
       })
 
@@ -815,7 +823,7 @@ export default function App() {
 
     if (pageCount > 0) {
       await supabase.from('note_pages').insert(
-        newNote.pages.map((p, i) => ({ note_id: noteId, page_order: i, strokes: [] }))
+        newNote.pages.map((_, i) => ({ note_id: noteId, page_order: i, strokes: [] }))
       )
     }
   }
@@ -881,8 +889,8 @@ export default function App() {
       if (note.pages.length > 0) {
         // Upsert all current pages in one shot — no delete + insert round-trip
         const { error: upsertErr } = await supabase.from('note_pages').upsert(
-          note.pages.map((p, i) => ({ id: /^[0-9a-f-]{36}$/.test(p.id) ? p.id : crypto.randomUUID(), note_id: noteId, page_order: i, strokes: p.strokes })),
-          { onConflict: 'id' }
+          note.pages.map((p, i) => ({ note_id: noteId, page_order: i, strokes: p.strokes })),
+          { onConflict: 'note_id,page_order' }
         )
         if (upsertErr) { console.error('note_pages upsert failed:', upsertErr); throw upsertErr }
         // Remove pages that were deleted (page_order beyond current length)
