@@ -526,7 +526,8 @@ function PageCanvas({ page, pageH, maxW, pageIdx, totalPages, onStrokesChange, o
   }, [strokes]) // eslint-disable-line react-hooks/exhaustive-deps
 
   function commitMove(dx, dy) {
-    const moved     = [...selectedIndices].map(i => shiftStroke(strokes[i], dx, dy))
+    const validIdx  = [...selectedIndices].filter(i => i < strokes.length)
+    const moved     = validIdx.map(i => shiftStroke(strokes[i], dx, dy))
     const remaining = strokes.filter((_, i) => !selectedIndices.has(i))
 
     if (moved.length > 0 && onTransferStrokes) {
@@ -591,8 +592,9 @@ function PageCanvas({ page, pageH, maxW, pageIdx, totalPages, onStrokesChange, o
   }
 
   function getSelBounds(dx = 0, dy = 0) {
-    if (selectedIndices.size === 0) return null
-    const bounds = [...selectedIndices].map(i => strokeBounds(strokes[i]))
+    const validIdx = [...selectedIndices].filter(i => i < strokes.length)
+    if (validIdx.length === 0) return null
+    const bounds = validIdx.map(i => strokeBounds(strokes[i]))
     return {
       x1: Math.min(...bounds.map(b => b.x1)) - 8 + dx,
       y1: Math.min(...bounds.map(b => b.y1)) - 8 + dy,
@@ -610,7 +612,7 @@ function PageCanvas({ page, pageH, maxW, pageIdx, totalPages, onStrokesChange, o
 
   function handleDuplicate() {
     const OFFSET = 22
-    const dupes = [...selectedIndices].map(i => shiftStroke(strokes[i], OFFSET, OFFSET))
+    const dupes = [...selectedIndices].filter(i => i < strokes.length).map(i => shiftStroke(strokes[i], OFFSET, OFFSET))
     const base = strokes.length
     onStrokesChange([...strokes, ...dupes])
     setSelectedIndices(new Set(dupes.map((_, i) => base + i)))

@@ -881,7 +881,7 @@ export default function App() {
       if (note.pages.length > 0) {
         // Upsert all current pages in one shot — no delete + insert round-trip
         const { error: upsertErr } = await supabase.from('note_pages').upsert(
-          note.pages.map((p, i) => ({ id: p.id, note_id: noteId, page_order: i, strokes: p.strokes })),
+          note.pages.map((p, i) => ({ id: /^[0-9a-f-]{36}$/.test(p.id) ? p.id : crypto.randomUUID(), note_id: noteId, page_order: i, strokes: p.strokes })),
           { onConflict: 'id' }
         )
         if (upsertErr) { console.error('note_pages upsert failed:', upsertErr); throw upsertErr }
