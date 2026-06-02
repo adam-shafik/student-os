@@ -309,7 +309,7 @@ export default function SettingsPage({ userProfile, userEmail, theme, onThemeCha
                   {notifStatus === 'granted' ? 'Reminders enabled' : 'Enable reminders'}
                 </div>
                 <div style={{ fontSize: 12, color: 'var(--text-muted)', lineHeight: 1.5, maxWidth: 380 }}>
-                  Get push notifications before upcoming exams and assignments — even when the app is closed.
+                  Get push notifications before upcoming exams and assignments, even when the app is closed.
                 </div>
               </div>
               <button
@@ -331,7 +331,7 @@ export default function SettingsPage({ userProfile, userEmail, theme, onThemeCha
 
             {notifStatus === 'granted' && (
               <div style={{ paddingTop: 14, borderTop: '1px solid var(--border)', fontSize: 12, color: 'var(--text-muted)', lineHeight: 1.5 }}>
-                Reminder timing is configured per event — set it when adding or editing an exam, assignment, or calendar event.
+                Reminder timing is configured per event. Set it when adding or editing an exam, assignment, or calendar event.
               </div>
             )}
           </div>
@@ -339,7 +339,7 @@ export default function SettingsPage({ userProfile, userEmail, theme, onThemeCha
       </SectionCard>
 
       {/* Schedule */}
-      <SectionCard title="Schedule" Icon={Calendar} accentColor="var(--accent-blue)">
+      <SectionCard title="Schedule" Icon={Calendar} accentColor="var(--accent-blue)" tutorialId="schedule-settings">
         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 16, flexWrap: 'wrap' }}>
           <div>
             <div style={{ fontSize: 13, fontWeight: 600, color: 'var(--text-primary)', marginBottom: 4 }}>Weekly Timetable</div>
@@ -367,7 +367,7 @@ export default function SettingsPage({ userProfile, userEmail, theme, onThemeCha
         <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
           <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 14 }}>
             <div>
-              <Field label={`Semester Start — must be a ${DOW_NAMES[startDay]}`}>
+              <Field label={`Semester Start (${DOW_NAMES[startDay]})`}>
                 <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
                   <TextInput type="date" value={semStart} onChange={e => setSemStart(e.target.value)} style={{ colorScheme: 'dark' }} />
                   {semStart && (
@@ -381,7 +381,7 @@ export default function SettingsPage({ userProfile, userEmail, theme, onThemeCha
               </Field>
             </div>
             <div>
-              <Field label={`Semester End — must be a ${DOW_NAMES[endDay]}`}>
+              <Field label={`Semester End (${DOW_NAMES[endDay]})`}>
                 <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
                   <TextInput type="date" value={semEnd} onChange={e => setSemEnd(e.target.value)} style={{ colorScheme: 'dark' }} />
                   {semEnd && (
@@ -412,7 +412,7 @@ export default function SettingsPage({ userProfile, userEmail, theme, onThemeCha
                   <Field label="Name">
                     <TextInput value={b.name} onChange={e => updateBreak(b.id, 'name', e.target.value)} placeholder="e.g. Reading Week" />
                   </Field>
-                  <Field label={`Break starts — ${DOW_NAMES[breakDay]}`}>
+                  <Field label={`Break starts (${DOW_NAMES[breakDay]})`}>
                     <div style={{ display: 'flex', gap: 6, alignItems: 'center' }}>
                       <TextInput type="date" value={b.startMonday} onChange={e => updateBreak(b.id, 'startMonday', e.target.value)} style={{ colorScheme: 'dark' }} />
                       {b.startMonday && (() => { const ok = getDow(b.startMonday) === breakDay; return (
@@ -424,7 +424,7 @@ export default function SettingsPage({ userProfile, userEmail, theme, onThemeCha
                       )})()}
                     </div>
                   </Field>
-                  <Field label={`Classes resume — ${DOW_NAMES[breakDay]}`}>
+                  <Field label={`Classes resume (${DOW_NAMES[breakDay]})`}>
                     <div style={{ display: 'flex', gap: 6, alignItems: 'center' }}>
                       <TextInput type="date" value={b.returnMonday} onChange={e => updateBreak(b.id, 'returnMonday', e.target.value)} style={{ colorScheme: 'dark' }} />
                       {b.returnMonday && (() => { const ok = getDow(b.returnMonday) === breakDay; return (
@@ -538,7 +538,7 @@ export default function SettingsPage({ userProfile, userEmail, theme, onThemeCha
           <div>
             <div style={{ fontSize: 13, fontWeight: 600, color: 'var(--text-primary)', marginBottom: 4 }}>Reset Onboarding</div>
             <div style={{ fontSize: 12, color: 'var(--text-muted)', lineHeight: 1.5, maxWidth: 380 }}>
-              Wipes all your data — domains, schedule, assessments, notes, todos, and study sessions. This cannot be undone.
+              Wipes all your data: domains, schedule, assessments, notes, todos, and study sessions. This cannot be undone.
             </div>
           </div>
 

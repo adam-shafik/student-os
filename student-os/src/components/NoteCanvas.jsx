@@ -1279,7 +1279,7 @@ const NoteCanvas = forwardRef(function NoteCanvas({
                 </>
               )}
               {isPdfNote && !hasUserPages && (
-                <span style={{ fontSize: 11, color: 'var(--text-muted)' }}>PDF pages — add a page below to set template</span>
+                <span style={{ fontSize: 11, color: 'var(--text-muted)' }}>PDF pages. Add a page below to set template.</span>
               )}
             </div>
           )}

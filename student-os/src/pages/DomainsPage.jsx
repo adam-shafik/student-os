@@ -429,7 +429,7 @@ export default function DomainsPage({ domains, customCalendarEvents, todos, asse
         <div>
           <h1 style={{ margin: 0, fontSize: 26, fontWeight: 700, color: 'var(--text-primary)', letterSpacing: '-0.5px' }}>Domains</h1>
           <p style={{ margin: '4px 0 0', fontSize: 14, color: 'var(--text-secondary)' }}>
-            {domains.length} domain{domains.length !== 1 ? 's' : ''} — academic modules, societies, projects, and more
+            {domains.length} domain{domains.length !== 1 ? 's' : ''}: academic modules, societies, projects, and more
           </p>
         </div>
         <button
@@ -505,7 +505,7 @@ export default function DomainsPage({ domains, customCalendarEvents, todos, asse
       {domains.length === 0 && (
         <div style={{ textAlign: 'center', padding: '80px 0', color: 'var(--text-muted)' }}>
           <div style={{ marginBottom: 12, color: 'var(--border-strong)' }}><FolderOpen size={36} /></div>
-          <p style={{ fontSize: 14, margin: 0 }}>No domains yet — click <strong style={{ color: 'var(--accent-blue)' }}>New Domain</strong> to create one.</p>
+          <p style={{ fontSize: 14, margin: 0 }}>No domains yet. Click <strong style={{ color: 'var(--accent-blue)' }}>New Domain</strong> to create one.</p>
         </div>
       )}
 

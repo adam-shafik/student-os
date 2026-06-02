@@ -714,10 +714,10 @@ function AssessmentsTab({ domain, assessments, onAddAssessment, onUpdateAssessme
             </div>
           )}
 
-          {/* What do I need */}
-          {neededAvg != null && (
-            <div style={{ background: 'var(--bg-surface)', border: '1px solid var(--border)', borderRadius: 12, padding: '14px 18px' }}>
-              <div style={{ fontSize: 10, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.5px', marginBottom: 8 }}>What Do I Need?</div>
+          {/* What do I need — always visible so users know it exists */}
+          <div style={{ background: 'var(--bg-surface)', border: '1px solid var(--border)', borderRadius: 12, padding: '14px 18px', opacity: neededAvg == null ? 0.45 : 1 }}>
+            <div style={{ fontSize: 10, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.5px', marginBottom: 8 }}>What Do I Need?</div>
+            {neededAvg != null ? (
               <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
                 <span style={{ fontSize: 12, color: 'var(--text-secondary)' }}>Target</span>
                 <input
@@ -734,11 +734,13 @@ function AssessmentsTab({ domain, assessments, onAddAssessment, onUpdateAssessme
                 <span style={{ fontSize: 20, fontWeight: 700, color: neededColor }}>{neededAvg}%</span>
                 <span style={{ fontSize: 11, color: 'var(--text-muted)' }}>avg on {ungradedWeight}% left</span>
               </div>
-            </div>
-          )}
+            ) : (
+              <div style={{ fontSize: 12, color: 'var(--text-muted)' }}>Add assessments to use this</div>
+            )}
+          </div>
 
           {assessments.length > 0 && weightedAvg == null && projectedAvg == null && (
-            <span style={{ fontSize: 13, color: 'var(--text-muted)', alignSelf: 'center' }}>No grades entered yet — add actual grades or predictions</span>
+            <span style={{ fontSize: 13, color: 'var(--text-muted)', alignSelf: 'center' }}>No grades entered yet. Add actual grades or predictions to get started.</span>
           )}
         </div>
         <button

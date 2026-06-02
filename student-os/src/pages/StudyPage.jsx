@@ -289,7 +289,7 @@ function StartSessionModal({ initialDomain, domains, onClose, onStart, isTutoria
         <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
           <label style={sectionLabel}>Domain</label>
           <AppSelect value={domainId} onChange={v => setDomainId(v)} style={inp}>
-            <AppSelectItem value="">— General (no domain) —</AppSelectItem>
+            <AppSelectItem value="">No domain</AppSelectItem>
             {domains.filter(d => !d.isPast).map(d => (
               <AppSelectItem key={d.id} value={d.id}>{d.code ? `${d.code} · ` : ''}{d.name}</AppSelectItem>
             ))}
@@ -312,7 +312,7 @@ function StartSessionModal({ initialDomain, domains, onClose, onStart, isTutoria
         <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
           <label style={sectionLabel}>
             Content week{' '}
-            <span style={{ fontWeight: 400, textTransform: 'none', letterSpacing: 0 }}>(optional — which week's material)</span>
+            <span style={{ fontWeight: 400, textTransform: 'none', letterSpacing: 0 }}>(optional, which week's material)</span>
           </label>
           <input
             type="number" min={1} max={20} value={week}

@@ -309,7 +309,7 @@ export default function ScheduleBuilderPage({ domains, scheduleSlots: initialSlo
               </div>
 
               <div>
-                {label(`Week range (optional — blank = all${totalWeeks ? ` ${totalWeeks}` : ''} weeks)`)}
+                {label(`Week range (optional, blank = all${totalWeeks ? ` ${totalWeeks}` : ''} weeks)`)}
                 <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
                   <input
                     type="number" min={1} max={totalWeeks || 99} value={pickWeekFrom ?? ''}

@@ -312,7 +312,7 @@ export const initialDomains = [
     color: '#fb923c',
     colorMuted: 'rgba(251,146,60,0.1)',
     icon: 'Monitor',
-    description: 'University Computer Science Society — weekly tech talks, socials, industry panels, and beginner-friendly workshops. Open to all years.',
+    description: 'University Computer Science Society. Weekly tech talks, socials, industry panels, and beginner-friendly workshops. Open to all years.',
     role: 'General Member',
   },
   {

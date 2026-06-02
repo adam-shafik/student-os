@@ -336,9 +336,9 @@ function NoteLocationPicker({ note, domains, onSave }) {
                 onChange={v => { setDomainId(v); setWeek('') }}
                 style={{ padding: '7px 10px', fontSize: 12 }}
               >
-                <AppSelectItem value="">— General (no domain) —</AppSelectItem>
+                <AppSelectItem value="">No domain</AppSelectItem>
                 {allDomains.map(d => (
-                  <AppSelectItem key={d.id} value={d.id}>{d.code} — {d.name}</AppSelectItem>
+                  <AppSelectItem key={d.id} value={d.id}>{d.code}: {d.name}</AppSelectItem>
                 ))}
               </AppSelect>
             </div>
@@ -352,7 +352,7 @@ function NoteLocationPicker({ note, domains, onSave }) {
                   onChange={v => setWeek(v)}
                   style={{ padding: '7px 10px', fontSize: 12 }}
                 >
-                  <AppSelectItem value="">— No specific week —</AppSelectItem>
+                  <AppSelectItem value="">No specific week</AppSelectItem>
                   {Array.from({ length: TOTAL_WEEKS }, (_, i) => i + 1).map(w => (
                     <AppSelectItem key={w} value={String(w)}>Week {w}</AppSelectItem>
                   ))}
@@ -863,7 +863,7 @@ export default function NotesPage({ notes, domains, noteToOpen, onClearNoteToOpe
                 <h2 style={{ margin: 0, fontSize: 18, fontWeight: 700, color: 'var(--text-primary)' }}>
                   {selectedFolder.type === 'all'     ? 'All Notes'
                   : selectedFolder.type === 'general' ? 'General Notes'
-                  : selectedFolder.type === 'week'    ? `${domainMap[selectedFolder.domainId]?.code} — Week ${selectedFolder.week}`
+                  : selectedFolder.type === 'week'    ? `${domainMap[selectedFolder.domainId]?.code} Week ${selectedFolder.week}`
                   : selectedFolder.type === 'domain'  ? domainMap[selectedFolder.domainId]?.name
                   : 'Notes'}
                 </h2>

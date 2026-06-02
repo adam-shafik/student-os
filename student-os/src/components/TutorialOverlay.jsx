@@ -11,7 +11,7 @@ function buildSteps(name) {
       type: 'center',
       page: null,
       targetId: null,
-      title: `Hey ${n} — welcome to StudentOS`,
+      title: `Hey ${n}, welcome to StudentOS`,
       body: `Let's do a quick walkthrough so you know what's where and how everything connects. Takes about 90 seconds. You can skip anytime.`,
       nextLabel: 'Start tour',
     },
@@ -31,7 +31,7 @@ function buildSteps(name) {
       page: null,
       targetId: 'domain-detail-tabs',
       title: 'Inside a domain',
-      body: `Everything about this subject lives here — your weekly schedule, progress tracking, linked notes, and study sessions. Use the tabs to explore each section.`,
+      body: `Everything about this subject lives here: weekly schedule, progress tracking, linked notes, and study sessions. Use the tabs to explore each section.`,
       nextLabel: 'Got it',
       tooltipSide: 'bottom-corner',
     },
@@ -41,7 +41,7 @@ function buildSteps(name) {
       page: null,
       targetId: 'assessments-tab-btn',
       title: 'Track your grades',
-      body: `The Assessments tab is where all your exams and assignments live — with weights, deadlines, and grades. Click Assessments to see it.`,
+      body: `The Assessments tab is where your exams and assignments live, with weights, deadlines, and grades. Click Assessments to see it.`,
       tooltipSide: 'bottom',
     },
     {
@@ -49,8 +49,8 @@ function buildSteps(name) {
       type: 'next',
       page: null,
       targetId: 'assessments-stats',
-      title: 'Grade tracker & predictor',
-      body: `Add your exams and assignments with their weights. Enter grades as results come in, or add a predicted grade for upcoming ones. Set a target final grade and StudentOS tells you exactly what you need to get across the rest to hit it.`,
+      title: 'Grade tracker and predictor',
+      body: `Add your exams and assignments here with their weights. Enter grades as they come in, or add a predicted grade for upcoming ones. Set a target grade and StudentOS works out exactly what you need to hit it.`,
       nextLabel: 'Got it',
       tooltipSide: 'bottom-corner',
     },
@@ -60,9 +60,20 @@ function buildSteps(name) {
       page: 'calendar',
       targetId: 'calendar-grid',
       title: 'Your calendar',
-      body: `Your schedule fills in automatically from your domains — every lecture, lab, and session shows up here without you adding everything manually. Tap any event to see details or add notes.`,
+      body: `Once your schedule is set up, every lecture, lab, and session fills in here automatically. You can also add one-off events like exams, appointments, or anything else.`,
       nextLabel: 'Got it',
       tooltipSide: 'bottom-corner',
+    },
+    {
+      id: 'schedule-settings',
+      type: 'next',
+      page: 'settings',
+      targetId: 'schedule-settings',
+      title: 'Build your timetable',
+      body: `Whenever you are ready, come here to add your lectures, labs, and recurring sessions. They will show up in your calendar and track against your academic weeks automatically.`,
+      nextLabel: 'Got it',
+      tooltipSide: 'bottom-corner',
+      scrollTo: true,
     },
     {
       id: 'study-overview',
@@ -89,28 +100,19 @@ function buildSteps(name) {
       page: 'notes',
       targetId: 'notes-new-btn',
       title: 'Notes',
-      body: `Create handwritten canvas notes or typed notes, linked to your domains, study sessions, or calendar events. Nothing stays isolated — everything connects back to where it came from.`,
+      body: `Create handwritten canvas notes or typed notes, linked to your domains, study sessions, or calendar events. Everything connects back to where it came from.`,
       nextLabel: 'Got it',
       tooltipSide: 'bottom',
     },
     {
       id: 'todos-overview',
-      type: 'click',
+      type: 'next',
       page: 'todos',
       targetId: 'todos-new-btn',
       title: 'To do',
-      body: `Keep all your tasks here — with priorities, due dates, and domain links. Click New Task to see the options.`,
-      tooltipSide: 'bottom',
-    },
-    {
-      id: 'todos-modal',
-      type: 'next',
-      page: null,
-      targetId: 'todos-modal-content',
-      title: 'Create a task',
-      body: `Name the task, set a priority (high / medium / low), link to a domain, and pick a due date. Academic tasks can also be pinned to a specific week. Everything connects back to your domains.`,
+      body: `Keep all your tasks here with priorities, due dates, and domain links. Tasks can be pinned to a specific academic week and grouped by domain, priority, or due date.`,
       nextLabel: 'Got it',
-      tooltipSide: 'bottom-corner',
+      tooltipSide: 'bottom',
     },
     {
       id: 'themes',
@@ -118,7 +120,7 @@ function buildSteps(name) {
       page: 'settings',
       targetId: 'theme-switcher',
       title: 'Make StudentOS yours',
-      body: `Switch themes anytime from Settings. Pick whatever feels right — your choice syncs across all your devices.`,
+      body: `Switch themes anytime from Settings. Pick whatever feels right and it syncs across all your devices.`,
       nextLabel: 'Got it',
       tooltipSide: 'bottom-corner',
       scrollTo: true,
@@ -129,7 +131,7 @@ function buildSteps(name) {
       page: 'domains',
       targetId: null,
       title: `You're all set`,
-      body: `We built StudentOS for students who are done procrastinating — everything you need, all in one place. Explore at your own pace, and you can always retake this tour from the sidebar.`,
+      body: `We built StudentOS for students who are done procrastinating. Everything you need, all in one place. Explore at your own pace and retake this tour anytime from the sidebar.`,
       nextLabel: "Let's go!",
     },
   ]
@@ -151,24 +153,14 @@ export default function TutorialOverlay({ userName, stepIndex, currentPage, onNa
   // Find target element — re-runs when currentPage changes so new page DOM is ready
   useEffect(() => {
     if (!step.targetId) { setRect(null); return }
-    let t1, t2
+    let t1
     const raf = requestAnimationFrame(() => {
       const find = () => document.querySelector(`[data-tutorial-id="${step.targetId}"]`)
       const measure = (el) => {
         if (step.scrollTo) {
-          const container = document.querySelector('.page-scroll')
-          if (container) {
-            let offsetTop = 0
-            let node = el
-            while (node && node !== container) { offsetTop += node.offsetTop + 400; node = node.offsetParent }
-            container.scrollTo({ top: Math.max(0, offsetTop - 150), behavior: 'smooth' })
-          } else {
-            el.scrollIntoView({ behavior: 'smooth', block: 'start' })
-          }
-          t2 = setTimeout(() => setRect(el.getBoundingClientRect()), 420)
-        } else {
-          setRect(el.getBoundingClientRect())
+          el.scrollIntoView({ behavior: 'instant', block: 'center' })
         }
+        setRect(el.getBoundingClientRect())
       }
       const el = find()
       if (el) {
@@ -180,7 +172,7 @@ export default function TutorialOverlay({ userName, stepIndex, currentPage, onNa
         }, 150)
       }
     })
-    return () => { cancelAnimationFrame(raf); clearTimeout(t1); clearTimeout(t2) }
+    return () => { cancelAnimationFrame(raf); clearTimeout(t1) }
   }, [step.id, step.targetId, currentPage])
 
   const handleAdvance = useCallback(() => {

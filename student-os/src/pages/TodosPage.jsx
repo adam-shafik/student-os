@@ -121,7 +121,7 @@ function AddTaskModal({ domains, onClose, onSave, initialDomainId, defaultDueDat
           <div>
             <Label>Domain (optional)</Label>
             <AppSelect value={form.domainId} onChange={v => { set('domainId', v); set('academicWeek', '') }}>
-              <AppSelectItem value="">— General / No domain —</AppSelectItem>
+              <AppSelectItem value="">No domain</AppSelectItem>
               {domains.map(d => (
                 <AppSelectItem key={d.id} value={d.id}>{d.code ? `${d.code} · ` : ''}{d.name}</AppSelectItem>
               ))}
@@ -159,7 +159,7 @@ function AddTaskModal({ domains, onClose, onSave, initialDomainId, defaultDueDat
             <div>
               <Label>Academic week (optional)</Label>
               <AppSelect value={form.academicWeek} onChange={v => set('academicWeek', v)}>
-                <AppSelectItem value="">— Not week-specific —</AppSelectItem>
+                <AppSelectItem value="">Not week-specific</AppSelectItem>
                 {Array.from({ length: TOTAL_WEEKS }, (_, i) => i + 1).map(w => (
                   <AppSelectItem key={w} value={String(w)}>Week {w}</AppSelectItem>
                 ))}
@@ -245,7 +245,7 @@ function TaskDetailModal({ task, domains, notes, studySessions, domainMap, onClo
           <div>
             <Label>Domain</Label>
             <AppSelect value={form.domainId} onChange={v => { set('domainId', v); set('academicWeek', '') }}>
-              <AppSelectItem value="">— General / No domain —</AppSelectItem>
+              <AppSelectItem value="">No domain</AppSelectItem>
               {domains.map(d => <AppSelectItem key={d.id} value={d.id}>{d.code ? `${d.code} · ` : ''}{d.name}</AppSelectItem>)}
             </AppSelect>
           </div>
@@ -280,7 +280,7 @@ function TaskDetailModal({ task, domains, notes, studySessions, domainMap, onClo
             <div>
               <Label>Academic week</Label>
               <AppSelect value={form.academicWeek} onChange={v => set('academicWeek', v)}>
-                <AppSelectItem value="">— Not week-specific —</AppSelectItem>
+                <AppSelectItem value="">Not week-specific</AppSelectItem>
                 {Array.from({ length: TOTAL_WEEKS }, (_, i) => i + 1).map(w => <AppSelectItem key={w} value={String(w)}>Week {w}</AppSelectItem>)}
               </AppSelect>
             </div>
@@ -292,7 +292,7 @@ function TaskDetailModal({ task, domains, notes, studySessions, domainMap, onClo
             <div>
               <Label>Linked note</Label>
               <AppSelect value={form.noteId} onChange={v => set('noteId', v)}>
-                <AppSelectItem value="">— None —</AppSelectItem>
+                <AppSelectItem value="">None</AppSelectItem>
                 {notes.map(n => <AppSelectItem key={n.id} value={n.id}>{n.title || 'Untitled'} · {fmt(n.updatedAt)}</AppSelectItem>)}
               </AppSelect>
             </div>
@@ -300,7 +300,7 @@ function TaskDetailModal({ task, domains, notes, studySessions, domainMap, onClo
             <div>
               <Label>Linked study session</Label>
               <AppSelect value={form.studySessionId} onChange={v => set('studySessionId', v)}>
-                <AppSelectItem value="">— None —</AppSelectItem>
+                <AppSelectItem value="">None</AppSelectItem>
                 {studySessions.map(s => {
                   const d = s.domainId ? domainMap[s.domainId] : null
                   return <AppSelectItem key={s.id} value={s.id}>{d ? `[${d.code}] ` : ''}{s.topic} · {fmt(s.startedAt)}</AppSelectItem>
@@ -609,7 +609,7 @@ function DomainSection({ domain, tasks, domainMap, onToggle, onDelete, onOpenNot
       {open && (
         <div>
           {tasks.length === 0 ? (
-            <div style={{ padding: '8px 14px', fontSize: 12, color: 'var(--text-muted)', fontStyle: 'italic' }}>No tasks — click + to add one</div>
+            <div style={{ padding: '8px 14px', fontSize: 12, color: 'var(--text-muted)', fontStyle: 'italic' }}>No tasks yet, click + to add one</div>
           ) : (
             tasks.map(task => <TaskRow key={task.id} task={task} domainMap={domainMap} onToggle={onToggle} onDelete={onDelete} onOpenNote={onOpenNote} onOpenDetail={onOpenDetail} />)
           )}
@@ -789,14 +789,14 @@ export default function TodosPage({ todos, domains, onAddTodo, onToggleTodo, onD
           {todos.length === 0 ? (
             <div style={{ textAlign: 'center', padding: '80px 0', color: 'var(--text-muted)' }}>
               <div style={{ marginBottom: 12, color: 'var(--border-strong)' }}><CheckCircle2 size={36} /></div>
-              <p style={{ fontSize: 14, margin: 0 }}>No tasks yet — click <strong style={{ color: 'var(--accent-blue)' }}>New Task</strong> to add one.</p>
+              <p style={{ fontSize: 14, margin: 0 }}>No tasks yet. Click <strong style={{ color: 'var(--accent-blue)' }}>New Task</strong> to add one.</p>
             </div>
           ) : (
             <div style={{ background: 'var(--bg-surface)', border: '1px solid var(--border)', borderRadius: 14, padding: '8px 6px' }}>
 
               {groupBy === 'domain' && (
                 <>
-                  {domainGroups.length === 0 && <div style={{ padding: '16px 14px', fontSize: 13, color: 'var(--text-muted)', textAlign: 'center' }}>Nothing pending — nice work</div>}
+                  {domainGroups.length === 0 && <div style={{ padding: '16px 14px', fontSize: 13, color: 'var(--text-muted)', textAlign: 'center' }}>Nothing pending, nice work</div>}
                   {domainGroups.map(({ domain, tasks }) => (
                     <DomainSection
                       key={domain ? domain.id : '__general__'}
@@ -810,7 +810,7 @@ export default function TodosPage({ todos, domains, onAddTodo, onToggleTodo, onD
 
               {groupBy === 'priority' && (
                 <>
-                  {pending.length === 0 && <div style={{ padding: '16px 14px', fontSize: 13, color: 'var(--text-muted)', textAlign: 'center' }}>Nothing pending — nice work</div>}
+                  {pending.length === 0 && <div style={{ padding: '16px 14px', fontSize: 13, color: 'var(--text-muted)', textAlign: 'center' }}>Nothing pending, nice work</div>}
                   {priorityGroups.map(g => (
                     <TaskGroup key={g.key} label={g.label} labelColor={g.color} tasks={g.tasks} domainMap={domainMap} onToggle={onToggleTodo} onDelete={onDeleteTodo} onOpenNote={onOpenNote} onOpenDetail={setDetailTask} />
                   ))}
@@ -819,7 +819,7 @@ export default function TodosPage({ todos, domains, onAddTodo, onToggleTodo, onD
 
               {groupBy === 'dueDate' && (
                 <>
-                  {pending.length === 0 && <div style={{ padding: '16px 14px', fontSize: 13, color: 'var(--text-muted)', textAlign: 'center' }}>Nothing pending — nice work</div>}
+                  {pending.length === 0 && <div style={{ padding: '16px 14px', fontSize: 13, color: 'var(--text-muted)', textAlign: 'center' }}>Nothing pending, nice work</div>}
                   {dueDateGroups.map(g => (
                     <TaskGroup key={g.key} label={g.label} labelColor={g.color} tasks={g.tasks} domainMap={domainMap} onToggle={onToggleTodo} onDelete={onDeleteTodo} onOpenNote={onOpenNote} onOpenDetail={setDetailTask} defaultOpen={g.key !== 'none'} />
                   ))}

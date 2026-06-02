@@ -17,10 +17,9 @@
 On the Study page — total hours this week, breakdown by domain (bar chart), study streak counter.
 All data already exists in `study_sessions`.
 
-### 2. Auth Improvements
-- Google / Apple OAuth (one-tap sign in)
-- Email magic link / OTP as alternative to password
-- Email verification enforcement on sign-up
+### ~~2. Auth Improvements~~ ✅
+- Google OAuth (already done)
+- Email verification on sign-up (Supabase + Resend custom SMTP)
 
 ### 3. Onboarding Redesign
 Shorter, more personal. Goal: feel like the app was made for the user.

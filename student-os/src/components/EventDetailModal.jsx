@@ -163,7 +163,7 @@ export default function EventDetailModal({ event, onClose, onViewDomain, note, o
                 {(d.status === 'upcoming' || d.status === 'submitted') && (
                   <div style={{ fontSize: 12, color: 'var(--text-secondary)', background: 'rgba(251,191,36,0.06)', border: '1px solid rgba(251,191,36,0.15)', borderRadius: 8, padding: '8px 12px' }}>
                     <AlertTriangle size={11} style={{ display: 'inline', marginRight: 4 }} />Due {event.date.toLocaleDateString('en-GB', { day: 'numeric', month: 'short' })}
-                    {d.status === 'upcoming' ? ' — not yet submitted' : ' — awaiting mark'}
+                    {d.status === 'upcoming' ? ', not yet submitted' : ', awaiting mark'}
                   </div>
                 )}
               </div>
