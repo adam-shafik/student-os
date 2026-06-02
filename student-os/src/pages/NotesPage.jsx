@@ -10,8 +10,6 @@ import { renderPdfToBackgrounds } from '../utils/pdf'
 
 const TOTAL_WEEKS = totalTeachingWeeks()
 
-// ─── Debug overlay — set false to remove ──────────────────────────────────────
-const DEBUG_NOTES = true
 
 function noteId() { return crypto.randomUUID() }
 function fmt(iso) {
@@ -403,38 +401,19 @@ export default function NotesPage({ notes, domains, noteToOpen, onClearNoteToOpe
   const openNoteBaseline   = useRef(null)
   const canvasRef          = useRef()
 
-  // ── Debug state ──────────────────────────────────────────────────────────────
-  const [debugLog, setDebugLog] = useState([])
-  const debugTimerCount = useRef(0)
-  function addDebug(msg, color = '#7c7e96') {
-    if (!DEBUG_NOTES) return
-    const t = new Date().toLocaleTimeString('en-GB', { hour12: false })
-    setDebugLog(prev => [...prev.slice(-30), { t, msg, color }])
-  }
 
   async function handleSave(noteId) {
-    const t0 = performance.now()
-    const note = (notes || []).find(n => n.id === noteId)
-    if (note && DEBUG_NOTES) {
-      const totalStrokes = (note.pages || []).reduce((s, p) => s + (p.strokes || []).length, 0)
-      const dataKB = Math.round(JSON.stringify(note.pages || []).length / 1024)
-      addDebug(`SAVE START — ${note.pages?.length ?? 0}pg, ${totalStrokes} strokes, ~${dataKB}KB`, '#5b8cff')
-    }
     setSaveState('saving')
     setSaveError('')
     try {
       const savedAt = await onSaveNote(noteId)
-      const dt = Math.round(performance.now() - t0)
-      addDebug(`SAVE DONE in ${dt}ms`, '#34d399')
       if (openNoteBaseline.current?.id === noteId && savedAt) {
         openNoteBaseline.current = { id: noteId, updatedAt: savedAt }
       }
       setSaveState('saved')
       setTimeout(() => setSaveState('idle'), 2000)
     } catch (err) {
-      const dt = Math.round(performance.now() - t0)
       const msg = err?.message || err?.details || err?.error_description || String(err) || 'Unknown error'
-      addDebug(`SAVE FAILED after ${dt}ms: ${msg}`, '#fb7185')
       setSaveError(msg)
       setSaveState('error')
       setTimeout(() => { setSaveState('idle'); setSaveError('') }, 10000)
@@ -516,8 +495,6 @@ export default function NotesPage({ notes, domains, noteToOpen, onClearNoteToOpe
     if (!baseline || baseline.id !== openNote.id || openNote.updatedAt === baseline.updatedAt) return
     clearTimeout(autoSaveTimerRef.current)
     setSaveState('idle')
-    debugTimerCount.current++
-    addDebug(`timer reset #${debugTimerCount.current}`, '#fbbf24')
     autoSaveTimerRef.current = setTimeout(() => handleSave(openNote.id), 3000)
     return () => clearTimeout(autoSaveTimerRef.current)
   }, [openNote?.updatedAt]) // eslint-disable-line react-hooks/exhaustive-deps
@@ -657,27 +634,6 @@ export default function NotesPage({ notes, domains, noteToOpen, onClearNoteToOpe
 
   return (
     <div style={{ display: 'flex', height: '100%', overflow: 'hidden' }}>
-    {DEBUG_NOTES && debugLog.length > 0 && (
-      <div style={{
-        position: 'fixed', bottom: 16, right: 16, zIndex: 99999,
-        background: 'rgba(0,0,0,0.88)', border: '1px solid rgba(255,255,255,0.12)',
-        borderRadius: 10, padding: '10px 12px', minWidth: 300, maxWidth: 400,
-        fontFamily: 'monospace', fontSize: 11, lineHeight: 1.6,
-        backdropFilter: 'blur(8px)', pointerEvents: 'auto',
-        boxShadow: '0 4px 24px rgba(0,0,0,0.6)',
-      }}>
-        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 6 }}>
-          <span style={{ color: '#fbbf24', fontWeight: 700, fontSize: 10, textTransform: 'uppercase', letterSpacing: 1 }}>Notes Debug</span>
-          <button onClick={() => setDebugLog([])} style={{ background: 'none', border: 'none', color: '#7c7e96', cursor: 'pointer', fontSize: 11, padding: 0, fontFamily: 'monospace' }}>clear</button>
-        </div>
-        {debugLog.map((entry, i) => (
-          <div key={i} style={{ color: entry.color, whiteSpace: 'pre-wrap', wordBreak: 'break-all' }}>
-            <span style={{ color: '#4a4c60', marginRight: 6 }}>{entry.t}</span>{entry.msg}
-          </div>
-        ))}
-      </div>
-    )}
-
       <input
         ref={pdfInputRef}
         type="file"
