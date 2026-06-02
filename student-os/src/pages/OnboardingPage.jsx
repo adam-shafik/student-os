@@ -1,6 +1,6 @@
 import { useState, useRef, memo } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
-import { GraduationCap, Plus, X, ChevronRight, ChevronLeft, Check, Trash2, Pencil, ArrowLeft } from 'lucide-react'
+import { Plus, X, ChevronRight, ChevronLeft, Check, Trash2, Pencil, ArrowLeft } from 'lucide-react'
 import { DOMAIN_COLORS } from '../data/domains'
 import { supabase } from '../lib/supabase'
 
@@ -218,23 +218,16 @@ const LeftPanel = memo(function LeftPanel({ step, firstName }) {
         display: 'flex', flexDirection: 'column',
       }}>
         {/* Logo */}
-        <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 'auto' }}>
-          <div style={{
-            width: 32, height: 32, borderRadius: 9,
-            background: 'rgba(91,140,255,0.15)',
-            border: '1px solid rgba(91,140,255,0.25)',
-            display: 'flex', alignItems: 'center', justifyContent: 'center',
-            boxShadow: 'inset 0 1px 0 rgba(255,255,255,0.1)',
-          }}>
-            <GraduationCap size={16} color={C.accent} strokeWidth={1.8} />
-          </div>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 0 }}>
+          <img src="/icons/icon-192.png" alt="" style={{ width: 32, height: 32, borderRadius: 9, objectFit: 'cover' }} />
           <span style={{ fontSize: 15, fontWeight: 700, color: 'rgba(232,233,240,0.9)', letterSpacing: '-0.2px', fontFamily: FONT }}>
             StudentOS
           </span>
         </div>
 
-        {/* Step-aware headline */}
-        <div style={{ marginBottom: 48 }}>
+        {/* Step-aware headline — centered in remaining space */}
+        <div style={{ flex: 1, display: 'flex', flexDirection: 'column', justifyContent: 'center', paddingBottom: 24 }}>
+        <div style={{ marginBottom: 0 }}>
           <AnimatePresence mode="wait">
             <motion.div
               key={step}
@@ -274,6 +267,7 @@ const LeftPanel = memo(function LeftPanel({ step, firstName }) {
               />
             ))}
           </div>
+        </div>
         </div>
       </div>
     </div>

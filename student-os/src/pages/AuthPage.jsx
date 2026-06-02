@@ -1,9 +1,9 @@
 import { useState, useEffect, useRef, memo } from 'react'
-import { motion, AnimatePresence, useMotionValue, useTransform } from 'framer-motion'
-import { GraduationCap, Mail, Lock, ArrowRight, Calendar, BookOpen, Timer } from 'lucide-react'
+import { motion, AnimatePresence, useMotionValue, useTransform, useReducedMotion, MotionConfig } from 'framer-motion'
+import { Mail, Lock, ArrowRight, KeyRound } from 'lucide-react'
 import { supabase } from '../lib/supabase'
 
-// ─── Design tokens ────────────────────────────────────────────────────────────
+// ─── Design tokens ─────────────────────────────────────────────────────────────
 const C = {
   bg:         '#0b0c13',
   surface:    '#0f1018',
@@ -15,6 +15,7 @@ const C = {
   dim:        '#4a4c60',
   error:      '#fb7185',
   green:      '#34d399',
+  purple:     '#a78bfa',
 }
 const FONT   = "'Outfit', -apple-system, BlinkMacSystemFont, sans-serif"
 const SPRING = { type: 'spring', stiffness: 280, damping: 28 }
@@ -29,19 +30,104 @@ const rowVariant = {
   show:   { opacity: 1, y: 0, transition: { type: 'spring', stiffness: 300, damping: 28 } },
 }
 
-const features = [
-  { icon: Calendar, label: 'Timetable that fills itself in' },
-  { icon: BookOpen, label: 'Notes linked to every session' },
-  { icon: Timer,    label: 'Pomodoro timer with history'   },
+// ─── Error humanizer ──────────────────────────────────────────────────────────
+function friendlyError(raw) {
+  if (!raw) return null
+  const r = raw.toLowerCase()
+  if (r.includes('invalid login credentials') || r.includes('invalid_credentials'))
+    return 'Email or password is incorrect.'
+  if (r.includes('email not confirmed'))
+    return 'Email not confirmed. Check your inbox or resend below.'
+  if (r.includes('user already registered') || r.includes('already registered'))
+    return 'An account with this email already exists. Try signing in.'
+  if (r.includes('rate limit') || r.includes('too many'))
+    return 'Too many attempts. Wait a minute and try again.'
+  if ((r.includes('password') && r.includes('short')) || r.includes('at least 6'))
+    return 'Password must be at least 6 characters.'
+  if (r.includes('invalid email') || r.includes('unable to validate email'))
+    return 'Enter a valid email address.'
+  return raw
+}
+
+// ─── Left panel feature chips ────────────────────────────────────────────────
+const FEATURE_CHIPS = ['Modules', 'Calendar', 'Notes', 'Study sessions', 'Grade tracker']
+
+// ─── Week preview — sample semester snapshot shown in left panel ───────────────
+const PREVIEW_DAYS = [
+  { label: 'Mon', events: [
+    { code: 'CS301', type: 'Lecture', color: '#5b8cff' },
+    { code: 'MATH', type: 'Tutorial', color: '#a78bfa' },
+  ]},
+  { label: 'Tue', events: [
+    { code: 'ECON', type: 'Lecture', color: '#34d399' },
+  ]},
+  { label: 'Wed', events: [
+    { code: 'CS301', type: 'Lab', color: '#5b8cff' },
+    { code: 'CS301', type: 'Lecture', color: '#5b8cff' },
+  ]},
+  { label: 'Thu', events: [
+    { code: 'MATH', type: 'Lecture', color: '#a78bfa' },
+  ]},
+  { label: 'Fri', events: [
+    { code: 'ECON', type: 'Essay due', color: '#fb7185' },
+  ]},
 ]
+
+const WeekPreview = memo(function WeekPreview() {
+  return (
+    <div>
+      {/* 5-day timetable grid */}
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(5, 1fr)', gap: 5 }}>
+        {PREVIEW_DAYS.map((day) => (
+          <div key={day.label} style={{ minWidth: 0 }}>
+            <div style={{
+              fontSize: 9, fontWeight: 600, color: C.dim, letterSpacing: '0.5px',
+              marginBottom: 6, textAlign: 'center', fontFamily: FONT,
+              textTransform: 'uppercase',
+            }}>
+              {day.label}
+            </div>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
+              {day.events.map((ev, i) => (
+                <div key={i} style={{
+                  padding: '5px 6px',
+                  background: `${ev.color}12`,
+                  border: `1px solid ${ev.color}28`,
+                  borderRadius: 5,
+                  overflow: 'hidden',
+                  minWidth: 0,
+                }}>
+                  <div style={{
+                    fontSize: 10, fontWeight: 700, color: ev.color,
+                    fontFamily: FONT, lineHeight: 1.2,
+                    whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis',
+                  }}>
+                    {ev.code}
+                  </div>
+                  <div style={{
+                    fontSize: 9, color: 'rgba(232,233,240,0.5)',
+                    fontFamily: FONT, lineHeight: 1.3,
+                    whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis',
+                  }}>
+                    {ev.type}
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
+        ))}
+      </div>
+    </div>
+  )
+})
 
 // ─── Magnetic CTA button ──────────────────────────────────────────────────────
 function MagneticButton({ children, onClick, disabled, loading, style: extra }) {
-  const ref   = useRef(null)
-  const mx    = useMotionValue(0)
-  const my    = useMotionValue(0)
-  const tx    = useTransform(mx, [-60, 60], [-7, 7])
-  const ty    = useTransform(my, [-28, 28], [-4, 4])
+  const ref = useRef(null)
+  const mx  = useMotionValue(0)
+  const my  = useMotionValue(0)
+  const tx  = useTransform(mx, [-60, 60], [-7, 7])
+  const ty  = useTransform(my, [-28, 28], [-4, 4])
 
   function onMove(e) {
     const r = ref.current?.getBoundingClientRect()
@@ -54,6 +140,7 @@ function MagneticButton({ children, onClick, disabled, loading, style: extra }) 
   return (
     <motion.button
       ref={ref}
+      type="button"
       style={{ x: tx, y: ty, ...extra }}
       onMouseMove={onMove}
       onMouseLeave={onLeave}
@@ -66,16 +153,27 @@ function MagneticButton({ children, onClick, disabled, loading, style: extra }) 
   )
 }
 
+// ─── Google icon ──────────────────────────────────────────────────────────────
+const GoogleIcon = () => (
+  <svg width="16" height="16" viewBox="0 0 18 18" fill="none" aria-hidden="true">
+    <path d="M17.64 9.205c0-.639-.057-1.252-.164-1.841H9v3.481h4.844a4.14 4.14 0 0 1-1.796 2.716v2.259h2.908c1.702-1.567 2.684-3.875 2.684-6.615Z" fill="#4285F4"/>
+    <path d="M9 18c2.43 0 4.467-.806 5.956-2.18l-2.908-2.259c-.806.54-1.837.86-3.048.86-2.344 0-4.328-1.584-5.036-3.711H.957v2.332A8.997 8.997 0 0 0 9 18Z" fill="#34A853"/>
+    <path d="M3.964 10.71A5.41 5.41 0 0 1 3.682 9c0-.593.102-1.17.282-1.71V4.958H.957A8.996 8.996 0 0 0 0 9c0 1.452.348 2.827.957 4.042l3.007-2.332Z" fill="#FBBC05"/>
+    <path d="M9 3.58c1.321 0 2.508.454 3.44 1.345l2.582-2.58C13.463.891 11.426 0 9 0A8.997 8.997 0 0 0 .957 4.958L3.964 7.29C4.672 5.163 6.656 3.58 9 3.58Z" fill="#EA4335"/>
+  </svg>
+)
+
 // ─── Animated input field ─────────────────────────────────────────────────────
-function Field({ label, type, placeholder, value, onChange }) {
+function Field({ label, type, placeholder, value, onChange, autoComplete }) {
   const [foc, setFoc] = useState(false)
+  const id = `auth-${label.toLowerCase().replace(/\s+/g, '-')}`
   const Icon = type === 'email' ? Mail : Lock
   return (
     <motion.div variants={rowVariant} style={{ display: 'flex', flexDirection: 'column', gap: 7 }}>
-      <label style={{
+      <label htmlFor={id} style={{
         fontSize: 12, fontWeight: 500, letterSpacing: '0.2px',
         color: foc ? C.accent : C.muted,
-        transition: 'color 0.18s',
+        transition: 'color 0.18s', cursor: 'pointer',
       }}>
         {label}
       </label>
@@ -86,8 +184,14 @@ function Field({ label, type, placeholder, value, onChange }) {
           transition: 'color 0.18s',
         }} />
         <input
-          type={type} value={value} onChange={onChange} placeholder={placeholder}
-          onFocus={() => setFoc(true)} onBlur={() => setFoc(false)}
+          id={id}
+          type={type}
+          value={value}
+          onChange={onChange}
+          placeholder={placeholder}
+          autoComplete={autoComplete}
+          onFocus={() => setFoc(true)}
+          onBlur={() => setFoc(false)}
           style={{
             width: '100%', boxSizing: 'border-box',
             padding: '11px 14px 11px 40px',
@@ -106,119 +210,114 @@ function Field({ label, type, placeholder, value, onChange }) {
   )
 }
 
-// ─── Google icon ──────────────────────────────────────────────────────────────
-const GoogleIcon = () => (
-  <svg width="16" height="16" viewBox="0 0 18 18" fill="none">
-    <path d="M17.64 9.205c0-.639-.057-1.252-.164-1.841H9v3.481h4.844a4.14 4.14 0 0 1-1.796 2.716v2.259h2.908c1.702-1.567 2.684-3.875 2.684-6.615Z" fill="#4285F4"/>
-    <path d="M9 18c2.43 0 4.467-.806 5.956-2.18l-2.908-2.259c-.806.54-1.837.86-3.048.86-2.344 0-4.328-1.584-5.036-3.711H.957v2.332A8.997 8.997 0 0 0 9 18Z" fill="#34A853"/>
-    <path d="M3.964 10.71A5.41 5.41 0 0 1 3.682 9c0-.593.102-1.17.282-1.71V4.958H.957A8.996 8.996 0 0 0 0 9c0 1.452.348 2.827.957 4.042l3.007-2.332Z" fill="#FBBC05"/>
-    <path d="M9 3.58c1.321 0 2.508.454 3.44 1.345l2.582-2.58C13.463.891 11.426 0 9 0A8.997 8.997 0 0 0 .957 4.958L3.964 7.29C4.672 5.163 6.656 3.58 9 3.58Z" fill="#EA4335"/>
-  </svg>
-)
-
-// ─── Left brand panel ─────────────────────────────────────────────────────────
+// ─── Left panel — app preview, not marketing copy ─────────────────────────────
 const LeftPanel = memo(function LeftPanel() {
   return (
     <div className="auth-left" style={{
       position: 'relative', overflow: 'hidden', flexShrink: 0,
       display: 'flex', flexDirection: 'column',
     }}>
-      {/* Animated mesh gradient background */}
+      {/* Base — no animation, two static atmospheric radials */}
       <div style={{ position: 'absolute', inset: 0, background: '#080a12' }} />
       <div style={{
         position: 'absolute', inset: 0,
         background: `
-          radial-gradient(ellipse 80% 60% at 20% 40%, rgba(91,140,255,0.18) 0%, transparent 60%),
-          radial-gradient(ellipse 60% 80% at 80% 70%, rgba(167,139,250,0.12) 0%, transparent 55%),
-          radial-gradient(ellipse 70% 50% at 50% 10%,  rgba(52,211,153,0.06) 0%, transparent 60%)
+          radial-gradient(ellipse 90% 60% at 15% 75%, rgba(91,140,255,0.10) 0%, transparent 60%),
+          radial-gradient(ellipse 60% 40% at 70% 20%, rgba(167,139,250,0.06) 0%, transparent 55%)
         `,
-        animation: 'meshShift 9s ease-in-out infinite alternate',
       }} />
-      {/* Right-edge fade into the form panel */}
+      {/* Blend into form panel */}
       <div style={{
         position: 'absolute', inset: 0,
         background: 'linear-gradient(to right, transparent 60%, #0b0c13 100%)',
       }} />
 
-      {/* Foreground content */}
       <div style={{
         position: 'relative', zIndex: 1,
         flex: 1, padding: '44px 48px',
         display: 'flex', flexDirection: 'column',
       }}>
-        {/* Logo */}
+        {/* Logo — anchored top */}
         <motion.div
           initial={{ opacity: 0, y: -8 }}
           animate={{ opacity: 1, y: 0 }}
-          transition={{ delay: 0.15, ...SOFT }}
-          style={{ display: 'flex', alignItems: 'center', gap: 10 }}
+          transition={{ delay: 0.1, ...SOFT }}
+          style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 0 }}
         >
-          <div style={{
-            width: 32, height: 32, borderRadius: 9,
-            background: 'rgba(91,140,255,0.15)',
-            border: '1px solid rgba(91,140,255,0.25)',
-            display: 'flex', alignItems: 'center', justifyContent: 'center',
-            boxShadow: 'inset 0 1px 0 rgba(255,255,255,0.1)',
-          }}>
-            <GraduationCap size={16} color={C.accent} strokeWidth={1.8} />
-          </div>
+          <img src="/icons/icon-192.png" alt="" style={{ width: 32, height: 32, borderRadius: 9, objectFit: 'cover' }} />
           <span style={{ fontSize: 15, fontWeight: 700, color: 'rgba(232,233,240,0.9)', letterSpacing: '-0.2px', fontFamily: FONT }}>
             StudentOS
           </span>
         </motion.div>
 
-        {/* Headline + features — anchored to bottom third */}
-        <div style={{ flex: 1, display: 'flex', alignItems: 'flex-end', paddingBottom: 56 }}>
-          <div>
-            <motion.h2
-              initial={{ opacity: 0, y: 28 }}
-              animate={{ opacity: 1, y: 0 }}
-              transition={{ delay: 0.28, ...SOFT }}
-              style={{
-                fontSize: 36, fontWeight: 800, lineHeight: 1.15,
-                letterSpacing: '-0.8px', color: C.text,
-                margin: '0 0 24px', maxWidth: 320, fontFamily: FONT,
-              }}
-            >
-              Keep your semester together.
-            </motion.h2>
-
-            <div style={{ display: 'flex', flexDirection: 'column', gap: 11 }}>
-              {features.map((f, i) => (
-                <motion.div
-                  key={f.label}
-                  initial={{ opacity: 0, x: -16 }}
-                  animate={{ opacity: 1, x: 0 }}
-                  transition={{ delay: 0.42 + i * 0.09, ...SOFT }}
-                  style={{ display: 'flex', alignItems: 'center', gap: 10 }}
-                >
-                  <div style={{
-                    width: 26, height: 26, borderRadius: 7, flexShrink: 0,
-                    background: 'rgba(255,255,255,0.05)',
-                    border: '1px solid rgba(255,255,255,0.09)',
-                    display: 'flex', alignItems: 'center', justifyContent: 'center',
-                    boxShadow: 'inset 0 1px 0 rgba(255,255,255,0.07)',
-                  }}>
-                    <f.icon size={12} color="rgba(232,233,240,0.6)" strokeWidth={1.8} />
-                  </div>
-                  <span style={{ fontSize: 13, color: 'rgba(232,233,240,0.45)', fontFamily: FONT }}>
-                    {f.label}
-                  </span>
-                </motion.div>
-              ))}
+        {/* Semester context — fills the gap */}
+        <motion.div
+          initial={{ opacity: 0, y: 16 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ delay: 0.18, ...SOFT }}
+          style={{ flex: 1, display: 'flex', flexDirection: 'column', justifyContent: 'center', paddingBottom: 8 }}
+        >
+          {/* Big week number */}
+          <div style={{ marginBottom: 20 }}>
+            <div style={{ display: 'flex', alignItems: 'baseline', gap: 10, marginBottom: 4 }}>
+              <span style={{ fontSize: 56, fontWeight: 800, color: C.text, lineHeight: 1, letterSpacing: '-2px', fontFamily: FONT }}>
+                8
+              </span>
+              <span style={{ fontSize: 20, fontWeight: 600, color: C.muted, fontFamily: FONT, letterSpacing: '-0.4px' }}>
+                of 12
+              </span>
             </div>
+            <span style={{ fontSize: 12, color: C.dim, fontFamily: FONT, letterSpacing: '0.2px' }}>
+              teaching weeks
+            </span>
           </div>
-        </div>
+
+          {/* Semester progress bar */}
+          <div style={{ height: 3, background: 'rgba(255,255,255,0.06)', borderRadius: 2, marginBottom: 22 }}>
+            <div style={{ height: '100%', width: '66.7%', background: 'rgba(91,140,255,0.45)', borderRadius: 2 }} />
+          </div>
+
+          {/* Feature chips */}
+          <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}>
+            {FEATURE_CHIPS.map(label => (
+              <span key={label} style={{
+                fontSize: 11, color: C.muted, fontFamily: FONT,
+                padding: '4px 10px', borderRadius: 100,
+                border: '1px solid rgba(255,255,255,0.08)',
+                background: 'rgba(255,255,255,0.03)',
+              }}>
+                {label}
+              </span>
+            ))}
+          </div>
+        </motion.div>
+
+        {/* Week preview — anchored bottom */}
+        <motion.div
+          initial={{ opacity: 0, y: 20 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ delay: 0.28, ...SOFT }}
+          style={{ paddingBottom: 44 }}
+        >
+          <div style={{ marginBottom: 14 }}>
+            <span style={{ fontSize: 12, color: C.muted, fontFamily: FONT, letterSpacing: '0.1px' }}>
+              This week
+            </span>
+          </div>
+          <WeekPreview />
+        </motion.div>
       </div>
     </div>
   )
 })
 
-// ─── Email confirmation screen ────────────────────────────────────────────────
-function EmailSentScreen({ email, onBack }) {
+// ─── Confirmation screen — handles both email verify and password reset ────────
+function ConfirmationScreen({ email, type, onBack }) {
   const [cooldown, setCooldown] = useState(0)
   const [sending,  setSending]  = useState(false)
   const [done,     setDone]     = useState(false)
+  const prefersReduced = useReducedMotion()
+  const isReset = type === 'reset'
 
   useEffect(() => {
     if (cooldown <= 0) return
@@ -228,10 +327,21 @@ function EmailSentScreen({ email, onBack }) {
 
   async function resend() {
     setSending(true); setDone(false)
-    const { error } = await supabase.auth.resend({ type: 'signup', email })
-    setSending(false)
-    if (!error) { setDone(true); setCooldown(60) }
+    if (isReset) {
+      const { error } = await supabase.auth.resetPasswordForEmail(email, {
+        redirectTo: `${window.location.origin}?reset=true`,
+      })
+      setSending(false)
+      if (!error) { setDone(true); setCooldown(60) }
+    } else {
+      const { error } = await supabase.auth.resend({ type: 'signup', email })
+      setSending(false)
+      if (!error) { setDone(true); setCooldown(60) }
+    }
   }
+
+  const iconColor = isReset ? C.purple : C.accent
+  const iconRgb   = isReset ? '167,139,250' : '91,140,255'
 
   return (
     <motion.div
@@ -245,34 +355,44 @@ function EmailSentScreen({ email, onBack }) {
       }}
     >
       <div style={{ maxWidth: 400, width: '100%', textAlign: 'center' }}>
-        {/* Pulsing mail icon */}
+        {/* Icon with optional pulse ring */}
         <div style={{ position: 'relative', width: 60, height: 60, margin: '0 auto 28px' }}>
-          <motion.div
-            animate={{ scale: [1, 1.18, 1] }}
-            transition={{ duration: 2.6, repeat: Infinity, ease: 'easeInOut' }}
-            style={{
-              position: 'absolute', inset: -10, borderRadius: '50%',
-              border: '1px solid rgba(91,140,255,0.18)',
-            }}
-          />
+          {!prefersReduced && (
+            <motion.div
+              animate={{ scale: [1, 1.18, 1] }}
+              transition={{ duration: 2.6, repeat: Infinity, ease: 'easeInOut' }}
+              style={{
+                position: 'absolute', inset: -10, borderRadius: '50%',
+                border: `1px solid rgba(${iconRgb},0.18)`,
+              }}
+            />
+          )}
           <div style={{
             width: 60, height: 60, borderRadius: 16,
-            background: 'rgba(91,140,255,0.09)',
-            border: '1px solid rgba(91,140,255,0.22)',
+            background: `rgba(${iconRgb},0.09)`,
+            border: `1px solid rgba(${iconRgb},0.22)`,
             display: 'flex', alignItems: 'center', justifyContent: 'center',
             boxShadow: 'inset 0 1px 0 rgba(255,255,255,0.07)',
           }}>
-            <Mail size={24} color={C.accent} strokeWidth={1.6} />
+            {isReset
+              ? <KeyRound size={24} color={iconColor} strokeWidth={1.6} />
+              : <Mail     size={24} color={iconColor} strokeWidth={1.6} />}
           </div>
         </div>
 
         <h1 style={{ fontSize: 22, fontWeight: 700, color: C.text, margin: '0 0 10px', letterSpacing: '-0.4px' }}>
-          Check your inbox
+          {isReset ? 'Reset link sent' : 'Check your inbox'}
         </h1>
         <p style={{ fontSize: 14, color: C.muted, lineHeight: 1.75, margin: '0 0 32px' }}>
-          We sent a confirmation link to<br />
-          <span style={{ color: C.text, fontWeight: 600 }}>{email}</span>.<br />
-          Click it to activate your account, then come back to sign in.
+          {isReset ? (
+            <>We sent a password reset link to<br />
+            <span style={{ color: C.text, fontWeight: 600 }}>{email}</span>.<br />
+            Click it to choose a new password.</>
+          ) : (
+            <>We sent a confirmation link to<br />
+            <span style={{ color: C.text, fontWeight: 600 }}>{email}</span>.<br />
+            Click it to activate your account, then sign in.</>
+          )}
         </p>
 
         <AnimatePresence>
@@ -281,7 +401,7 @@ function EmailSentScreen({ email, onBack }) {
               initial={{ opacity: 0, y: -6 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0 }}
               style={{ fontSize: 13, color: C.green, marginBottom: 14 }}
             >
-              Email resent.
+              {isReset ? 'Reset link resent.' : 'Email resent.'}
             </motion.p>
           )}
         </AnimatePresence>
@@ -295,13 +415,14 @@ function EmailSentScreen({ email, onBack }) {
             border: `1px solid ${C.border}`,
             background: 'rgba(255,255,255,0.03)',
             color: cooldown > 0 ? C.dim : C.muted,
-            fontSize: 13, fontWeight: 500, cursor: cooldown > 0 ? 'not-allowed' : 'pointer',
+            fontSize: 13, fontWeight: 500,
+            cursor: cooldown > 0 ? 'not-allowed' : 'pointer',
             fontFamily: FONT, marginBottom: 14,
             boxShadow: 'inset 0 1px 0 rgba(255,255,255,0.04)',
             transition: 'color 0.2s',
           }}
         >
-          {sending ? 'Sending...' : cooldown > 0 ? `Resend in ${cooldown}s` : 'Resend confirmation email'}
+          {sending ? 'Sending...' : cooldown > 0 ? `Resend in ${cooldown}s` : `Resend ${isReset ? 'reset link' : 'confirmation email'}`}
         </motion.button>
 
         <button
@@ -321,13 +442,14 @@ function EmailSentScreen({ email, onBack }) {
 
 // ─── Main auth page ───────────────────────────────────────────────────────────
 export default function AuthPage() {
-  const [mode,    setMode]    = useState('signin')
-  const [email,   setEmail]   = useState('')
-  const [pw,      setPw]      = useState('')
-  const [error,   setError]   = useState(null)
-  const [loading, setLoading] = useState(false)
-  const [gLoad,   setGLoad]   = useState(false)
-  const [sentTo,  setSentTo]  = useState(null)
+  const [mode,     setMode]     = useState('signin')
+  const [email,    setEmail]    = useState('')
+  const [pw,       setPw]       = useState('')
+  const [error,    setError]    = useState(null)
+  const [loading,  setLoading]  = useState(false)
+  const [gLoad,    setGLoad]    = useState(false)
+  const [sentTo,   setSentTo]   = useState(null)
+  const [sentType, setSentType] = useState('verify')
 
   async function handleGoogle() {
     setError(null); setGLoad(true)
@@ -335,56 +457,68 @@ export default function AuthPage() {
       provider: 'google',
       options: { redirectTo: window.location.origin },
     })
-    if (error) { setError(error.message); setGLoad(false) }
+    if (error) { setError(friendlyError(error.message)); setGLoad(false) }
   }
 
   async function handleSubmit(e) {
     e?.preventDefault()
+    if (loading) return
     setError(null); setLoading(true)
     if (mode === 'signin') {
       const { error } = await supabase.auth.signInWithPassword({ email, password: pw })
       if (error) {
-        if (error.message.toLowerCase().includes('email not confirmed')) setSentTo(email)
-        else setError(error.message)
+        if (error.message.toLowerCase().includes('email not confirmed')) {
+          setSentType('verify'); setSentTo(email)
+        } else {
+          setError(friendlyError(error.message))
+        }
       }
     } else {
       const { error } = await supabase.auth.signUp({ email, password: pw })
-      if (error) setError(error.message)
-      else setSentTo(email)
+      if (error) setError(friendlyError(error.message))
+      else { setSentType('verify'); setSentTo(email) }
     }
     setLoading(false)
   }
 
+  async function handleForgotPassword() {
+    if (!email) {
+      setError('Enter your email address above, then click Forgot password.')
+      return
+    }
+    if (loading) return
+    setError(null); setLoading(true)
+    const { error } = await supabase.auth.resetPasswordForEmail(email, {
+      redirectTo: `${window.location.origin}?reset=true`,
+    })
+    setLoading(false)
+    if (error) setError(friendlyError(error.message))
+    else { setSentType('reset'); setSentTo(email) }
+  }
+
   if (sentTo) {
     return (
-      <EmailSentScreen
-        email={sentTo}
-        onBack={() => { setSentTo(null); setMode('signin'); setError(null) }}
-      />
+      <MotionConfig reducedMotion="user">
+        <ConfirmationScreen
+          email={sentTo}
+          type={sentType}
+          onBack={() => { setSentTo(null); setMode('signin'); setError(null) }}
+        />
+      </MotionConfig>
     )
   }
 
   return (
-    <>
+    <MotionConfig reducedMotion="user">
       <style>{`
-        @keyframes meshShift {
-          0%   { transform: scale(1)    rotate(0deg)   }
-          100% { transform: scale(1.06) rotate(2deg)   }
-        }
         @keyframes spin { to { transform: rotate(360deg) } }
-        .auth-left {
-          width: 54%;
-          min-height: 100dvh;
-        }
-        @media (max-width: 768px) {
-          .auth-left { display: none !important; }
-        }
+        .auth-left { width: 54%; min-height: 100dvh; }
+        @media (max-width: 768px) { .auth-left { display: none !important; } }
+        .auth-google-btn:hover:not(:disabled) { background: rgba(255,255,255,0.07) !important; border-color: #2a2c40 !important; }
+        input:focus-visible { outline: 2px solid rgba(91,140,255,0.4) !important; outline-offset: 2px; }
       `}</style>
 
-      <div style={{
-        minHeight: '100dvh', display: 'flex',
-        fontFamily: FONT, background: C.bg,
-      }}>
+      <div style={{ minHeight: '100dvh', display: 'flex', fontFamily: FONT, background: C.bg }}>
         <LeftPanel />
 
         {/* Right: form panel */}
@@ -444,14 +578,15 @@ export default function AuthPage() {
                 </h1>
                 <p style={{ fontSize: 13, color: C.muted, margin: 0 }}>
                   {mode === 'signin'
-                    ? 'Sign in to pick up where you left off'
-                    : 'Get StudentOS set up in under 3 minutes'}
+                    ? 'Pick up where you left off'
+                    : 'Set up your semester in under 3 minutes'}
                 </p>
               </motion.div>
             </AnimatePresence>
 
             {/* Google */}
             <motion.button
+              className="auth-google-btn"
               onClick={handleGoogle}
               disabled={gLoad || loading}
               whileTap={{ scale: 0.98 }}
@@ -465,14 +600,6 @@ export default function AuthPage() {
                 boxShadow: 'inset 0 1px 0 rgba(255,255,255,0.05)',
                 transition: 'background 0.15s, border-color 0.15s',
               }}
-              onMouseEnter={e => {
-                e.currentTarget.style.background = 'rgba(255,255,255,0.07)'
-                e.currentTarget.style.borderColor = C.borderHigh
-              }}
-              onMouseLeave={e => {
-                e.currentTarget.style.background = 'rgba(255,255,255,0.04)'
-                e.currentTarget.style.borderColor = C.border
-              }}
             >
               {gLoad
                 ? <div style={{ width: 16, height: 16, border: `2px solid ${C.border}`, borderTopColor: C.accent, borderRadius: '50%', animation: 'spin 0.7s linear infinite' }} />
@@ -483,11 +610,11 @@ export default function AuthPage() {
             {/* Divider */}
             <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: 18 }}>
               <div style={{ flex: 1, height: 1, background: C.border }} />
-              <span style={{ fontSize: 11, color: C.dim, textTransform: 'uppercase', letterSpacing: '0.6px' }}>or</span>
+              <span style={{ fontSize: 11, color: C.muted, textTransform: 'uppercase', letterSpacing: '0.6px' }}>or</span>
               <div style={{ flex: 1, height: 1, background: C.border }} />
             </div>
 
-            {/* Form fields */}
+            {/* Form */}
             <AnimatePresence mode="wait">
               <motion.form
                 key={mode + '-form'}
@@ -495,9 +622,53 @@ export default function AuthPage() {
                 onSubmit={handleSubmit}
                 style={{ display: 'flex', flexDirection: 'column', gap: 14 }}
               >
-                <Field label="Email" type="email" placeholder="you@university.ac.uk" value={email} onChange={e => setEmail(e.target.value)} />
-                <Field label="Password" type="password" placeholder="••••••••" value={pw} onChange={e => setPw(e.target.value)} />
+                <Field
+                  label="Email"
+                  type="email"
+                  placeholder="you@university.ac.uk"
+                  value={email}
+                  onChange={e => setEmail(e.target.value)}
+                  autoComplete="email"
+                />
+                <Field
+                  label="Password"
+                  type="password"
+                  placeholder="••••••••"
+                  value={pw}
+                  onChange={e => setPw(e.target.value)}
+                  autoComplete={mode === 'signin' ? 'current-password' : 'new-password'}
+                />
 
+                {/* Forgot password — sign in only */}
+                <AnimatePresence>
+                  {mode === 'signin' && (
+                    <motion.div
+                      initial={{ opacity: 0, height: 0 }} animate={{ opacity: 1, height: 'auto' }}
+                      exit={{ opacity: 0, height: 0 }}
+                      style={{ overflow: 'hidden', marginTop: -6 }}
+                    >
+                      <div style={{ textAlign: 'right' }}>
+                        <button
+                          type="button"
+                          onClick={handleForgotPassword}
+                          disabled={loading}
+                          style={{
+                            background: 'none', border: 'none',
+                            color: C.muted, fontSize: 12, fontWeight: 500,
+                            cursor: 'pointer', fontFamily: FONT, padding: 0,
+                            transition: 'color 0.15s',
+                          }}
+                          onMouseEnter={e => { e.currentTarget.style.color = C.text }}
+                          onMouseLeave={e => { e.currentTarget.style.color = C.muted }}
+                        >
+                          Forgot password?
+                        </button>
+                      </div>
+                    </motion.div>
+                  )}
+                </AnimatePresence>
+
+                {/* Error */}
                 <AnimatePresence>
                   {error && (
                     <motion.div
@@ -523,7 +694,7 @@ export default function AuthPage() {
                     disabled={!email || !pw}
                     loading={loading}
                     style={{
-                      width: '100%', padding: '12px 0', borderRadius: 10, border: 'none',
+                      width: '100%', padding: '12px 0', borderRadius: 10,
                       background: loading || !email || !pw ? C.surface : C.accent,
                       color: loading || !email || !pw ? C.dim : 'white',
                       fontSize: 14, fontWeight: 600, cursor: 'pointer',
@@ -537,8 +708,8 @@ export default function AuthPage() {
                     }}
                   >
                     {loading
-                      ? <div style={{ width: 16, height: 16, border: `2px solid rgba(255,255,255,0.2)`, borderTopColor: 'white', borderRadius: '50%', animation: 'spin 0.7s linear infinite' }} />
-                      : <>{mode === 'signin' ? 'Sign In' : 'Create Account'} <ArrowRight size={14} strokeWidth={2} /></>}
+                      ? <div style={{ width: 16, height: 16, border: '2px solid rgba(255,255,255,0.2)', borderTopColor: 'white', borderRadius: '50%', animation: 'spin 0.7s linear infinite' }} />
+                      : <>{mode === 'signin' ? 'Sign in' : 'Create account'} <ArrowRight size={14} strokeWidth={2} /></>}
                   </MagneticButton>
                 </motion.div>
               </motion.form>
@@ -546,6 +717,6 @@ export default function AuthPage() {
           </div>
         </div>
       </div>
-    </>
+    </MotionConfig>
   )
 }
