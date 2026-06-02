@@ -623,6 +623,9 @@ export default function App() {
   const [soundEnabled,  setSoundEnabled]  = useState(true)
   const soundEnabledRef = useRef(true)
   soundEnabledRef.current = soundEnabled
+  // Tracks the strokes array reference per page index from the last successful save, keyed by noteId.
+  // Reference equality on strokes arrays lets us skip pages that haven't changed.
+  const lastSavedStrokesRef = useRef({})
 
   // Countdown — fires every second while running
   useEffect(() => {
@@ -887,18 +890,28 @@ export default function App() {
       if (updateErr) { console.error('notes update failed:', updateErr); throw updateErr }
 
       if (note.pages.length > 0) {
-        // Upsert all current pages in one shot — no delete + insert round-trip
-        const { error: upsertErr } = await supabase.from('note_pages').upsert(
-          note.pages.map((p, i) => ({ note_id: noteId, page_order: i, strokes: p.strokes })),
-          { onConflict: 'note_id,page_order' }
-        )
-        if (upsertErr) { console.error('note_pages upsert failed:', upsertErr); throw upsertErr }
-        // Remove pages that were deleted (page_order beyond current length)
-        await supabase.from('note_pages').delete()
-          .eq('note_id', noteId)
-          .gte('page_order', note.pages.length)
+        const prevStrokes = lastSavedStrokesRef.current[noteId] || []
+        // Only send pages whose strokes reference changed — avoids serializing unchanged pages
+        const dirty = note.pages
+          .map((p, i) => ({ p, i }))
+          .filter(({ p, i }) => prevStrokes[i] !== p.strokes)
+        if (dirty.length > 0) {
+          const { error: upsertErr } = await supabase.from('note_pages').upsert(
+            dirty.map(({ p, i }) => ({ note_id: noteId, page_order: i, strokes: p.strokes })),
+            { onConflict: 'note_id,page_order' }
+          )
+          if (upsertErr) { console.error('note_pages upsert failed:', upsertErr); throw upsertErr }
+        }
+        // Remove pages deleted since last save (page_order beyond current length)
+        if (prevStrokes.length > note.pages.length) {
+          await supabase.from('note_pages').delete()
+            .eq('note_id', noteId)
+            .gte('page_order', note.pages.length)
+        }
+        lastSavedStrokesRef.current[noteId] = note.pages.map(p => p.strokes)
       } else {
         await supabase.from('note_pages').delete().eq('note_id', noteId)
+        lastSavedStrokesRef.current[noteId] = []
       }
     }
 
