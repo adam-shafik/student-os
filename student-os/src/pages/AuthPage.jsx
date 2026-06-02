@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { GraduationCap, Mail, Lock, AlertCircle } from 'lucide-react'
 import { supabase } from '../lib/supabase'
 
@@ -45,6 +45,15 @@ export default function AuthPage() {
   const [loading, setLoading] = useState(false)
   const [googleLoading, setGoogleLoading] = useState(false)
   const [signedUp, setSignedUp] = useState(false)
+  const [resendCooldown, setResendCooldown] = useState(0)
+  const [resendLoading, setResendLoading] = useState(false)
+  const [resendDone, setResendDone] = useState(false)
+
+  useEffect(() => {
+    if (resendCooldown <= 0) return
+    const t = setTimeout(() => setResendCooldown(c => c - 1), 1000)
+    return () => clearTimeout(t)
+  }, [resendCooldown])
 
   const handleGoogleAuth = async () => {
     setError(null)
@@ -62,7 +71,13 @@ export default function AuthPage() {
     setLoading(true)
     if (mode === 'signin') {
       const { error } = await supabase.auth.signInWithPassword({ email, password })
-      if (error) setError(error.message)
+      if (error) {
+        if (error.message.toLowerCase().includes('email not confirmed')) {
+          setSignedUp(true)
+        } else {
+          setError(error.message)
+        }
+      }
     } else {
       const { error } = await supabase.auth.signUp({ email, password })
       if (error) setError(error.message)
@@ -71,17 +86,51 @@ export default function AuthPage() {
     setLoading(false)
   }
 
+  const handleResend = async () => {
+    setResendLoading(true)
+    setResendDone(false)
+    const { error } = await supabase.auth.resend({ type: 'signup', email })
+    setResendLoading(false)
+    if (!error) { setResendDone(true); setResendCooldown(60) }
+  }
+
   if (signedUp) {
     return (
-      <div style={{ minHeight: '100vh', background: '#0b0c13', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-        <div style={{ textAlign: 'center', maxWidth: 360 }}>
-          <div style={{ width: 48, height: 48, background: 'linear-gradient(135deg, #5b8cff, #a78bfa)', borderRadius: 14, display: 'flex', alignItems: 'center', justifyContent: 'center', margin: '0 auto 20px' }}>
-            <GraduationCap size={24} color="white" />
+      <div style={{ minHeight: '100vh', background: '#0b0c13', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 20 }}>
+        <div style={{ textAlign: 'center', maxWidth: 380, width: '100%' }}>
+          <div style={{ width: 52, height: 52, background: 'linear-gradient(135deg, #5b8cff, #a78bfa)', borderRadius: 14, display: 'flex', alignItems: 'center', justifyContent: 'center', margin: '0 auto 20px', boxShadow: '0 0 24px rgba(91,140,255,0.3)' }}>
+            <Mail size={24} color="white" />
           </div>
-          <div style={{ fontSize: 18, fontWeight: 700, color: '#e8e9f0', marginBottom: 10 }}>Check your email</div>
-          <div style={{ fontSize: 14, color: '#7c7e96', lineHeight: 1.6 }}>
-            We sent a confirmation link to <span style={{ color: '#e8e9f0' }}>{email}</span>. Click it to activate your account.
+          <div style={{ fontSize: 20, fontWeight: 700, color: '#e8e9f0', marginBottom: 10 }}>Check your inbox</div>
+          <div style={{ fontSize: 14, color: '#7c7e96', lineHeight: 1.7, marginBottom: 28 }}>
+            We sent a confirmation link to<br />
+            <span style={{ color: '#e8e9f0', fontWeight: 600 }}>{email}</span>.<br />
+            Click it to activate your account, then come back here to sign in.
           </div>
+
+          {resendDone && (
+            <div style={{ fontSize: 13, color: '#34d399', marginBottom: 16 }}>Email resent.</div>
+          )}
+
+          <button
+            onClick={handleResend}
+            disabled={resendLoading || resendCooldown > 0}
+            style={{
+              display: 'block', width: '100%', padding: '11px 0', borderRadius: 10, border: '1px solid #2a2c40',
+              background: 'rgba(255,255,255,0.04)', color: resendCooldown > 0 ? '#4a4c60' : '#e8e9f0',
+              fontSize: 14, fontWeight: 500, cursor: resendLoading || resendCooldown > 0 ? 'not-allowed' : 'pointer',
+              marginBottom: 14, transition: 'background 0.15s',
+            }}
+          >
+            {resendLoading ? 'Sending…' : resendCooldown > 0 ? `Resend in ${resendCooldown}s` : 'Resend confirmation email'}
+          </button>
+
+          <button
+            onClick={() => { setSignedUp(false); setMode('signin'); setError(null) }}
+            style={{ background: 'none', border: 'none', color: '#5b8cff', fontSize: 13, fontWeight: 600, cursor: 'pointer', padding: 0 }}
+          >
+            Back to sign in
+          </button>
         </div>
       </div>
     )
