@@ -519,6 +519,17 @@ function PageCanvas({ page, pageH, maxW, pageIdx, totalPages, onStrokesChange, o
   const strokes        = page.strokes
   const displayStrokes = erasingStrokes ?? strokes
 
+  // Cache getStroke() output keyed by stroke object identity.
+  // Existing strokes keep the same reference between renders → computed once.
+  // WeakMap auto-releases entries when stroke objects are GC'd.
+  const strokeOutlineCache = useRef(new WeakMap())
+  function getCachedOutline(s) {
+    if (!strokeOutlineCache.current.has(s)) {
+      strokeOutlineCache.current.set(s, getStroke(s.points, strokeOpts(s.size, true, s.smoothing ?? 0.5)))
+    }
+    return strokeOutlineCache.current.get(s)
+  }
+
   // Clear the local erasing preview once the parent strokes prop has updated,
   // preventing a flash of the old un-erased strokes between the two renders.
   useEffect(() => {
@@ -952,7 +963,7 @@ function PageCanvas({ page, pageH, maxW, pageIdx, totalPages, onStrokesChange, o
             const tf  = (dx || dy) ? `translate(${dx},${dy})` : undefined
             const rc  = adaptColor(s.color, bgColor)
             if (s.shape) return <g key={i} transform={tf}>{renderShape({ ...s, color: rc })}</g>
-            const outline = getStroke(s.points, strokeOpts(s.size, true, s.smoothing ?? 0.5))
+            const outline = getCachedOutline(s)
             return (
               <g key={i} transform={tf}>
                 <path fill={rc} fillOpacity={s.opacity ?? 1} stroke="none" d={toPath(outline)} />
