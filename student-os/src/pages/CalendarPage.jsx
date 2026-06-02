@@ -1,4 +1,5 @@
 import { useState, useMemo, useRef, useEffect } from 'react'
+import { motion, AnimatePresence } from 'framer-motion'
 import { ChevronLeft, ChevronRight, Plus, X, ChevronUp, ChevronDown, Check, RotateCcw } from 'lucide-react'
 import {
   EVENT_TYPES, TYPE_PRIORITY, MONTHS, WEEKDAYS, WEEKDAYS_SUN,
@@ -44,10 +45,10 @@ function EventChip({ event, onClick, hasNote, customColors }) {
       title={`${typeLabel}: ${event.title}${time ? ' · ' + time : ''}`}
       style={{
         display: 'flex', flexDirection: 'column', gap: 1,
-        padding: '4px 7px 4px 6px',
+        padding: '4px 7px',
         borderRadius: 5, marginBottom: 3,
-        background: `${typeColor}15`,
-        borderLeft: `2.5px solid ${typeColor}`,
+        background: `${typeColor}16`,
+        border: `1px solid ${typeColor}30`,
         cursor: 'pointer', overflow: 'hidden',
         transition: 'filter 0.1s',
         minWidth: 0, width: '100%', boxSizing: 'border-box',
@@ -587,7 +588,7 @@ function WeekView({ weekDate, allEvents, onEventClick, onAddClick, customColors 
                   return (
                     <div key={ev.id} onClick={() => onEventClick(ev)}
                       style={{ fontSize: 11, padding: '2px 6px', borderRadius: 4, marginBottom: 2,
-                        background: `${color}18`, borderLeft: `2.5px solid ${color}`,
+                        background: `${color}18`, border: `1px solid ${color}30`,
                         color: 'var(--text-bright)', cursor: 'pointer',
                         overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}
                       onMouseEnter={e => e.currentTarget.style.filter = 'brightness(1.25)'}
@@ -644,7 +645,7 @@ function WeekView({ weekDate, allEvents, onEventClick, onAddClick, customColors 
                   return (
                     <div key={ev.id} onClick={e => { e.stopPropagation(); onEventClick(ev) }}
                       style={{ position: 'absolute', top, left: 3, right: 3, height, borderRadius: 5,
-                        background: `${color}15`, borderLeft: `2.5px solid ${color}`,
+                        background: `${color}18`, border: `1px solid ${color}30`,
                         padding: '3px 6px', overflow: 'hidden', cursor: 'pointer', zIndex: 1,
                         transition: 'filter 0.1s' }}
                       onMouseEnter={e => e.currentTarget.style.filter = 'brightness(1.25)'}
@@ -741,35 +742,38 @@ export default function CalendarPage({ domains = [], domainEvents = [], customEv
 
       <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 16, flexShrink: 0 }}>
         <div>
-          <h1 style={{ margin: 0, fontSize: 24, fontWeight: 700, color: 'var(--text-primary)', letterSpacing: '-0.4px' }}>Calendar</h1>
-          <p style={{ margin: '3px 0 0', fontSize: 13, color: 'var(--text-muted)' }}>All lectures, labs, deadlines and exams in one place</p>
+          <h1 style={{ margin: 0, fontSize: 30, fontWeight: 800, color: 'var(--text-primary)', letterSpacing: '-0.8px' }}>Calendar</h1>
+          <p style={{ margin: '4px 0 0', fontSize: 13, color: 'var(--text-secondary)' }}>Lectures, labs, deadlines and exams</p>
         </div>
         <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
           {/* View toggle */}
           <div style={{ display: 'flex', background: 'var(--bg-surface)', border: '1px solid var(--border-strong)', borderRadius: 8, overflow: 'hidden', marginRight: 4 }}>
             {['month', 'week'].map(v => (
-              <button key={v} onClick={() => switchView(v)} style={{
-                padding: '6px 14px', border: 'none', cursor: 'pointer', fontSize: 13, fontWeight: view === v ? 600 : 400,
-                background: view === v ? 'var(--nav-active)' : 'transparent',
-                color: view === v ? 'var(--accent-blue)' : 'var(--text-secondary)',
-                transition: 'all 0.15s', textTransform: 'capitalize',
-              }}>
+              <motion.button key={v} onClick={() => switchView(v)}
+                whileTap={{ scale: 0.96 }}
+                style={{
+                  padding: '6px 14px', border: 'none', cursor: 'pointer', fontSize: 13, fontWeight: view === v ? 600 : 400,
+                  background: view === v ? 'var(--nav-active)' : 'transparent',
+                  color: view === v ? 'var(--accent-blue)' : 'var(--text-secondary)',
+                  transition: 'background 0.15s, color 0.15s', textTransform: 'capitalize', fontFamily: 'inherit',
+                }}>
                 {v}
-              </button>
+              </motion.button>
             ))}
           </div>
-          <button onClick={view === 'month' ? prevMonth : prevWeek} style={navBtn}><ChevronLeft size={16} /></button>
+          <motion.button whileTap={{ scale: 0.9 }} onClick={view === 'month' ? prevMonth : prevWeek} style={navBtn}><ChevronLeft size={16} /></motion.button>
           <span style={{ fontSize: 15, fontWeight: 600, color: 'var(--text-primary)', width: 220, textAlign: 'center', display: 'inline-block', flexShrink: 0 }}>
             {view === 'month' ? `${MONTHS[month]} ${year}` : weekLabel}
           </span>
-          <button onClick={view === 'month' ? nextMonth : nextWeek} style={navBtn}><ChevronRight size={16} /></button>
-          <button onClick={goToday} style={{ ...navBtn, padding: '6px 14px', width: 'auto', marginLeft: 6, fontSize: 13 }}>Today</button>
-          <button
+          <motion.button whileTap={{ scale: 0.9 }} onClick={view === 'month' ? nextMonth : nextWeek} style={navBtn}><ChevronRight size={16} /></motion.button>
+          <motion.button whileTap={{ scale: 0.96 }} onClick={goToday} style={{ ...navBtn, padding: '6px 14px', width: 'auto', marginLeft: 6, fontSize: 13, fontFamily: 'inherit' }}>Today</motion.button>
+          <motion.button
+            whileTap={{ scale: 0.95 }}
             onClick={() => setAddModalDate(new Date())}
-            style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '7px 14px', borderRadius: 8, border: 'none', background: 'var(--accent-green)', color: 'var(--bg-page)', fontSize: 13, fontWeight: 600, cursor: 'pointer', marginLeft: 4, whiteSpace: 'nowrap' }}
+            style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '7px 14px', borderRadius: 8, border: 'none', background: 'var(--accent-green)', color: 'var(--bg-page)', fontSize: 13, fontWeight: 600, cursor: 'pointer', marginLeft: 4, whiteSpace: 'nowrap', fontFamily: 'inherit' }}
           >
             <Plus size={14} /> Add Event
-          </button>
+          </motion.button>
         </div>
       </div>
 
@@ -813,8 +817,14 @@ export default function CalendarPage({ domains = [], domainEvents = [], customEv
         )}
       </div>
 
+      <AnimatePresence mode="wait">
       {view === 'week' ? (
-        <div data-tutorial-id="calendar-grid">
+        <motion.div
+          key={`week-${weekDate.toISOString().slice(0,10)}`}
+          data-tutorial-id="calendar-grid"
+          initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
+          transition={{ duration: 0.1 }}
+        >
           <WeekView
             weekDate={weekDate}
             allEvents={allEvents}
@@ -823,9 +833,14 @@ export default function CalendarPage({ domains = [], domainEvents = [], customEv
             eventNotes={eventNotes}
             customColors={eventTypeColors}
           />
-        </div>
+        </motion.div>
       ) : (
-      <div data-tutorial-id="calendar-grid" style={{
+      <motion.div
+        key={`month-${year}-${month}`}
+        data-tutorial-id="calendar-grid"
+        initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
+        transition={{ duration: 0.1 }}
+        style={{
         display: 'grid',
         gridTemplateColumns: '28px repeat(7, 1fr)',
         gridTemplateRows: `auto repeat(6, minmax(110px, auto))`,
@@ -869,8 +884,9 @@ export default function CalendarPage({ domains = [], domainEvents = [], customEv
             }),
           ]
         })}
-      </div>
+      </motion.div>
       )}
+      </AnimatePresence>
 
       {selectedEvent && (
         <EventDetailModal

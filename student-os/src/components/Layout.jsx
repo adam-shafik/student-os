@@ -1,5 +1,5 @@
 import { useRef, useLayoutEffect, useState } from 'react'
-import { motion, AnimatePresence, MotionConfig } from 'framer-motion'
+import { motion, MotionConfig } from 'framer-motion'
 import { BookOpen, Calendar, Timer, FileText, CheckSquare, Settings, LogOut, HelpCircle } from 'lucide-react'
 
 const navItems = [
@@ -188,17 +188,15 @@ export default function Layout({ currentPage, onNavigate, onSignOut, onStartTuto
           borderTopRightRadius: 16,
         }}>
           <div className="page-scroll" style={{ flex: 1, overflowY: 'auto', minHeight: 0 }}>
-            <AnimatePresence mode="wait">
-              <motion.div
-                key={currentPage}
-                initial={{ opacity: 0 }}
-                animate={{ opacity: 1, transition: { duration: 0.12, ease: 'easeOut' } }}
-                exit={{ opacity: 0, transition: { duration: 0.06, ease: 'easeIn' } }}
-                style={{ height: '100%' }}
-              >
-                {children}
-              </motion.div>
-            </AnimatePresence>
+            <motion.div
+              key={currentPage}
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              transition={{ duration: 0.12, ease: 'easeOut' }}
+              style={{ height: '100%' }}
+            >
+              {children}
+            </motion.div>
           </div>
         </main>
       </div>
