@@ -1,8 +1,11 @@
 import { useState } from 'react'
+import { motion, AnimatePresence } from 'framer-motion'
 import {
   Plus, X, BookOpen, User, Award, ChevronRight, FileCheck, FlaskConical, ChevronDown, CheckSquare, FolderOpen, Archive,
 } from 'lucide-react'
 import { DOMAIN_CATEGORIES, DOMAIN_COLORS, DOMAIN_ICON_GROUPS, getDomainIcon } from '../data/domains'
+
+const EASE = [0.32, 0.72, 0, 1]
 
 function DomainIcon({ name, size = 14, color }) {
   const Icon = getDomainIcon(name)
@@ -58,7 +61,6 @@ function AcademicCard({ domain, pendingTasks, domainEvents = [], assessments = [
         opacity: muted ? 0.65 : 1,
       }}
     >
-
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 12 }}>
         <div>
           <div style={{ display: 'flex', alignItems: 'center', gap: 7, marginBottom: 8 }}>
@@ -105,7 +107,6 @@ function AcademicCard({ domain, pendingTasks, domainEvents = [], assessments = [
 
 // ─── General (non-academic) domain card ───────────────────────────────────────
 function GeneralCard({ domain, linkedEventCount, onClick }) {
-
   return (
     <div
       className="domain-card"
@@ -115,7 +116,6 @@ function GeneralCard({ domain, linkedEventCount, onClick }) {
         cursor: 'pointer', position: 'relative', overflow: 'hidden',
       }}
     >
-
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 12 }}>
         <div>
           <div style={{ display: 'flex', alignItems: 'center', gap: 7, marginBottom: 8 }}>
@@ -151,19 +151,57 @@ function GeneralCard({ domain, linkedEventCount, onClick }) {
 // ─── Section header ───────────────────────────────────────────────────────────
 function SectionHeader({ label, count, collapsed, onToggle }) {
   return (
-    <button
+    <motion.button
       onClick={onToggle}
+      whileTap={{ scale: 0.99 }}
       style={{
         display: 'flex', alignItems: 'center', gap: 10,
         background: 'none', border: 'none', cursor: 'pointer',
-        padding: '4px 0', marginBottom: 14, width: '100%', textAlign: 'left',
+        padding: '4px 0', marginBottom: 16, width: '100%', textAlign: 'left',
+        fontFamily: 'inherit',
       }}
     >
-      <span style={{ fontSize: 13, fontWeight: 700, color: 'var(--text-primary)', letterSpacing: '-0.2px' }}>{label}</span>
-      <span style={{ fontSize: 11, color: 'var(--text-muted)', background: 'var(--border)', padding: '2px 7px', borderRadius: 10 }}>{count}</span>
+      <span style={{ fontSize: 14, fontWeight: 700, color: 'var(--text-primary)', letterSpacing: '-0.3px' }}>{label}</span>
+      <span style={{
+        fontSize: 11, fontWeight: 600,
+        color: 'var(--accent-blue)', background: 'rgba(91,140,255,0.1)',
+        padding: '2px 7px', borderRadius: 10,
+      }}>{count}</span>
       <div style={{ flex: 1, height: 1, background: 'var(--border)', marginLeft: 4 }} />
-      <ChevronDown size={14} color="var(--text-muted)" style={{ transform: collapsed ? 'rotate(-90deg)' : 'none', transition: 'transform 0.2s' }} />
-    </button>
+      <motion.div
+        animate={{ rotate: collapsed ? -90 : 0 }}
+        transition={{ duration: 0.2, ease: EASE }}
+      >
+        <ChevronDown size={14} color="var(--text-muted)" />
+      </motion.div>
+    </motion.button>
+  )
+}
+
+// ─── Staggered card grid ──────────────────────────────────────────────────────
+function CardGrid({ children, style }) {
+  return (
+    <motion.div
+      variants={{ visible: { transition: { staggerChildren: 0.05, delayChildren: 0 } } }}
+      initial="hidden"
+      animate="visible"
+      style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(300px, 1fr))', gap: 14, ...style }}
+    >
+      {children}
+    </motion.div>
+  )
+}
+
+function CardItem({ children }) {
+  return (
+    <motion.div
+      variants={{
+        hidden: { opacity: 0, y: 12 },
+        visible: { opacity: 1, y: 0, transition: { duration: 0.2, ease: EASE } },
+      }}
+    >
+      {children}
+    </motion.div>
   )
 }
 
@@ -301,7 +339,7 @@ function CreateDomainModal({ onClose, onSave }) {
                     background: form.category === key ? `${cfg.color}22` : 'var(--bg-overlay)',
                     color: form.category === key ? cfg.color : 'var(--text-secondary)',
                     outline: form.category === key ? `1.5px solid ${cfg.color}55` : '1.5px solid transparent',
-                    transition: 'all 0.12s',
+                    transition: 'all 0.12s', fontFamily: 'inherit',
                   }}
                   onMouseEnter={e => { if (form.category !== key) e.currentTarget.style.background = 'var(--bg-overlay-hover)' }}
                   onMouseLeave={e => { if (form.category !== key) e.currentTarget.style.background = 'var(--bg-overlay)' }}
@@ -363,19 +401,21 @@ function CreateDomainModal({ onClose, onSave }) {
         </div>
 
         <div style={{ padding: '14px 22px', borderTop: '1px solid var(--border)', display: 'flex', justifyContent: 'flex-end', gap: 8, flexShrink: 0 }}>
-          <button onClick={onClose} style={{ padding: '8px 16px', borderRadius: 8, border: '1px solid var(--border-strong)', background: 'none', color: 'var(--text-secondary)', cursor: 'pointer', fontSize: 13 }}>Cancel</button>
-          <button
+          <button onClick={onClose} style={{ padding: '8px 16px', borderRadius: 8, border: '1px solid var(--border-strong)', background: 'none', color: 'var(--text-secondary)', cursor: 'pointer', fontSize: 13, fontFamily: 'inherit' }}>Cancel</button>
+          <motion.button
             onClick={handleSave}
             disabled={!canSave}
+            whileTap={canSave ? { scale: 0.96 } : {}}
             style={{
               padding: '8px 18px', borderRadius: 8, border: 'none', fontSize: 13, fontWeight: 600,
               background: canSave ? form.color : 'var(--border)',
               color: canSave ? '#fff' : 'var(--text-muted)',
-              cursor: canSave ? 'pointer' : 'default', transition: 'all 0.15s',
+              cursor: canSave ? 'pointer' : 'default', transition: 'background 0.15s',
+              fontFamily: 'inherit',
             }}
           >
             Create Domain
-          </button>
+          </motion.button>
         </div>
       </div>
     </div>
@@ -422,91 +462,203 @@ export default function DomainsPage({ domains, customCalendarEvents, todos, asse
 
   const hasAnyAcademic = academic.length > 0 || pastAcademic.length > 0
 
+  const summaryStats = hasAnyAcademic ? [
+    { label: 'modules',     value: included.length,                                       color: 'var(--accent-blue)'   },
+    { label: 'credits',     value: totalCredits,                                          color: 'var(--accent-green)'  },
+    ...(avgRunningGrade != null ? [{ label: 'running',    value: `${avgRunningGrade}%`, color: 'var(--accent-purple)' }] : []),
+    ...(avgRemaining    != null ? [{ label: 'grade left', value: `${avgRemaining}%`,    color: 'var(--accent-amber)'  }] : []),
+  ] : []
+
   return (
     <div data-tutorial-id="domains-grid" style={{ padding: '36px 40px', maxWidth: 1100 }}>
 
-      <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', marginBottom: 28 }}>
+      {/* Page header */}
+      <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', marginBottom: 32 }}>
         <div>
-          <h1 style={{ margin: 0, fontSize: 26, fontWeight: 700, color: 'var(--text-primary)', letterSpacing: '-0.5px' }}>Domains</h1>
-          <p style={{ margin: '4px 0 0', fontSize: 14, color: 'var(--text-secondary)' }}>
-            {domains.length} domain{domains.length !== 1 ? 's' : ''}: academic modules, societies, projects, and more
-          </p>
+          <h1 style={{ margin: 0, fontSize: 30, fontWeight: 800, color: 'var(--text-primary)', letterSpacing: '-0.8px', lineHeight: 1.1 }}>
+            Domains
+          </h1>
+
+          {summaryStats.length > 0 ? (
+            <div style={{ display: 'flex', alignItems: 'center', gap: 0, marginTop: 10, flexWrap: 'wrap' }}>
+              {summaryStats.map((s, i) => (
+                <div key={s.label} style={{ display: 'flex', alignItems: 'baseline', gap: 5 }}>
+                  <span style={{ fontSize: 20, fontWeight: 800, color: s.color, letterSpacing: '-0.4px' }}>{s.value}</span>
+                  <span style={{ fontSize: 13, color: 'var(--text-secondary)' }}>{s.label}</span>
+                  {i < summaryStats.length - 1 && (
+                    <span style={{ fontSize: 13, color: 'var(--border-strong)', margin: '0 12px' }}>·</span>
+                  )}
+                </div>
+              ))}
+            </div>
+          ) : (
+            <p style={{ margin: '6px 0 0', fontSize: 14, color: 'var(--text-secondary)' }}>
+              {domains.length} domain{domains.length !== 1 ? 's' : ''}
+            </p>
+          )}
         </div>
-        <button
+
+        <motion.button
           onClick={() => setShowCreate(true)}
-          style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '9px 16px', borderRadius: 9, border: 'none', background: 'var(--accent-blue)', color: 'var(--btn-primary-text)', fontSize: 13, fontWeight: 600, cursor: 'pointer', boxShadow: 'var(--glow-blue)' }}
+          whileTap={{ scale: 0.95 }}
+          style={{
+            display: 'flex', alignItems: 'center', gap: 6,
+            padding: '9px 16px', borderRadius: 9, border: 'none',
+            background: 'var(--accent-blue)', color: 'var(--btn-primary-text)',
+            fontSize: 13, fontWeight: 600, cursor: 'pointer',
+            boxShadow: 'var(--glow-blue)', fontFamily: 'inherit',
+            flexShrink: 0, marginTop: 4,
+          }}
         >
           <Plus size={14} /> New Domain
-        </button>
+        </motion.button>
       </div>
 
-      {hasAnyAcademic && (
-        <div style={{ display: 'flex', gap: 12, marginBottom: 28 }}>
-          {[
-            { label: 'Modules',       value: included.length,                                       color: 'var(--accent-blue)'   },
-            { label: 'Total Credits', value: totalCredits,                                          color: 'var(--accent-green)'  },
-            { label: 'Running Grade', value: avgRunningGrade != null ? `${avgRunningGrade}%` : '—', color: 'var(--accent-purple)' },
-            { label: 'Grade Left',    value: avgRemaining    != null ? `${avgRemaining}%`    : '—', color: 'var(--accent-amber)'  },
-          ].map(s => (
-            <div key={s.label} style={{ flex: 1, background: 'var(--bg-surface)', border: '1px solid var(--border)', borderRadius: 10, padding: '12px 16px' }}>
-              <div style={{ fontSize: 20, fontWeight: 700, color: s.color, marginBottom: 2 }}>{s.value}</div>
-              <div style={{ fontSize: 11, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.4px' }}>{s.label}</div>
-            </div>
-          ))}
-        </div>
-      )}
-
+      {/* Academic section */}
       {academic.length > 0 && (
         <div style={{ marginBottom: 32 }}>
           <SectionHeader label="Academic" count={academic.length} collapsed={!academicOpen} onToggle={() => setAcademicOpen(v => !v)} />
-          {academicOpen && (
-            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(300px, 1fr))', gap: 14 }}>
-              {academic.map(d => <AcademicCard key={d.id} domain={d} pendingTasks={pendingTasks(d.id)} domainEvents={domainEvents.filter(e => e.domainId === d.id)} assessments={assessments.filter(a => a.domainId === d.id)} onClick={() => onOpenDomain(d)} />)}
-            </div>
-          )}
+          <AnimatePresence initial={false}>
+            {academicOpen && (
+              <motion.div
+                key="academic-grid"
+                initial={{ opacity: 0, height: 0 }}
+                animate={{ opacity: 1, height: 'auto' }}
+                exit={{ opacity: 0, height: 0 }}
+                transition={{ duration: 0.22, ease: EASE }}
+                style={{ overflow: 'hidden' }}
+              >
+                <CardGrid>
+                  {academic.map(d => (
+                    <CardItem key={d.id}>
+                      <AcademicCard
+                        domain={d}
+                        pendingTasks={pendingTasks(d.id)}
+                        domainEvents={domainEvents.filter(e => e.domainId === d.id)}
+                        assessments={assessments.filter(a => a.domainId === d.id)}
+                        onClick={() => onOpenDomain(d)}
+                      />
+                    </CardItem>
+                  ))}
+                </CardGrid>
+              </motion.div>
+            )}
+          </AnimatePresence>
         </div>
       )}
 
+      {/* Past modules */}
       {pastAcademic.length > 0 && (
         <div style={{ marginBottom: 32 }}>
-          <button
+          <motion.button
             onClick={() => setPastOpen(v => !v)}
+            whileTap={{ scale: 0.99 }}
             style={{
               display: 'flex', alignItems: 'center', gap: 10,
               background: 'none', border: 'none', cursor: 'pointer',
-              padding: '4px 0', marginBottom: pastOpen ? 14 : 0, width: '100%', textAlign: 'left',
+              padding: '4px 0', marginBottom: pastOpen ? 16 : 0, width: '100%', textAlign: 'left',
+              fontFamily: 'inherit',
             }}
           >
             <Archive size={13} color="var(--text-muted)" />
-            <span style={{ fontSize: 13, fontWeight: 700, color: 'var(--text-muted)', letterSpacing: '-0.2px' }}>Past Modules</span>
+            <span style={{ fontSize: 14, fontWeight: 700, color: 'var(--text-muted)', letterSpacing: '-0.2px' }}>Past Modules</span>
             <span style={{ fontSize: 11, color: 'var(--text-muted)', background: 'var(--border)', padding: '2px 7px', borderRadius: 10 }}>{pastAcademic.length}</span>
             <div style={{ flex: 1, height: 1, background: 'var(--border)', marginLeft: 4 }} />
-            <ChevronDown size={14} color="var(--text-muted)" style={{ transform: pastOpen ? 'none' : 'rotate(-90deg)', transition: 'transform 0.2s' }} />
-          </button>
-          {pastOpen && (
-            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(300px, 1fr))', gap: 14 }}>
-              {pastAcademic.map(d => <AcademicCard key={d.id} domain={d} pendingTasks={pendingTasks(d.id)} domainEvents={domainEvents.filter(e => e.domainId === d.id)} assessments={assessments.filter(a => a.domainId === d.id)} onClick={() => onOpenDomain(d)} muted />)}
-            </div>
-          )}
+            <motion.div animate={{ rotate: pastOpen ? 0 : -90 }} transition={{ duration: 0.2, ease: EASE }}>
+              <ChevronDown size={14} color="var(--text-muted)" />
+            </motion.div>
+          </motion.button>
+          <AnimatePresence initial={false}>
+            {pastOpen && (
+              <motion.div
+                key="past-grid"
+                initial={{ opacity: 0, height: 0 }}
+                animate={{ opacity: 1, height: 'auto' }}
+                exit={{ opacity: 0, height: 0 }}
+                transition={{ duration: 0.22, ease: EASE }}
+                style={{ overflow: 'hidden' }}
+              >
+                <CardGrid>
+                  {pastAcademic.map(d => (
+                    <CardItem key={d.id}>
+                      <AcademicCard
+                        domain={d}
+                        pendingTasks={pendingTasks(d.id)}
+                        domainEvents={domainEvents.filter(e => e.domainId === d.id)}
+                        assessments={assessments.filter(a => a.domainId === d.id)}
+                        onClick={() => onOpenDomain(d)}
+                        muted
+                      />
+                    </CardItem>
+                  ))}
+                </CardGrid>
+              </motion.div>
+            )}
+          </AnimatePresence>
         </div>
       )}
 
+      {/* Other section */}
       {other.length > 0 && (
         <div>
           <SectionHeader label="Other" count={other.length} collapsed={!otherOpen} onToggle={() => setOtherOpen(v => !v)} />
-          {otherOpen && (
-            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(300px, 1fr))', gap: 14 }}>
-              {other.map(d => <GeneralCard key={d.id} domain={d} linkedEventCount={linkedCount(d.id)} onClick={() => onOpenDomain(d)} />)}
-            </div>
-          )}
+          <AnimatePresence initial={false}>
+            {otherOpen && (
+              <motion.div
+                key="other-grid"
+                initial={{ opacity: 0, height: 0 }}
+                animate={{ opacity: 1, height: 'auto' }}
+                exit={{ opacity: 0, height: 0 }}
+                transition={{ duration: 0.22, ease: EASE }}
+                style={{ overflow: 'hidden' }}
+              >
+                <CardGrid>
+                  {other.map(d => (
+                    <CardItem key={d.id}>
+                      <GeneralCard domain={d} linkedEventCount={linkedCount(d.id)} onClick={() => onOpenDomain(d)} />
+                    </CardItem>
+                  ))}
+                </CardGrid>
+              </motion.div>
+            )}
+          </AnimatePresence>
         </div>
       )}
 
+      {/* Empty state */}
       {domains.length === 0 && (
-        <div style={{ textAlign: 'center', padding: '80px 0', color: 'var(--text-muted)' }}>
-          <div style={{ marginBottom: 12, color: 'var(--border-strong)' }}><FolderOpen size={36} /></div>
-          <p style={{ fontSize: 14, margin: 0 }}>No domains yet. Click <strong style={{ color: 'var(--accent-blue)' }}>New Domain</strong> to create one.</p>
-        </div>
+        <motion.div
+          initial={{ opacity: 0, y: 8 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ duration: 0.24, ease: EASE }}
+          style={{ textAlign: 'center', padding: '80px 40px' }}
+        >
+          <div style={{
+            width: 52, height: 52, borderRadius: 14,
+            background: 'var(--bg-surface)', border: '1px solid var(--border)',
+            display: 'flex', alignItems: 'center', justifyContent: 'center',
+            margin: '0 auto 16px',
+          }}>
+            <FolderOpen size={22} color="var(--text-muted)" />
+          </div>
+          <p style={{ fontSize: 16, fontWeight: 600, color: 'var(--text-primary)', margin: '0 0 6px' }}>No domains yet</p>
+          <p style={{ fontSize: 13, color: 'var(--text-secondary)', margin: '0 0 20px' }}>
+            Create your first domain to track modules, societies, and projects.
+          </p>
+          <motion.button
+            onClick={() => setShowCreate(true)}
+            whileTap={{ scale: 0.95 }}
+            style={{
+              display: 'inline-flex', alignItems: 'center', gap: 6,
+              padding: '9px 18px', borderRadius: 9, border: 'none',
+              background: 'var(--accent-blue)', color: 'var(--btn-primary-text)',
+              fontSize: 13, fontWeight: 600, cursor: 'pointer',
+              fontFamily: 'inherit',
+            }}
+          >
+            <Plus size={14} /> New Domain
+          </motion.button>
+        </motion.div>
       )}
 
       {showCreate && (
