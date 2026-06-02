@@ -69,6 +69,8 @@
   --btn-primary-text:  #fff;
   --row-hover:         rgba(91,140,255,0.04);
 
+  --chrome-bg:         rgba(5,6,13,0.78);
+
   --font-family:       'Outfit', system-ui, -apple-system, sans-serif;
   --letter-spacing:    normal;
   --line-height:       1.5;
@@ -128,6 +130,8 @@ html.theme-space {
   --btn-primary-text:  #070709;
   --row-hover:         rgba(255,255,255,0.03);
 
+  --chrome-bg:         rgba(4,4,8,0.62);
+
   --letter-spacing:    0.012em;
 }
 
@@ -177,6 +181,8 @@ html.theme-minimal {
 
   --btn-primary-text:  #fff;
   --row-hover:         rgba(68,114,245,0.05);
+
+  --chrome-bg:         #dde0ee;
 }
 
 /* ── Cyberpunk ───────────────────────────────────────────────────────────────── */
@@ -228,6 +234,8 @@ html.theme-cyberpunk {
 
   --btn-primary-text:  #01030a;
   --row-hover:         rgba(0,229,255,0.05);
+
+  --chrome-bg:         rgba(0,1,6,0.58);
 }
 
 /* ── Aurora Gradient ─────────────────────────────────────────────────────────── */
@@ -280,6 +288,8 @@ html.theme-aurora {
 
   --btn-primary-text:  #060412;
   --row-hover:         rgba(100,200,255,0.06);
+
+  --chrome-bg:         rgba(2,1,8,0.65);
 }
 
 /* ── Sakura Glass ────────────────────────────────────────────────────────────── */
@@ -332,6 +342,8 @@ html.theme-sakura {
 
   --btn-primary-text:  #fff;
   --row-hover:         rgba(244,114,182,0.06);
+
+  --chrome-bg:         rgba(8,3,12,0.66);
 
   --font-family:       'DM Sans', system-ui, sans-serif;
   --letter-spacing:    0.012em;
@@ -389,6 +401,8 @@ html.theme-frost {
   --btn-primary-text:  #04101e;
   --row-hover:         rgba(125,211,252,0.05);
 
+  --chrome-bg:         rgba(1,6,18,0.66);
+
   --font-family:       'Nunito', system-ui, sans-serif;
   --letter-spacing:    0.006em;
   --line-height:       1.6;
@@ -443,6 +457,8 @@ html.theme-forest {
 
   --btn-primary-text:  #eef5ec;
   --row-hover:         rgba(80,140,80,0.05);
+
+  --chrome-bg:         rgba(3,5,3,0.68);
 
   --font-family:       'Lora', Georgia, serif;
   --letter-spacing:    0.01em;
@@ -501,6 +517,8 @@ html.theme-ocean {
 
   --btn-primary-text:  #071422;
   --row-hover:         rgba(0,196,214,0.06);
+
+  --chrome-bg:         rgba(3,8,16,0.65);
 }
 
 /* ── Rainy Akatsuki ──────────────────────────────────────────────────────────── */
@@ -556,6 +574,8 @@ html.theme-akatsuki {
 
   --btn-primary-text:  #fff;
   --row-hover:         rgba(232,37,37,0.07);
+
+  --chrome-bg:         rgba(6,7,11,0.68);
 }
 
 /* ── Text legibility over gradient backgrounds ─────────────────────────────── */

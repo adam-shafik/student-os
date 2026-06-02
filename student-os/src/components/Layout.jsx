@@ -85,7 +85,7 @@ export default function Layout({ currentPage, onNavigate, onSignOut, onStartTuto
         {/* Sidebar — spans both rows */}
         <aside style={{
           gridColumn: '1', gridRow: '1 / 3',
-          background: 'var(--bg-elevated)',
+          background: 'var(--chrome-bg)',
           display: 'flex', flexDirection: 'column',
           padding: '20px 10px',
         }}>
@@ -159,14 +159,14 @@ export default function Layout({ currentPage, onNavigate, onSignOut, onStartTuto
         {/* Header strip */}
         <div style={{
           gridColumn: '2', gridRow: '1',
-          background: 'linear-gradient(to right, var(--bg-hover) 0%, var(--bg-overlay) 100%)',
+          background: 'var(--chrome-bg)',
         }} />
 
         {/* Left corner cap */}
         <div style={{
           position: 'absolute', top: 52, left: 228,
           width: 16, height: 16,
-          background: 'radial-gradient(circle at 100% 100%, transparent 0, transparent 16px, var(--bg-hover) 16px)',
+          background: 'radial-gradient(circle at 100% 100%, transparent 0, transparent 16px, var(--chrome-bg) 16px)',
           pointerEvents: 'none', zIndex: 5,
         }} />
 
@@ -174,7 +174,7 @@ export default function Layout({ currentPage, onNavigate, onSignOut, onStartTuto
         <div style={{
           position: 'absolute', top: 52, right: 0,
           width: 16, height: 16,
-          background: 'radial-gradient(circle at 0% 100%, transparent 0, transparent 16px, var(--bg-overlay) 16px)',
+          background: 'radial-gradient(circle at 0% 100%, transparent 0, transparent 16px, var(--chrome-bg) 16px)',
           pointerEvents: 'none', zIndex: 5,
         }} />
 

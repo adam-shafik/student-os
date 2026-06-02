@@ -59,6 +59,7 @@ function AcademicCard({ domain, pendingTasks, domainEvents = [], assessments = [
         borderRadius: 14, padding: '22px 22px 18px',
         cursor: 'pointer', position: 'relative', overflow: 'hidden',
         opacity: muted ? 0.65 : 1,
+        height: '100%', display: 'flex', flexDirection: 'column', boxSizing: 'border-box',
       }}
     >
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 12 }}>
@@ -85,7 +86,7 @@ function AcademicCard({ domain, pendingTasks, domainEvents = [], assessments = [
         <ProgressBar progress={calculatedProgress} color={domain.color} />
       </div>
 
-      <div style={{ display: 'flex', borderTop: '1px solid var(--border)', paddingTop: 12, gap: 0 }}>
+      <div style={{ display: 'flex', borderTop: '1px solid var(--border)', paddingTop: 12, gap: 0, marginTop: 'auto' }}>
         {[
           { icon: <BookOpen size={11} />, val: `${completedLectures}/${lectures.length}`, label: 'Lectures' },
           { icon: <FileCheck size={11} />, val: pendingAssignments, label: 'Pending', warn: pendingAssignments > 0 },
@@ -114,6 +115,7 @@ function GeneralCard({ domain, linkedEventCount, onClick }) {
       style={{
         borderRadius: 14, padding: '22px 22px 18px',
         cursor: 'pointer', position: 'relative', overflow: 'hidden',
+        height: '100%', display: 'flex', flexDirection: 'column', boxSizing: 'border-box',
       }}
     >
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 12 }}>
@@ -133,7 +135,7 @@ function GeneralCard({ domain, linkedEventCount, onClick }) {
         {domain.description}
       </p>
 
-      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', borderTop: '1px solid var(--border)', paddingTop: 12 }}>
+      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', borderTop: '1px solid var(--border)', paddingTop: 12, marginTop: 'auto' }}>
         {domain.role && (
           <span style={{ fontSize: 11, color: 'var(--text-muted)' }}>Role: <span style={{ color: 'var(--text-secondary)' }}>{domain.role}</span></span>
         )}
