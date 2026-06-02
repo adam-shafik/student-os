@@ -21,14 +21,18 @@ All data already exists in `study_sessions`.
 - Google OAuth (already done)
 - Email verification on sign-up (Supabase + Resend custom SMTP)
 
-### 3. Onboarding Redesign
-Shorter, more personal. Goal: feel like the app was made for the user.
-- Step 1: Name only (no email — they already provided it)
-- Step 2: University + year (makes weekly/semester suggestions smarter)
-- Step 3: Semester dates (reuse existing UI, make it minimal)
-- Step 4: First domain quick-add (optional, skippable)
-- Animated welcome screen using their first name
-- Smart defaults based on year of study
+### ~~3. Onboarding Redesign~~ ✅
+- 3 steps (profile, semester, modules), schedule grid moved to Settings
+- Dynamic "Hi, {name}" heading on step 1
+- Tutorial updated: forward-looking copy, schedule-settings step, scroll/highlight fixed
+- All em dashes removed from UI text
+
+### 4. Auth + Onboarding UI Revamp
+Full visual redesign of sign-in, sign-up, and onboarding screens.
+- Framer Motion for step transitions and field animations
+- Full-bleed background photo (dark study/library aesthetic)
+- Glassmorphism card on auth page
+- Split-panel layout on onboarding (brand left, form right)
 
 ### 4. Monetization — Freemium
 Free tier with generous limits, Pro unlocks advanced features.
