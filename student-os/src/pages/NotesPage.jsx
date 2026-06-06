@@ -1,8 +1,10 @@
 import { useState, useMemo, useEffect, useRef } from 'react'
+import ReactMarkdown from 'react-markdown'
+import remarkGfm from 'remark-gfm'
 import AppSelect, { AppSelectItem } from '../components/AppSelect'
 import {
   PenLine, Plus, Trash2, ChevronRight, ChevronDown,
-  BookOpen, FolderOpen, Folder, Pencil, Check, X, MapPin, Type, FileText, Share2,
+  Pencil, Check, X, MapPin, Type, FileText, Share2, Eye, Maximize2, Minimize2,
 } from 'lucide-react'
 import NoteCanvas from '../components/NoteCanvas'
 import { totalTeachingWeeks } from '../utils/semester'
@@ -103,14 +105,55 @@ function NewNoteTypePicker({ onSelect, onSelectPdf, onClose }) {
   )
 }
 
+const MD_COMPONENTS = {
+  h1: ({ children }) => <h1 style={{ fontSize: 26, fontWeight: 800, letterSpacing: '-0.5px', margin: '28px 0 12px', color: 'var(--text-primary)', lineHeight: 1.25, borderBottom: '1px solid var(--border)', paddingBottom: 10 }}>{children}</h1>,
+  h2: ({ children }) => <h2 style={{ fontSize: 20, fontWeight: 700, letterSpacing: '-0.3px', margin: '24px 0 10px', color: 'var(--text-primary)', lineHeight: 1.3, borderBottom: '1px solid var(--border)', paddingBottom: 8 }}>{children}</h2>,
+  h3: ({ children }) => <h3 style={{ fontSize: 16, fontWeight: 700, margin: '18px 0 8px', color: 'var(--text-primary)' }}>{children}</h3>,
+  h4: ({ children }) => <h4 style={{ fontSize: 14, fontWeight: 700, margin: '14px 0 6px', color: 'var(--text-secondary)' }}>{children}</h4>,
+  p: ({ children }) => <p style={{ fontSize: 15, lineHeight: 1.85, margin: '0 0 12px', color: 'var(--text-primary)' }}>{children}</p>,
+  code: ({ className, children }) => {
+    if (className) {
+      return <code style={{ fontFamily: '"SF Mono","Fira Code","Cascadia Code",monospace', fontSize: 13, display: 'block', lineHeight: 1.7, color: 'var(--text-primary)' }}>{children}</code>
+    }
+    return <code style={{ fontFamily: '"SF Mono","Fira Code",monospace', background: 'var(--bg-elevated)', padding: '2px 6px', borderRadius: 4, fontSize: '0.88em', color: 'var(--accent-blue)', border: '1px solid var(--border)' }}>{children}</code>
+  },
+  pre: ({ children }) => <pre style={{ background: 'var(--bg-elevated)', borderRadius: 10, padding: '16px 20px', overflowX: 'auto', margin: '0 0 16px', border: '1px solid var(--border)' }}>{children}</pre>,
+  blockquote: ({ children }) => <blockquote style={{ borderLeft: '3px solid var(--border-strong)', paddingLeft: 16, margin: '0 0 14px', color: 'var(--text-secondary)', fontStyle: 'italic' }}>{children}</blockquote>,
+  table: ({ children }) => <div style={{ overflowX: 'auto', marginBottom: 16 }}><table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 14 }}>{children}</table></div>,
+  th: ({ children }) => <th style={{ border: '1px solid var(--border)', padding: '8px 12px', textAlign: 'left', background: 'var(--bg-elevated)', fontWeight: 600, fontSize: 12, color: 'var(--text-muted)', whiteSpace: 'nowrap' }}>{children}</th>,
+  td: ({ children }) => <td style={{ border: '1px solid var(--border)', padding: '8px 12px', verticalAlign: 'top', color: 'var(--text-primary)', lineHeight: 1.6 }}>{children}</td>,
+  a: ({ href, children }) => <a href={href} target="_blank" rel="noreferrer" style={{ color: 'var(--accent-blue)', textDecoration: 'underline', textUnderlineOffset: 3 }}>{children}</a>,
+  ul: ({ children }) => <ul style={{ paddingLeft: 24, margin: '0 0 12px', color: 'var(--text-primary)' }}>{children}</ul>,
+  ol: ({ children }) => <ol style={{ paddingLeft: 24, margin: '0 0 12px', color: 'var(--text-primary)' }}>{children}</ol>,
+  li: ({ children }) => <li style={{ marginBottom: 4, lineHeight: 1.7, fontSize: 15 }}>{children}</li>,
+  strong: ({ children }) => <strong style={{ fontWeight: 700 }}>{children}</strong>,
+  em: ({ children }) => <em style={{ fontStyle: 'italic' }}>{children}</em>,
+  del: ({ children }) => <del style={{ textDecoration: 'line-through', color: 'var(--text-muted)' }}>{children}</del>,
+  hr: () => <hr style={{ border: 'none', borderTop: '1px solid var(--border)', margin: '24px 0' }} />,
+  img: ({ src, alt }) => <img src={src} alt={alt || ''} style={{ maxWidth: '100%', borderRadius: 8, marginBottom: 12 }} />,
+}
+
 // ─── Typed note editor ────────────────────────────────────────────────────────
-function TypedEditor({ note, onUpdate }) {
+function TypedEditor({ note, onUpdate, viewMode }) {
+  if (viewMode === 'preview') {
+    return (
+      <div style={{ height: '100%', overflowY: 'auto', background: 'var(--bg-page)' }}>
+        <div style={{ padding: '40px 80px', maxWidth: 860, boxSizing: 'border-box' }}>
+          {note.content
+            ? <ReactMarkdown remarkPlugins={[remarkGfm]} components={MD_COMPONENTS}>{note.content}</ReactMarkdown>
+            : <p style={{ color: 'var(--text-muted)', fontStyle: 'italic', fontSize: 14, margin: 0 }}>Nothing to preview yet.</p>
+          }
+        </div>
+      </div>
+    )
+  }
+
   return (
     <div style={{ height: '100%', overflowY: 'auto', background: 'var(--bg-page)' }}>
       <textarea
         value={note.content || ''}
         onChange={e => onUpdate({ content: e.target.value })}
-        placeholder="Start typing your note…"
+        placeholder="Start typing your note… (supports Markdown)"
         autoFocus
         style={{
           display: 'block', width: '100%', minHeight: '100%',
@@ -131,7 +174,15 @@ function NoteCard({ note, domain, onClick, onDelete }) {
   const [confirming, setConfirming] = useState(false)
   const isTyped  = note.type === 'typed'
   const isPdf    = note.type === 'pdf'
-  const preview  = isTyped ? (note.content || '').trim().slice(0, 120) : null
+  const preview  = isTyped ? (note.content || '')
+    .replace(/^#{1,6}\s+/gm, '')
+    .replace(/\*\*(.*?)\*\*/g, '$1')
+    .replace(/\*(.*?)\*/g, '$1')
+    .replace(/`([^`]+)`/g, '$1')
+    .replace(/^\s*[-*+]\s+/gm, '')
+    .replace(/\[([^\]]+)\]\([^)]+\)/g, '$1')
+    .replace(/\n+/g, ' ')
+    .trim().slice(0, 120) : null
   const pagesCnt = (note.pages || []).length
 
   return (
@@ -395,6 +446,8 @@ export default function NotesPage({ notes, domains, noteToOpen, onClearNoteToOpe
   const [isLoadingPdf,    setIsLoadingPdf]    = useState(false)
   const [pdfError,        setPdfError]        = useState('')
   const [sharing,          setSharing]          = useState(false)
+  const [typedViewMode,    setTypedViewMode]    = useState('edit')
+  const [typedFullscreen,  setTypedFullscreen]  = useState(false)
   const pdfInputRef        = useRef()
   const pendingPdfMeta     = useRef({})
   const autoSaveTimerRef   = useRef(null)
@@ -481,12 +534,22 @@ export default function NotesPage({ notes, domains, noteToOpen, onClearNoteToOpe
     clearTimeout(autoSaveTimerRef.current)
     setSaveState('idle')
     setSaveError('')
+    setTypedViewMode('edit')
+    setTypedFullscreen(false)
     if (openNote) {
       openNoteBaseline.current = { id: openNote.id, updatedAt: openNote.updatedAt }
     } else {
       openNoteBaseline.current = null
     }
   }, [openNoteId]) // eslint-disable-line react-hooks/exhaustive-deps
+
+  // Escape to exit fullscreen
+  useEffect(() => {
+    if (!typedFullscreen) return
+    function onKey(e) { if (e.key === 'Escape') setTypedFullscreen(false) }
+    window.addEventListener('keydown', onKey)
+    return () => window.removeEventListener('keydown', onKey)
+  }, [typedFullscreen])
 
   // Debounced autosave — fires 3s after any content change
   useEffect(() => {
@@ -762,7 +825,10 @@ export default function NotesPage({ notes, domains, noteToOpen, onClearNoteToOpe
       <div style={{ flex: 1, display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
         {openNote ? (
           // ── Note editor ──
-          <div style={{ display: 'flex', flexDirection: 'column', height: '100%' }}>
+          <div style={typedFullscreen && openNote.type === 'typed'
+            ? { position: 'fixed', inset: 0, zIndex: 1000, display: 'flex', flexDirection: 'column', background: 'var(--bg-page)' }
+            : { display: 'flex', flexDirection: 'column', height: '100%' }
+          }>
             <div style={{
               display: 'flex', alignItems: 'center', gap: 12, padding: '14px 24px',
               borderBottom: '1px solid var(--border)', flexShrink: 0,
@@ -800,6 +866,37 @@ export default function NotesPage({ notes, domains, noteToOpen, onClearNoteToOpe
                 }}>
                   {saveState === 'saving' ? 'Saving…' : saveState === 'saved' ? <><Check size={11} style={{ verticalAlign: 'middle', marginRight: 3 }} />Saved</> : saveState === 'error' ? 'Save failed' : ''}
                 </span>
+                {openNote?.type === 'typed' && (
+                  <button
+                    onClick={() => setTypedFullscreen(v => !v)}
+                    title={typedFullscreen ? 'Exit fullscreen' : 'Fullscreen'}
+                    style={{
+                      display: 'flex', alignItems: 'center', justifyContent: 'center',
+                      padding: '5px 7px', borderRadius: 7, border: '1px solid var(--border)',
+                      background: 'none', color: 'var(--text-secondary)', cursor: 'pointer',
+                      transition: 'color 0.12s',
+                    }}
+                    onMouseEnter={e => e.currentTarget.style.color = 'var(--text-primary)'}
+                    onMouseLeave={e => e.currentTarget.style.color = 'var(--text-secondary)'}
+                  >
+                    {typedFullscreen ? <Minimize2 size={13} /> : <Maximize2 size={13} />}
+                  </button>
+                )}
+                {openNote?.type === 'typed' && (
+                  <button
+                    onClick={() => setTypedViewMode(v => v === 'edit' ? 'preview' : 'edit')}
+                    style={{
+                      display: 'flex', alignItems: 'center', gap: 5, padding: '5px 10px',
+                      borderRadius: 7, border: '1px solid var(--border)', background: typedViewMode === 'preview' ? 'var(--accent-blue)' : 'none',
+                      color: typedViewMode === 'preview' ? 'var(--btn-primary-text)' : 'var(--text-secondary)',
+                      cursor: 'pointer', fontSize: 12, fontFamily: 'inherit', transition: 'background 0.12s, color 0.12s',
+                    }}
+                    onMouseEnter={e => { if (typedViewMode !== 'preview') { e.currentTarget.style.color = 'var(--accent-blue)'; e.currentTarget.style.borderColor = 'var(--accent-blue)' } }}
+                    onMouseLeave={e => { if (typedViewMode !== 'preview') { e.currentTarget.style.color = 'var(--text-secondary)'; e.currentTarget.style.borderColor = 'var(--border)' } }}
+                  >
+                    {typedViewMode === 'edit' ? <><Eye size={12} /> Preview</> : <><Pencil size={12} /> Edit</>}
+                  </button>
+                )}
                 <button
                   onClick={handleShare}
                   disabled={sharing}
@@ -839,6 +936,7 @@ export default function NotesPage({ notes, domains, noteToOpen, onClearNoteToOpe
                 <TypedEditor
                   note={openNote}
                   onUpdate={updates => onUpdateNote(openNote.id, updates)}
+                  viewMode={typedViewMode}
                 />
               ) : (
                 <NoteCanvas
