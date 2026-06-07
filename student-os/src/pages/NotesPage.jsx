@@ -1,6 +1,8 @@
 import { useState, useMemo, useEffect, useRef } from 'react'
 import ReactMarkdown from 'react-markdown'
 import remarkGfm from 'remark-gfm'
+import remarkMath from 'remark-math'
+import rehypeKatex from 'rehype-katex'
 import AppSelect, { AppSelectItem } from '../components/AppSelect'
 import {
   PenLine, Plus, Trash2, ChevronRight, ChevronDown,
@@ -133,14 +135,101 @@ const MD_COMPONENTS = {
   img: ({ src, alt }) => <img src={src} alt={alt || ''} style={{ maxWidth: '100%', borderRadius: 8, marginBottom: 12 }} />,
 }
 
+const SLASH_COMMANDS = [
+  { id: 'h1',      badge: 'H1',   label: 'Heading 1',     desc: 'Large section heading',     insert: '# '          },
+  { id: 'h2',      badge: 'H2',   label: 'Heading 2',     desc: 'Medium section heading',    insert: '## '         },
+  { id: 'h3',      badge: 'H3',   label: 'Heading 3',     desc: 'Small section heading',     insert: '### '        },
+  { id: 'bullet',  badge: '•',    label: 'Bullet List',   desc: 'Unordered list item',       insert: '- '          },
+  { id: 'num',     badge: '1.',   label: 'Numbered List', desc: 'Ordered list item',         insert: '1. '         },
+  { id: 'quote',   badge: '>',    label: 'Quote',         desc: 'Block quote',               insert: '> '          },
+  { id: 'code',    badge: '</>',  label: 'Code Block',    desc: 'Fenced code block',         insert: '```\n\n```', cursorAt: 4   },
+  { id: 'math',    badge: '$$',   label: 'Math Block',    desc: 'Display equation (LaTeX)',   insert: '$$\n\n$$',   cursorAt: 3   },
+  { id: 'imath',   badge: '$',    label: 'Inline Math',   desc: 'Inline LaTeX: $x^2$',       insert: '$x$',        cursorAt: 1, selectLen: 1 },
+  { id: 'table',   badge: '⊞',    label: 'Table',         desc: '3-column markdown table',   insert: '| Col 1 | Col 2 | Col 3 |\n|-------|-------|-------|\n| | | |' },
+  { id: 'divider', badge: '---',  label: 'Divider',       desc: 'Horizontal rule',           insert: '---'         },
+  { id: 'bold',    badge: '**',   label: 'Bold',          desc: 'Bold text **...**',         insert: '****',       cursorAt: 2   },
+  { id: 'italic',  badge: '*',    label: 'Italic',        desc: 'Italic text *...*',         insert: '**',         cursorAt: 1   },
+]
+
+function getSlashTrigger(value, cursorPos) {
+  for (let i = cursorPos - 1; i >= 0; i--) {
+    if (value[i] === '\n') return null
+    if (value[i] === '/') {
+      if (i === 0 || value[i - 1] === '\n') {
+        return { slashPos: i, query: value.slice(i + 1, cursorPos).toLowerCase() }
+      }
+      return null
+    }
+  }
+  return null
+}
+
+function slashMenuPos(textarea, slashPos) {
+  const lh = parseFloat(window.getComputedStyle(textarea).lineHeight) || 28
+  const lineNum = (textarea.value.slice(0, slashPos).match(/\n/g) || []).length
+  const rect = textarea.getBoundingClientRect()
+  const rawTop = rect.top + 40 + lineNum * lh - textarea.scrollTop + lh + 6
+  return { top: Math.min(rawTop, window.innerHeight - 310), left: Math.max(rect.left + 80, 10) }
+}
+
 // ─── Typed note editor ────────────────────────────────────────────────────────
 function TypedEditor({ note, onUpdate, viewMode }) {
+  const taRef = useRef()
+  const pendingCursor = useRef(null)
+  const [slash, setSlash] = useState({ open: false, query: '', slashPos: -1, selected: 0, pos: { top: 0, left: 0 } })
+
+  const matches = useMemo(() => {
+    if (!slash.open) return []
+    if (!slash.query) return SLASH_COMMANDS
+    const q = slash.query
+    return SLASH_COMMANDS.filter(c => c.label.toLowerCase().includes(q) || c.id.includes(q))
+  }, [slash.open, slash.query])
+
+  // Apply pending cursor after React syncs the controlled value
+  useEffect(() => {
+    if (pendingCursor.current === null || !taRef.current) return
+    const { pos, selectLen } = pendingCursor.current
+    pendingCursor.current = null
+    taRef.current.focus()
+    taRef.current.setSelectionRange(pos, pos + (selectLen || 0))
+  }, [note.content])
+
+  function applyCmd(cmd) {
+    const ta = taRef.current
+    if (!ta) return
+    const before = ta.value.slice(0, slash.slashPos)
+    const after = ta.value.slice(ta.selectionStart)
+    const newVal = before + cmd.insert + after
+    const newCursor = slash.slashPos + (cmd.cursorAt !== undefined ? cmd.cursorAt : cmd.insert.length)
+    pendingCursor.current = { pos: newCursor, selectLen: cmd.selectLen || 0 }
+    onUpdate({ content: newVal })
+    setSlash(s => ({ ...s, open: false }))
+  }
+
+  function onChange(e) {
+    onUpdate({ content: e.target.value })
+    const info = getSlashTrigger(e.target.value, e.target.selectionStart)
+    if (info) {
+      setSlash({ open: true, query: info.query, slashPos: info.slashPos, selected: 0, pos: slashMenuPos(e.target, info.slashPos) })
+    } else if (slash.open) {
+      setSlash(s => ({ ...s, open: false }))
+    }
+  }
+
+  function onKeyDown(e) {
+    if (!slash.open || !matches.length) return
+    if (e.key === 'ArrowDown') { e.preventDefault(); setSlash(s => ({ ...s, selected: Math.min(s.selected + 1, matches.length - 1) })) }
+    else if (e.key === 'ArrowUp') { e.preventDefault(); setSlash(s => ({ ...s, selected: Math.max(s.selected - 1, 0) })) }
+    else if (e.key === 'Enter') { e.preventDefault(); applyCmd(matches[slash.selected]) }
+    else if (e.key === 'Escape') { e.preventDefault(); setSlash(s => ({ ...s, open: false })) }
+  }
+
   if (viewMode === 'preview') {
     return (
       <div style={{ height: '100%', overflowY: 'auto', background: 'var(--bg-page)' }}>
         <div style={{ padding: '40px 80px', maxWidth: 860, boxSizing: 'border-box' }}>
           {note.content
-            ? <ReactMarkdown remarkPlugins={[remarkGfm]} components={MD_COMPONENTS}>{note.content}</ReactMarkdown>
+            ? <ReactMarkdown remarkPlugins={[remarkGfm, remarkMath]} rehypePlugins={[rehypeKatex]} components={MD_COMPONENTS}>{note.content}</ReactMarkdown>
             : <p style={{ color: 'var(--text-muted)', fontStyle: 'italic', fontSize: 14, margin: 0 }}>Nothing to preview yet.</p>
           }
         </div>
@@ -151,9 +240,11 @@ function TypedEditor({ note, onUpdate, viewMode }) {
   return (
     <div style={{ height: '100%', overflowY: 'auto', background: 'var(--bg-page)' }}>
       <textarea
+        ref={taRef}
         value={note.content || ''}
-        onChange={e => onUpdate({ content: e.target.value })}
-        placeholder="Start typing your note… (supports Markdown)"
+        onChange={onChange}
+        onKeyDown={onKeyDown}
+        placeholder="Type your note… use / at the start of a line for commands"
         autoFocus
         style={{
           display: 'block', width: '100%', minHeight: '100%',
@@ -164,6 +255,40 @@ function TypedEditor({ note, onUpdate, viewMode }) {
           boxSizing: 'border-box',
         }}
       />
+      {slash.open && matches.length > 0 && (
+        <div style={{
+          position: 'fixed', top: slash.pos.top, left: slash.pos.left,
+          zIndex: 1100, background: 'var(--bg-surface)',
+          border: '1px solid var(--border-strong)', borderRadius: 12,
+          overflow: 'hidden', boxShadow: '0 8px 32px rgba(0,0,0,0.45)',
+          width: 260, maxHeight: 300, overflowY: 'auto',
+        }}>
+          {matches.map((cmd, i) => (
+            <button
+              key={cmd.id}
+              onMouseDown={e => { e.preventDefault(); applyCmd(cmd) }}
+              onMouseEnter={() => setSlash(s => ({ ...s, selected: i }))}
+              style={{
+                display: 'flex', alignItems: 'center', gap: 10,
+                width: '100%', padding: '8px 12px', border: 'none',
+                background: i === slash.selected ? 'var(--bg-hover)' : 'transparent',
+                cursor: 'pointer', textAlign: 'left', fontFamily: 'inherit',
+              }}
+            >
+              <span style={{
+                fontSize: 10, fontWeight: 800, color: 'var(--text-muted)',
+                background: 'var(--bg-elevated)', border: '1px solid var(--border)',
+                borderRadius: 4, padding: '2px 5px', minWidth: 26, textAlign: 'center',
+                fontFamily: 'monospace', flexShrink: 0,
+              }}>{cmd.badge}</span>
+              <div>
+                <div style={{ fontSize: 13, fontWeight: 600, color: 'var(--text-primary)' }}>{cmd.label}</div>
+                <div style={{ fontSize: 11, color: 'var(--text-muted)' }}>{cmd.desc}</div>
+              </div>
+            </button>
+          ))}
+        </div>
+      )}
     </div>
   )
 }
