@@ -1,4 +1,4 @@
-import { useRef, useState, useEffect, forwardRef, useImperativeHandle } from 'react'
+import { useRef, useState, useEffect, useLayoutEffect, forwardRef, useImperativeHandle } from 'react'
 import { getStroke } from 'perfect-freehand'
 import {
   Undo2, Trash2, PenLine, Highlighter, Shapes, MousePointer2, Eraser,
@@ -1095,17 +1095,39 @@ const NoteCanvas = forwardRef(function NoteCanvas({
   const zoomRef             = useRef(zoom)
   const zoomRafRef          = useRef(null)
   const pendingScrollTopRef = useRef(null)
+  const xCorrectionRef      = useRef(null) // horizontal drift to absorb on commit, in CSS px
   const pagesRef            = useRef(pages)
   const committedZoomRef    = useRef(zoom)
   const pagesWrapperRef     = useRef(null)
-  const gestureAnchorRef    = useRef(null) // { midInScrollY, wrapperY } — pinch anchor in wrapper coords
+  const gestureAnchorRef    = useRef(null) // { midInScrollX, midInScrollY, wrapperX, wrapperY }
 
   useEffect(() => { zoomRef.current = zoom; committedZoomRef.current = zoom }, [zoom])
   useEffect(() => { pagesRef.current = pages }, [pages])
 
-  // After React re-renders with new zoom dimensions: clear CSS transform and snap scrollTop to anchor
-  useEffect(() => {
-    if (pagesWrapperRef.current) pagesWrapperRef.current.style.transform = ''
+  // After React re-renders with new zoom dimensions: clear CSS gesture transform, apply X/Y corrections.
+  // useLayoutEffect fires before paint so there's no visible frame with wrong positions.
+  useLayoutEffect(() => {
+    const wrapper = pagesWrapperRef.current
+    if (!wrapper) return
+
+    const xCorr = xCorrectionRef.current
+    xCorrectionRef.current = null
+
+    if (xCorr !== null && Math.abs(xCorr) > 0.5) {
+      // Apply correction immediately so layout lands at pre-commit visual X position — no jump.
+      wrapper.style.transition = ''
+      wrapper.style.transform = `translateX(${xCorr}px)`
+      // Next frame: animate back to center so the settle feels smooth.
+      requestAnimationFrame(() => {
+        if (!wrapper) return
+        wrapper.style.transition = 'transform 0.18s ease-out'
+        wrapper.style.transform = ''
+        setTimeout(() => { if (wrapper) wrapper.style.transition = '' }, 180)
+      })
+    } else {
+      wrapper.style.transform = ''
+    }
+
     if (scrollRef.current && pendingScrollTopRef.current !== null) {
       scrollRef.current.scrollTop = pendingScrollTopRef.current
       pendingScrollTopRef.current = null
@@ -1186,16 +1208,21 @@ const NoteCanvas = forwardRef(function NoteCanvas({
   function handlePinchEnd() {
     if (zoomRafRef.current) { cancelAnimationFrame(zoomRafRef.current); zoomRafRef.current = null }
 
-    // Compute where scrollTop must be after React re-renders SVGs at the new zoom level.
-    // The anchor point (wrapperY, in old-zoom px) maps to wrapperY * (newZoom / oldZoom) in new-zoom px.
-    // Subtract the anchor's screen offset so it lands at exactly the same viewport position.
     const anchor = gestureAnchorRef.current
     if (anchor) {
-      const { midInScrollY, wrapperY } = anchor
-      const CANVAS_TOP_PAD = 108 // matches the top padding on pagesWrapperRef
-      // Only scale the content portion (below the static toolbar padding) to avoid drift
-      const contentY  = wrapperY - CANVAS_TOP_PAD
-      const newContentY = contentY * (zoomRef.current / committedZoomRef.current)
+      const gestureScale = zoomRef.current / committedZoomRef.current
+      const { wrapperX, midInScrollX, midInScrollY, wrapperY } = anchor
+
+      // X: pages re-center after commit but the gesture was pinned to wrapperX.
+      // Drift = where page-center visually was during gesture minus where it lands (W/2).
+      // We store it so useLayoutEffect can apply a translateX before paint and animate to 0.
+      const W = scrollRef.current?.getBoundingClientRect().width ?? 0
+      xCorrectionRef.current = (wrapperX - W / 2) * (1 - gestureScale)
+
+      // Y: adjust scrollTop so the anchor row lands at the same viewport Y it was at.
+      const CANVAS_TOP_PAD = 108
+      const contentY    = wrapperY - CANVAS_TOP_PAD
+      const newContentY = contentY * gestureScale
       pendingScrollTopRef.current = Math.max(0, newContentY + CANVAS_TOP_PAD - midInScrollY)
     }
 
