@@ -1083,10 +1083,11 @@ const NoteCanvas = forwardRef(function NoteCanvas({
   const [undoToastKey, setUndoToastKey] = useState(0)
   const [clipboard,    setClipboard]    = useState(null)
   const undoToastTimer  = useRef(null)
-  const zoomRef         = useRef(zoom)
-  const zoomRafRef      = useRef(null)
-  const pagesRef        = useRef(pages)
-  const bottomTimerRef  = useRef(null)
+  const zoomRef             = useRef(zoom)
+  const zoomRafRef          = useRef(null)
+  const pendingScrollTopRef = useRef(null)
+  const pagesRef            = useRef(pages)
+  const bottomTimerRef      = useRef(null)
 
   useEffect(() => { zoomRef.current = zoom }, [zoom])
   useEffect(() => { pagesRef.current = pages }, [pages])
@@ -1134,24 +1135,24 @@ const NoteCanvas = forwardRef(function NoteCanvas({
     const actualFactor = newZoom / prevZoom
     zoomRef.current = newZoom
 
-    if (scrollEl) {
-      // Update SVG dimensions immediately via DOM (no React re-render → no frame drop)
-      scrollEl.querySelectorAll('svg[data-page]').forEach(svg => {
-        svg.setAttribute('width',  maxW  * newZoom)
-        svg.setAttribute('height', pageH * newZoom)
-      })
-      if (midScreenY != null) {
-        const rect    = scrollEl.getBoundingClientRect()
-        const midInY  = midScreenY - rect.top
-        scrollEl.scrollTop = Math.max(0, (scrollEl.scrollTop + midInY) * actualFactor - midInY)
-      }
+    // Adjust scroll immediately — scrollTop is not React-controlled so direct writes are safe.
+    // Use pendingScrollTopRef so rapid events compound from the latest target, not a stale DOM read.
+    if (scrollEl && midScreenY != null) {
+      const rect   = scrollEl.getBoundingClientRect()
+      const midInY = midScreenY - rect.top
+      const base   = pendingScrollTopRef.current ?? scrollEl.scrollTop
+      const next   = Math.max(0, (base + midInY) * actualFactor - midInY)
+      pendingScrollTopRef.current = next
+      scrollEl.scrollTop = next
     }
 
-    // Throttle React state update to once per animation frame
+    // Throttle React zoom re-render to once per animation frame.
+    // Between events, zoomRef holds the live value; setZoom commits the latest at render time.
     if (!zoomRafRef.current) {
       zoomRafRef.current = requestAnimationFrame(() => {
         setZoom(zoomRef.current)
         zoomRafRef.current = null
+        pendingScrollTopRef.current = null
       })
     }
   }
@@ -1207,34 +1208,7 @@ const NoteCanvas = forwardRef(function NoteCanvas({
     }))
   }
 
-  function onScroll(e) {
-    if (readonly) return
-    const el = e.currentTarget
-    if (el.scrollHeight - el.scrollTop - el.clientHeight < 150) {
-      const curPages = pagesRef.current
-      if (!addingPageRef.current && !bottomTimerRef.current && curPages[curPages.length - 1].strokes.length > 0) {
-        // Debounce: wait until scroll settles before mutating the DOM height.
-        // Immediate page addition during iOS fling causes the scroll layer to stall.
-        bottomTimerRef.current = setTimeout(() => {
-          bottomTimerRef.current = null
-          const scrollEl    = scrollRef.current
-          const latestPages = pagesRef.current
-          if (
-            scrollEl && !addingPageRef.current &&
-            scrollEl.scrollHeight - scrollEl.scrollTop - scrollEl.clientHeight < 150 &&
-            latestPages[latestPages.length - 1].strokes.length > 0
-          ) {
-            addingPageRef.current = true
-            onPagesChange([...latestPages, { id: `page-${Date.now()}`, strokes: [] }])
-            setTimeout(() => { addingPageRef.current = false }, 2000)
-          }
-        }, 500)
-      }
-    } else {
-      clearTimeout(bottomTimerRef.current)
-      bottomTimerRef.current = null
-    }
-  }
+  function onScroll() {}
 
   function tbtn(active) {
     return {
