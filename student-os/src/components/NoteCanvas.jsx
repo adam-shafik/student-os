@@ -1094,8 +1094,8 @@ const NoteCanvas = forwardRef(function NoteCanvas({
   const undoToastTimer      = useRef(null)
   const zoomRef             = useRef(zoom)
   const zoomRafRef          = useRef(null)
-  const pendingScrollTopRef = useRef(null)
-  const xCorrectionRef      = useRef(null) // horizontal drift to absorb on commit, in CSS px
+  const pendingScrollTopRef  = useRef(null)
+  const pendingScrollLeftRef = useRef(null)
   const pagesRef            = useRef(pages)
   const committedZoomRef    = useRef(zoom)
   const pagesWrapperRef     = useRef(null)
@@ -1104,33 +1104,19 @@ const NoteCanvas = forwardRef(function NoteCanvas({
   useEffect(() => { zoomRef.current = zoom; committedZoomRef.current = zoom }, [zoom])
   useEffect(() => { pagesRef.current = pages }, [pages])
 
-  // After React re-renders with new zoom dimensions: clear CSS gesture transform, apply X/Y corrections.
-  // useLayoutEffect fires before paint so there's no visible frame with wrong positions.
+  // After React re-renders with new zoom: clear CSS gesture transform, then snap scroll to anchor.
+  // useLayoutEffect fires before paint — no visible frame with wrong scroll position.
   useLayoutEffect(() => {
-    const wrapper = pagesWrapperRef.current
-    if (!wrapper) return
-
-    const xCorr = xCorrectionRef.current
-    xCorrectionRef.current = null
-
-    if (xCorr !== null && Math.abs(xCorr) > 0.5) {
-      // Apply correction immediately so layout lands at pre-commit visual X position — no jump.
-      wrapper.style.transition = ''
-      wrapper.style.transform = `translateX(${xCorr}px)`
-      // Next frame: animate back to center so the settle feels smooth.
-      requestAnimationFrame(() => {
-        if (!wrapper) return
-        wrapper.style.transition = 'transform 0.18s ease-out'
-        wrapper.style.transform = ''
-        setTimeout(() => { if (wrapper) wrapper.style.transition = '' }, 180)
-      })
-    } else {
-      wrapper.style.transform = ''
-    }
-
-    if (scrollRef.current && pendingScrollTopRef.current !== null) {
-      scrollRef.current.scrollTop = pendingScrollTopRef.current
+    if (pagesWrapperRef.current) pagesWrapperRef.current.style.transform = ''
+    const el = scrollRef.current
+    if (!el) return
+    if (pendingScrollTopRef.current !== null) {
+      el.scrollTop = pendingScrollTopRef.current
       pendingScrollTopRef.current = null
+    }
+    if (pendingScrollLeftRef.current !== null) {
+      el.scrollLeft = pendingScrollLeftRef.current
+      pendingScrollLeftRef.current = null
     }
   }, [zoom])
 
@@ -1179,14 +1165,13 @@ const NoteCanvas = forwardRef(function NoteCanvas({
     if (!scrollEl) return
 
     // Lock the pinch anchor on the very first event of this gesture.
-    // wrapperX/Y = pinch midpoint in pagesWrapper-local px coords.
-    // scrollTop doesn't change during the gesture so wrapperY stays accurate throughout.
+    // wrapperX/Y = pinch midpoint in pagesWrapper-local coords (accounts for current scroll).
     if (!gestureAnchorRef.current && midScreenY != null) {
       const rect         = scrollEl.getBoundingClientRect()
       const midInScrollX = midScreenX - rect.left
       const midInScrollY = midScreenY - rect.top
-      const wrapperX     = midInScrollX
-      const wrapperY     = scrollEl.scrollTop + midInScrollY
+      const wrapperX     = scrollEl.scrollLeft + midInScrollX
+      const wrapperY     = scrollEl.scrollTop  + midInScrollY
       gestureAnchorRef.current = { midInScrollX, midInScrollY, wrapperX, wrapperY }
     }
 
@@ -1210,20 +1195,25 @@ const NoteCanvas = forwardRef(function NoteCanvas({
 
     const anchor = gestureAnchorRef.current
     if (anchor) {
-      const gestureScale = zoomRef.current / committedZoomRef.current
-      const { wrapperX, midInScrollX, midInScrollY, wrapperY } = anchor
-
-      // X: pages re-center after commit but the gesture was pinned to wrapperX.
-      // Drift = where page-center visually was during gesture minus where it lands (W/2).
-      // We store it so useLayoutEffect can apply a translateX before paint and animate to 0.
-      const W = scrollRef.current?.getBoundingClientRect().width ?? 0
-      xCorrectionRef.current = (wrapperX - W / 2) * (1 - gestureScale)
-
-      // Y: adjust scrollTop so the anchor row lands at the same viewport Y it was at.
+      const gestureScale  = zoomRef.current / committedZoomRef.current
+      const oldZoom       = committedZoomRef.current
+      const newZoom       = zoomRef.current
+      const { wrapperX, wrapperY, midInScrollX, midInScrollY } = anchor
+      const W             = scrollRef.current?.getBoundingClientRect().width ?? 0
+      const maxW          = PAGE_MAX_WIDTHS[orientation] ?? 900
       const CANVAS_TOP_PAD = 108
-      const contentY    = wrapperY - CANVAS_TOP_PAD
-      const newContentY = contentY * gestureScale
-      pendingScrollTopRef.current = Math.max(0, newContentY + CANVAS_TOP_PAD - midInScrollY)
+
+      // Y: anchor row stays at same viewport Y.
+      const contentY = wrapperY - CANVAS_TOP_PAD
+      pendingScrollTopRef.current = Math.max(0, contentY * gestureScale + CANVAS_TOP_PAD - midInScrollY)
+
+      // X: page starts at pageLeft within pagesWrapper. Compute for old and new zoom.
+      // When page + padding (48) fits in viewport: page is CSS-centered at (W - pageWidth) / 2.
+      // When page overflows viewport: pagesWrapper expands to max-content and page sits at 24px.
+      const pageLeft_old = (maxW * oldZoom + 48 >= W) ? 24 : (W - maxW * oldZoom) / 2
+      const pageLeft_new = (maxW * newZoom + 48 >= W) ? 24 : (W - maxW * newZoom) / 2
+      const contentX = pageLeft_new + (wrapperX - pageLeft_old) * gestureScale
+      pendingScrollLeftRef.current = Math.max(0, contentX - midInScrollX)
     }
 
     gestureAnchorRef.current = null
@@ -1715,8 +1705,8 @@ const NoteCanvas = forwardRef(function NoteCanvas({
         )}
 
         {/* Scroll container */}
-        <div ref={scrollRef} onScroll={onScroll} style={{ height: '100%', overflowY: 'auto', overflowX: 'hidden', background: 'var(--canvas-outer, #14141e)' }}>
-          <div ref={pagesWrapperRef} style={{ padding: readonly ? 24 : '108px 24px 24px', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: Math.round(24 * zoom) }}>
+        <div ref={scrollRef} onScroll={onScroll} style={{ height: '100%', overflowY: 'auto', overflowX: 'auto', background: 'var(--canvas-outer, #14141e)' }}>
+          <div ref={pagesWrapperRef} style={{ padding: readonly ? 24 : '108px 24px 24px', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: Math.round(24 * zoom), width: 'max-content', minWidth: '100%' }}>
             {pages.map((page, pageIdx) => (
               // position:relative + explicit height = pageH*zoom so the flex item contributes
               // exactly pageH*zoom to the column — no fixed-pixel controls in the flow.
