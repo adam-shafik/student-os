@@ -1082,7 +1082,14 @@ const NoteCanvas = forwardRef(function NoteCanvas({
   const [undoToast,    setUndoToast]    = useState(false)
   const [undoToastKey, setUndoToastKey] = useState(0)
   const [clipboard,    setClipboard]    = useState(null)
-  const undoToastTimer = useRef(null)
+  const undoToastTimer  = useRef(null)
+  const zoomRef         = useRef(zoom)
+  const zoomRafRef      = useRef(null)
+  const pagesRef        = useRef(pages)
+  const bottomTimerRef  = useRef(null)
+
+  useEffect(() => { zoomRef.current = zoom }, [zoom])
+  useEffect(() => { pagesRef.current = pages }, [pages])
 
   useEffect(() => {
     try {
@@ -1121,19 +1128,32 @@ const NoteCanvas = forwardRef(function NoteCanvas({
 
   function handlePinch(scaleFactor, midScreenX, midScreenY) {
     const scrollEl = scrollRef.current
-    setZoom(prevZoom => {
-      const newZoom = Math.min(3, Math.max(0.4, prevZoom * scaleFactor))
-      const actualFactor = newZoom / prevZoom
-      if (Math.abs(actualFactor - 1) > 0.0001 && scrollEl && midScreenY != null) {
-        const rect = scrollEl.getBoundingClientRect()
-        const midInY = midScreenY - rect.top
-        const capturedScrollTop = scrollEl.scrollTop
-        requestAnimationFrame(() => {
-          scrollEl.scrollTop = Math.max(0, (capturedScrollTop + midInY) * actualFactor - midInY)
-        })
+    const prevZoom = zoomRef.current
+    const newZoom  = Math.min(3, Math.max(0.4, prevZoom * scaleFactor))
+    if (newZoom === prevZoom) return
+    const actualFactor = newZoom / prevZoom
+    zoomRef.current = newZoom
+
+    if (scrollEl) {
+      // Update SVG dimensions immediately via DOM (no React re-render → no frame drop)
+      scrollEl.querySelectorAll('svg[data-page]').forEach(svg => {
+        svg.setAttribute('width',  maxW  * newZoom)
+        svg.setAttribute('height', pageH * newZoom)
+      })
+      if (midScreenY != null) {
+        const rect    = scrollEl.getBoundingClientRect()
+        const midInY  = midScreenY - rect.top
+        scrollEl.scrollTop = Math.max(0, (scrollEl.scrollTop + midInY) * actualFactor - midInY)
       }
-      return newZoom
-    })
+    }
+
+    // Throttle React state update to once per animation frame
+    if (!zoomRafRef.current) {
+      zoomRafRef.current = requestAnimationFrame(() => {
+        setZoom(zoomRef.current)
+        zoomRafRef.current = null
+      })
+    }
   }
 
   const pageH        = PAGE_HEIGHTS[orientation]    ?? 1200
@@ -1191,11 +1211,28 @@ const NoteCanvas = forwardRef(function NoteCanvas({
     if (readonly) return
     const el = e.currentTarget
     if (el.scrollHeight - el.scrollTop - el.clientHeight < 150) {
-      if (!addingPageRef.current && pages[pages.length - 1].strokes.length > 0) {
-        addingPageRef.current = true
-        addPage()
-        setTimeout(() => { addingPageRef.current = false }, 1500)
+      const curPages = pagesRef.current
+      if (!addingPageRef.current && !bottomTimerRef.current && curPages[curPages.length - 1].strokes.length > 0) {
+        // Debounce: wait until scroll settles before mutating the DOM height.
+        // Immediate page addition during iOS fling causes the scroll layer to stall.
+        bottomTimerRef.current = setTimeout(() => {
+          bottomTimerRef.current = null
+          const scrollEl    = scrollRef.current
+          const latestPages = pagesRef.current
+          if (
+            scrollEl && !addingPageRef.current &&
+            scrollEl.scrollHeight - scrollEl.scrollTop - scrollEl.clientHeight < 150 &&
+            latestPages[latestPages.length - 1].strokes.length > 0
+          ) {
+            addingPageRef.current = true
+            onPagesChange([...latestPages, { id: `page-${Date.now()}`, strokes: [] }])
+            setTimeout(() => { addingPageRef.current = false }, 2000)
+          }
+        }, 500)
       }
+    } else {
+      clearTimeout(bottomTimerRef.current)
+      bottomTimerRef.current = null
     }
   }
 
