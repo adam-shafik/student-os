@@ -1157,13 +1157,15 @@ const NoteCanvas = forwardRef(function NoteCanvas({
     if (!scrollEl) return
 
     // Lock the pinch anchor on the very first event of this gesture.
-    // wrapperY = position of the pinch midpoint inside the wrapper (wrapper-local px, top=0).
-    // scrollTop doesn't change during the gesture so this stays accurate throughout.
+    // wrapperX/Y = pinch midpoint in pagesWrapper-local px coords.
+    // scrollTop doesn't change during the gesture so wrapperY stays accurate throughout.
     if (!gestureAnchorRef.current && midScreenY != null) {
-      const rect       = scrollEl.getBoundingClientRect()
+      const rect         = scrollEl.getBoundingClientRect()
+      const midInScrollX = midScreenX - rect.left
       const midInScrollY = midScreenY - rect.top
-      const wrapperY   = scrollEl.scrollTop + midInScrollY
-      gestureAnchorRef.current = { midInScrollY, wrapperY }
+      const wrapperX     = midInScrollX
+      const wrapperY     = scrollEl.scrollTop + midInScrollY
+      gestureAnchorRef.current = { midInScrollX, midInScrollY, wrapperX, wrapperY }
     }
 
     const prevZoom = zoomRef.current
@@ -1175,8 +1177,8 @@ const NoteCanvas = forwardRef(function NoteCanvas({
     // transformOrigin pins the anchor position so it never visually moves during the gesture.
     if (pagesWrapperRef.current && gestureAnchorRef.current) {
       const gestureScale = newZoom / committedZoomRef.current
-      const { wrapperY } = gestureAnchorRef.current
-      pagesWrapperRef.current.style.transformOrigin = `center ${wrapperY}px`
+      const { wrapperX, wrapperY } = gestureAnchorRef.current
+      pagesWrapperRef.current.style.transformOrigin = `${wrapperX}px ${wrapperY}px`
       pagesWrapperRef.current.style.transform = `scale(${gestureScale})`
     }
   }
