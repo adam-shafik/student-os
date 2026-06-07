@@ -537,15 +537,17 @@ function PageCanvas({ page, pageH, maxW, pageIdx, totalPages, onStrokesChange, o
   const strokes        = page.strokes
   const displayStrokes = erasingStrokes ?? strokes
 
-  // Cache getStroke() output keyed by stroke object identity.
-  // Existing strokes keep the same reference between renders → computed once.
-  // WeakMap auto-releases entries when stroke objects are GC'd.
-  const strokeOutlineCache = useRef(new WeakMap())
-  function getCachedOutline(s) {
-    if (!strokeOutlineCache.current.has(s)) {
-      strokeOutlineCache.current.set(s, getStroke(s.points, strokeOpts(s.size, true, s.smoothing ?? 0.5)))
+  // Cache the fully-computed SVG path `d` string per stroke object identity.
+  // Both getStroke() and toPath() are expensive for long strokes; caching the
+  // final string means repeated renders hit the cache and return the same string
+  // reference, so React's reconciler skips DOM updates for unchanged paths.
+  const strokePathCache = useRef(new WeakMap())
+  function getCachedPath(s) {
+    if (!strokePathCache.current.has(s)) {
+      const outline = getStroke(s.points, strokeOpts(s.size, true, s.smoothing ?? 0.5))
+      strokePathCache.current.set(s, toPath(outline))
     }
-    return strokeOutlineCache.current.get(s)
+    return strokePathCache.current.get(s)
   }
 
   // Clear the local erasing preview once the parent strokes prop has updated,
@@ -869,7 +871,8 @@ function PageCanvas({ page, pageH, maxW, pageIdx, totalPages, onStrokesChange, o
   const cursor    = readonly ? 'default' : tool === 'eraser' ? 'none' : isMoving ? 'grabbing' : 'crosshair'
 
   return (
-    <div style={{ position: 'relative', width: '100%' }}>
+    // Height matches the CSS-scaled SVG visual height so overlays position correctly
+    <div style={{ position: 'relative', width: '100%', height: pageH * zoom }}>
       {shapeHeld && (
         <div style={{
           position: 'absolute', top: 12, left: '50%', transform: 'translateX(-50%)',
@@ -881,7 +884,7 @@ function PageCanvas({ page, pageH, maxW, pageIdx, totalPages, onStrokesChange, o
         </div>
       )}
 
-      {/* Selection context menu */}
+      {/* Selection context menu — SVG coords × zoom = CSS pixel position */}
       {(() => {
         const smb = (tool === 'select' && selectedIndices.size > 0 && !isMoving && !selRect) ? getSelBounds() : null
         if (!smb) return null
@@ -889,8 +892,8 @@ function PageCanvas({ page, pageH, maxW, pageIdx, totalPages, onStrokesChange, o
         return (
           <div style={{
             position: 'absolute',
-            left: ((smb.x1 + smb.x2) / 2) + 'px',
-            top: (smb.y1 > 60 ? smb.y1 - 48 : smb.y2 + 10) + 'px',
+            left: ((smb.x1 + smb.x2) / 2 * zoom) + 'px',
+            top: (smb.y1 * zoom > 60 ? smb.y1 * zoom - 48 : smb.y2 * zoom + 10) + 'px',
             transform: 'translateX(-50%)', zIndex: 50,
             display: 'flex', alignItems: 'center', gap: 1,
             background: 'rgba(18,19,30,0.96)', backdropFilter: 'blur(14px)',
@@ -929,8 +932,8 @@ function PageCanvas({ page, pageH, maxW, pageIdx, totalPages, onStrokesChange, o
           <div onClick={() => setPasteMenu(null)} style={{ position: 'absolute', inset: 0, zIndex: 48 }} />
           <div style={{
             position: 'absolute',
-            left: pasteMenu.x + 'px',
-            top: (pasteMenu.y > 60 ? pasteMenu.y - 50 : pasteMenu.y + 10) + 'px',
+            left: pasteMenu.x * zoom + 'px',
+            top: (pasteMenu.y * zoom > 60 ? pasteMenu.y * zoom - 50 : pasteMenu.y * zoom + 10) + 'px',
             transform: 'translateX(-50%)', zIndex: 50,
             background: 'rgba(18,19,30,0.96)', backdropFilter: 'blur(14px)',
             border: '1px solid rgba(255,255,255,0.12)', borderRadius: 12,
@@ -945,11 +948,11 @@ function PageCanvas({ page, pageH, maxW, pageIdx, totalPages, onStrokesChange, o
       <svg
         ref={svgRef}
         data-page={page.id}
-        width={maxW * zoom}
-        height={pageH * zoom}
+        width={maxW}
+        height={pageH}
         viewBox={`0 0 ${maxW} ${pageH}`}
         tabIndex={tool === 'select' && !readonly ? 0 : undefined}
-        style={{ display: 'block', touchAction: 'pan-y', cursor, outline: 'none' }}
+        style={{ display: 'block', touchAction: 'pan-y', cursor, outline: 'none', transform: `scale(${zoom})`, transformOrigin: 'top left' }}
         onPointerDown={readonly ? undefined : onPointerDown}
         onPointerMove={readonly ? undefined : onPointerMove}
         onPointerUp={readonly ? undefined : onPointerUp}
@@ -983,10 +986,9 @@ function PageCanvas({ page, pageH, maxW, pageIdx, totalPages, onStrokesChange, o
             const tf  = (dx || dy) ? `translate(${dx},${dy})` : undefined
             const rc  = adaptColor(s.color, bgColor)
             if (s.shape) return <g key={i} transform={tf}>{renderShape({ ...s, color: rc })}</g>
-            const outline = getCachedOutline(s)
             return (
               <g key={i} transform={tf}>
-                <path fill={rc} fillOpacity={s.opacity ?? 1} stroke="none" d={toPath(outline)} />
+                <path fill={rc} fillOpacity={s.opacity ?? 1} stroke="none" d={getCachedPath(s)} />
               </g>
             )
           })
@@ -1685,7 +1687,7 @@ const NoteCanvas = forwardRef(function NoteCanvas({
 
         {/* Scroll container */}
         <div ref={scrollRef} onScroll={onScroll} style={{ height: '100%', overflowY: 'auto', overflowX: 'hidden', background: 'var(--canvas-outer, #14141e)' }}>
-          <div ref={pagesWrapperRef} style={{ padding: readonly ? 24 : '108px 24px 24px', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: Math.round(16 * zoom) }}>
+          <div ref={pagesWrapperRef} style={{ padding: readonly ? 24 : '108px 24px 24px', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: Math.round(24 * zoom) }}>
             {pages.map((page, pageIdx) => (
               // position:relative + explicit height = pageH*zoom so the flex item contributes
               // exactly pageH*zoom to the column — no fixed-pixel controls in the flow.
@@ -1724,7 +1726,7 @@ const NoteCanvas = forwardRef(function NoteCanvas({
                   pageBackground={pageBackgrounds?.[pageIdx]}
                 />
                 {/* Controls float in the gap between pages; zero layout height so they don't shift the column */}
-                <div style={{ position: 'absolute', top: '100%', left: 0, right: 0, paddingTop: 4, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 10 }}>
+                <div style={{ position: 'absolute', top: '100%', left: 0, right: 0, paddingTop: 4, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 10, transform: `scale(${zoom})`, transformOrigin: 'center top' }}>
                   <span style={{ fontSize: 10, color: 'rgba(255,255,255,0.15)', letterSpacing: '0.5px' }}>{pageIdx + 1}</span>
                   {!readonly && pages.length > 1 && (
                     <button onClick={() => deletePage(pageIdx)} title="Delete page" style={{
