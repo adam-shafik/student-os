@@ -235,7 +235,7 @@ function PageTemplate({ pageId, template, bgColor, lineSpacing }) {
 }
 
 // ─── Single page canvas ────────────────────────────────────────────────────────
-function PageCanvas({ page, pageH, maxW, pageIdx, totalPages, onStrokesChange, onTransferStrokes, penColor, penSize, tool, shapeType, opacity, smoothness, template, bgColor, lineSpacing, eraserMode, eraserRadius, readonly, onUndo, onPinch, clipboard, onCopy, pageBackground }) {
+function PageCanvas({ page, pageH, maxW, pageIdx, totalPages, onStrokesChange, onTransferStrokes, penColor, penSize, tool, shapeType, opacity, smoothness, template, bgColor, lineSpacing, eraserMode, eraserRadius, readonly, onUndo, onPinch, zoom = 1, clipboard, onCopy, pageBackground }) {
   const svgRef        = useRef()
   const livePathRef   = useRef(null)
   const liveShapeRef  = useRef(null)
@@ -412,7 +412,11 @@ function PageCanvas({ page, pageH, maxW, pageIdx, totalPages, onStrokesChange, o
         const newDist = Math.hypot(e.touches[1].clientX - e.touches[0].clientX, e.touches[1].clientY - e.touches[0].clientY)
         if (Math.abs(newDist - t2.dist) > 8) {
           t2.pinching = true
-          stateRef.current.onPinch?.(newDist / t2.dist)
+          stateRef.current.onPinch?.(
+            newDist / t2.dist,
+            (e.touches[0].clientX + e.touches[1].clientX) / 2,
+            (e.touches[0].clientY + e.touches[1].clientY) / 2,
+          )
           t2.dist = newDist
           t2.x1 = e.touches[0].clientX; t2.y1 = e.touches[0].clientY
           t2.x2 = e.touches[1].clientX; t2.y2 = e.touches[1].clientY
@@ -937,9 +941,11 @@ function PageCanvas({ page, pageH, maxW, pageIdx, totalPages, onStrokesChange, o
       <svg
         ref={svgRef}
         data-page={page.id}
+        width={maxW * zoom}
+        height={pageH * zoom}
         viewBox={`0 0 ${maxW} ${pageH}`}
         tabIndex={tool === 'select' && !readonly ? 0 : undefined}
-        style={{ width: '100%', height: 'auto', display: 'block', touchAction: 'pan-y', cursor, outline: 'none' }}
+        style={{ display: 'block', touchAction: 'pan-y', cursor, outline: 'none' }}
         onPointerDown={readonly ? undefined : onPointerDown}
         onPointerMove={readonly ? undefined : onPointerMove}
         onPointerUp={readonly ? undefined : onPointerUp}
@@ -1113,8 +1119,18 @@ const NoteCanvas = forwardRef(function NoteCanvas({
     setTool(t)
   }
 
-  function handlePinch(scaleFactor) {
-    setZoom(z => Math.min(3, Math.max(0.4, z * scaleFactor)))
+  function handlePinch(scaleFactor, midScreenX, midScreenY) {
+    const scrollEl = scrollRef.current
+    setZoom(prevZoom => {
+      const newZoom = Math.min(3, Math.max(0.4, prevZoom * scaleFactor))
+      if (scrollEl && midScreenY != null) {
+        const rect = scrollEl.getBoundingClientRect()
+        const midInY = midScreenY - rect.top
+        const newScrollTop = (scrollEl.scrollTop + midInY) * scaleFactor - midInY
+        requestAnimationFrame(() => { scrollEl.scrollTop = Math.max(0, newScrollTop) })
+      }
+      return newZoom
+    })
   }
 
   const pageH        = PAGE_HEIGHTS[orientation]    ?? 1200
@@ -1466,40 +1482,43 @@ const NoteCanvas = forwardRef(function NoteCanvas({
                         pointerEvents: 'auto', transition: 'background 0.12s, box-shadow 0.12s',
                       }}
                     />
-                    {sliderOpen && (
-                      <div
-                        onPointerDown={e => e.stopPropagation()}
-                        style={{
-                          position: 'absolute', top: 'calc(100% + 12px)', left: '50%',
-                          animation: '_size-drop 0.16s cubic-bezier(0.16,1,0.3,1) forwards',
-                          zIndex: 200, display: 'flex', alignItems: 'center', gap: 8,
-                          background: 'rgba(13,14,22,0.97)', backdropFilter: 'blur(16px)',
-                          border: '1px solid rgba(255,255,255,0.1)',
-                          borderRadius: 20, padding: '7px 12px',
-                          boxShadow: '0 8px 28px rgba(0,0,0,0.65)',
-                          pointerEvents: 'auto', whiteSpace: 'nowrap',
+                    {/* Always rendered — CSS transition drives open/close animation */}
+                    <div
+                      onPointerDown={e => e.stopPropagation()}
+                      style={{
+                        position: 'absolute', top: 'calc(100% + 12px)', left: '50%',
+                        transform: `translateX(-50%) translateY(${sliderOpen ? 0 : -6}px) scale(${sliderOpen ? 1 : 0.92})`,
+                        opacity: sliderOpen ? 1 : 0,
+                        pointerEvents: sliderOpen ? 'auto' : 'none',
+                        transition: 'opacity 0.18s cubic-bezier(0.16,1,0.3,1), transform 0.18s cubic-bezier(0.16,1,0.3,1)',
+                        zIndex: 200, display: 'flex', alignItems: 'center', gap: 8,
+                        background: 'rgba(13,14,22,0.97)',
+                        backdropFilter: sliderOpen ? 'blur(16px)' : 'none',
+                        border: '1px solid rgba(255,255,255,0.1)',
+                        borderRadius: 20, padding: '7px 12px',
+                        boxShadow: sliderOpen ? '0 8px 28px rgba(0,0,0,0.65)' : 'none',
+                        whiteSpace: 'nowrap',
+                      }}
+                    >
+                      <input
+                        type="range"
+                        min={min} max={max} step="0.5"
+                        value={size}
+                        onChange={e => {
+                          const v = parseFloat(e.target.value)
+                          if (tool === 'highlighter') setHlPresets(prev => prev.map((p, i) => i === idx ? v : p))
+                          else setPenPresets(prev => prev.map((p, i) => i === idx ? v : p))
                         }}
-                      >
-                        <input
-                          type="range"
-                          min={min} max={max} step="0.5"
-                          value={size}
-                          onChange={e => {
-                            const v = parseFloat(e.target.value)
-                            if (tool === 'highlighter') setHlPresets(prev => prev.map((p, i) => i === idx ? v : p))
-                            else setPenPresets(prev => prev.map((p, i) => i === idx ? v : p))
-                          }}
-                          style={{ width: 72, accentColor: penColor, cursor: 'pointer', pointerEvents: 'auto' }}
-                        />
-                        <span style={{
-                          fontSize: 10, fontWeight: 700, letterSpacing: '0.2px',
-                          color: 'rgba(255,255,255,0.82)', minWidth: 26, textAlign: 'right',
-                          fontVariantNumeric: 'tabular-nums', fontFamily: 'monospace',
-                        }}>
-                          {size % 1 === 0 ? size : size.toFixed(1)}
-                        </span>
-                      </div>
-                    )}
+                        style={{ width: 72, accentColor: penColor, cursor: 'pointer', pointerEvents: 'auto' }}
+                      />
+                      <span style={{
+                        fontSize: 10, fontWeight: 700, letterSpacing: '0.2px',
+                        color: 'rgba(255,255,255,0.82)', minWidth: 26, textAlign: 'right',
+                        fontVariantNumeric: 'tabular-nums', fontFamily: 'monospace',
+                      }}>
+                        {size % 1 === 0 ? size : size.toFixed(1)}
+                      </span>
+                    </div>
                   </div>
                 )
               })}
@@ -1521,7 +1540,7 @@ const NoteCanvas = forwardRef(function NoteCanvas({
         )}
 
         {/* Undo toast */}
-        <style>{`@keyframes _undo-pop{0%{opacity:0;transform:translateX(-50%) scale(0.88)}12%{opacity:1;transform:translateX(-50%) scale(1)}80%{opacity:1}100%{opacity:0;transform:translateX(-50%) scale(0.95)}}@keyframes _size-drop{0%{opacity:0;transform:translateX(-50%) translateY(-5px) scale(0.95)}100%{opacity:1;transform:translateX(-50%) translateY(0) scale(1)}}`}</style>
+        <style>{`@keyframes _undo-pop{0%{opacity:0;transform:translateX(-50%) scale(0.88)}12%{opacity:1;transform:translateX(-50%) scale(1)}80%{opacity:1}100%{opacity:0;transform:translateX(-50%) scale(0.95)}}`}</style>
         {undoToast && (
           <div key={undoToastKey} style={{
             position: 'fixed', bottom: 52, left: '50%',
@@ -1540,9 +1559,9 @@ const NoteCanvas = forwardRef(function NoteCanvas({
 
         {/* Scroll container */}
         <div ref={scrollRef} onScroll={onScroll} style={{ height: '100%', overflowY: 'auto', overflowX: 'hidden', background: 'var(--canvas-outer, #14141e)' }}>
-          <div style={{ padding: readonly ? 24 : '72px 24px 24px', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 16, zoom }}>
+          <div style={{ padding: readonly ? 24 : '72px 24px 24px', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 16 }}>
             {pages.map((page, pageIdx) => (
-              <div key={page.id} style={{ width: '100%', maxWidth: maxW, flexShrink: 0 }}>
+              <div key={page.id} style={{ flexShrink: 0 }}>
                 <PageCanvas
                   page={page}
                   pageH={pageH}
@@ -1568,6 +1587,7 @@ const NoteCanvas = forwardRef(function NoteCanvas({
                   readonly={readonly}
                   onUndo={handleUndo}
                   onPinch={handlePinch}
+                  zoom={zoom}
                   clipboard={clipboard}
                   onCopy={strokes => setClipboard(strokes)}
                   pageBackground={pageBackgrounds?.[pageIdx]}
