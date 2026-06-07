@@ -1693,7 +1693,7 @@ const NoteCanvas = forwardRef(function NoteCanvas({
               // exactly pageH*zoom to the column — no fixed-pixel controls in the flow.
               // This makes every element below the top padding scale linearly with zoom,
               // which is required for the CSS-transform pinch-zoom math to be accurate.
-              <div key={page.id} style={{ flexShrink: 0, position: 'relative', height: pageH * zoom }}>
+              <div key={page.id} style={{ flexShrink: 0, position: 'relative', width: maxW * zoom, height: pageH * zoom }}>
                 <PageCanvas
                   page={page}
                   pageH={pageH}
@@ -1726,25 +1726,28 @@ const NoteCanvas = forwardRef(function NoteCanvas({
                   pageBackground={pageBackgrounds?.[pageIdx]}
                 />
                 {/* Controls float in the gap between pages; zero layout height so they don't shift the column */}
-                <div style={{ position: 'absolute', top: '100%', left: 0, right: 0, paddingTop: 4, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 10, transform: `scale(${zoom})`, transformOrigin: 'center top' }}>
-                  <span style={{ fontSize: 10, color: 'rgba(255,255,255,0.15)', letterSpacing: '0.5px' }}>{pageIdx + 1}</span>
-                  {!readonly && pages.length > 1 && (
-                    <button onClick={() => deletePage(pageIdx)} title="Delete page" style={{
-                      background: 'none', border: 'none', cursor: 'pointer', padding: 2,
-                      color: 'rgba(255,255,255,0.15)', display: 'flex', alignItems: 'center',
-                    }}>
-                      <Trash2 size={11} />
-                    </button>
-                  )}
-                  {!readonly && pages.length - pageIdx - 1 > 1 && (
-                    <button
-                      onClick={() => onPagesChange(pages.slice(0, pageIdx + 1))}
-                      title={`Delete pages ${pageIdx + 2}–${pages.length}`}
-                      style={{ background: 'none', border: 'none', cursor: 'pointer', padding: 2, color: 'rgba(255,255,255,0.15)', fontSize: 9 }}
-                    >
-                      delete all after
-                    </button>
-                  )}
+                {/* Outer div spans page width, centers content; inner div holds the content and scales */}
+                <div style={{ position: 'absolute', top: '100%', left: 0, right: 0, display: 'flex', alignItems: 'flex-start', justifyContent: 'center' }}>
+                  <div style={{ paddingTop: 4, display: 'flex', alignItems: 'center', gap: 10, transform: `scale(${zoom})`, transformOrigin: 'top center' }}>
+                    <span style={{ fontSize: 10, color: 'rgba(255,255,255,0.15)', letterSpacing: '0.5px' }}>{pageIdx + 1}</span>
+                    {!readonly && pages.length > 1 && (
+                      <button onClick={() => deletePage(pageIdx)} title="Delete page" style={{
+                        background: 'none', border: 'none', cursor: 'pointer', padding: 2,
+                        color: 'rgba(255,255,255,0.15)', display: 'flex', alignItems: 'center',
+                      }}>
+                        <Trash2 size={11} />
+                      </button>
+                    )}
+                    {!readonly && pages.length - pageIdx - 1 > 1 && (
+                      <button
+                        onClick={() => onPagesChange(pages.slice(0, pageIdx + 1))}
+                        title={`Delete pages ${pageIdx + 2}–${pages.length}`}
+                        style={{ background: 'none', border: 'none', cursor: 'pointer', padding: 2, color: 'rgba(255,255,255,0.15)', fontSize: 9 }}
+                      >
+                        delete all after
+                      </button>
+                    )}
+                  </div>
                 </div>
               </div>
             ))}
