@@ -410,7 +410,7 @@ function PageCanvas({ page, pageH, maxW, pageIdx, totalPages, onStrokesChange, o
     function onTouchMove(e) {
       if (t2 && e.touches.length === 2) {
         const newDist = Math.hypot(e.touches[1].clientX - e.touches[0].clientX, e.touches[1].clientY - e.touches[0].clientY)
-        if (Math.abs(newDist - t2.dist) > 8) {
+        if (Math.abs(newDist - t2.dist) > 1) {
           t2.pinching = true
           stateRef.current.onPinch?.(
             newDist / t2.dist,
@@ -1123,11 +1123,14 @@ const NoteCanvas = forwardRef(function NoteCanvas({
     const scrollEl = scrollRef.current
     setZoom(prevZoom => {
       const newZoom = Math.min(3, Math.max(0.4, prevZoom * scaleFactor))
-      if (scrollEl && midScreenY != null) {
+      const actualFactor = newZoom / prevZoom
+      if (Math.abs(actualFactor - 1) > 0.0001 && scrollEl && midScreenY != null) {
         const rect = scrollEl.getBoundingClientRect()
         const midInY = midScreenY - rect.top
-        const newScrollTop = (scrollEl.scrollTop + midInY) * scaleFactor - midInY
-        requestAnimationFrame(() => { scrollEl.scrollTop = Math.max(0, newScrollTop) })
+        const capturedScrollTop = scrollEl.scrollTop
+        requestAnimationFrame(() => {
+          scrollEl.scrollTop = Math.max(0, (capturedScrollTop + midInY) * actualFactor - midInY)
+        })
       }
       return newZoom
     })
@@ -1456,11 +1459,11 @@ const NoteCanvas = forwardRef(function NoteCanvas({
             {sep}
 
             {/* Size presets */}
-            <div style={{ display: 'flex', gap: 10, alignItems: 'center' }}>
+            <div style={{ display: 'flex', gap: 4, alignItems: 'center' }}>
               {(tool === 'highlighter' ? hlPresets : penPresets).map((size, idx) => {
                 const isActive = (tool === 'highlighter' ? hlPresetIdx : penPresetIdx) === idx
                 const sliderOpen = isActive && activeSlider === idx
-                const dotD = 7 + idx * 3.5
+                const dotD = 11 + idx * 3.5
                 const min = tool === 'highlighter' ? 4 : 1
                 const max = tool === 'highlighter' ? 60 : 20
                 return (
@@ -1475,13 +1478,21 @@ const NoteCanvas = forwardRef(function NoteCanvas({
                         }
                       }}
                       style={{
+                        width: 28, height: 28, borderRadius: '50%',
+                        background: 'none', border: 'none', cursor: 'pointer', padding: 0, flexShrink: 0,
+                        pointerEvents: 'auto', display: 'flex', alignItems: 'center', justifyContent: 'center',
+                      }}
+                    >
+                      <div style={{
                         width: Math.round(dotD), height: Math.round(dotD), borderRadius: '50%',
                         background: isActive ? penColor : 'rgba(255,255,255,0.28)',
-                        boxShadow: sliderOpen ? `0 0 0 2px rgba(255,255,255,0.45)` : 'none',
-                        border: 'none', cursor: 'pointer', padding: 0, flexShrink: 0,
-                        pointerEvents: 'auto', transition: 'background 0.12s, box-shadow 0.12s',
-                      }}
-                    />
+                        boxShadow: isActive
+                          ? `0 0 0 2.5px rgba(255,255,255,0.9), 0 0 0 5px rgba(255,255,255,0.15)`
+                          : 'none',
+                        transition: 'background 0.12s, box-shadow 0.12s',
+                        pointerEvents: 'none',
+                      }} />
+                    </button>
                     {/* Always rendered — CSS transition drives open/close animation */}
                     <div
                       onPointerDown={e => e.stopPropagation()}
@@ -1509,7 +1520,7 @@ const NoteCanvas = forwardRef(function NoteCanvas({
                           if (tool === 'highlighter') setHlPresets(prev => prev.map((p, i) => i === idx ? v : p))
                           else setPenPresets(prev => prev.map((p, i) => i === idx ? v : p))
                         }}
-                        style={{ width: 72, accentColor: penColor, cursor: 'pointer', pointerEvents: 'auto' }}
+                        style={{ width: 72, accentColor: penColor, cursor: 'pointer', pointerEvents: sliderOpen ? 'auto' : 'none' }}
                       />
                       <span style={{
                         fontSize: 10, fontWeight: 700, letterSpacing: '0.2px',
