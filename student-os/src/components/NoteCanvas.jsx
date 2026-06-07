@@ -9,8 +9,9 @@ import {
 const PAGE_HEIGHTS    = { portrait: 1200, landscape: 520 }
 const PAGE_MAX_WIDTHS = { portrait: 900,  landscape: 1200 }
 const PRESETS         = ['#111827', '#5b8cff', '#a78bfa', '#f59e0b', '#34d399', '#fb7185']
-const DEFAULT_PEN_PRESETS = [3, 5, 8]
-const DEFAULT_HL_PRESETS  = [12, 18, 28]
+const DEFAULT_PEN_PRESETS    = [3, 5, 8]
+const DEFAULT_HL_PRESETS     = [12, 18, 28]
+const DEFAULT_ERASER_PRESETS = [8, 20, 40]
 const TOOLS           = [
   ['pen',         PenLine,       'Pen'],
   ['highlighter', Highlighter,   'Highlighter'],
@@ -235,7 +236,7 @@ function PageTemplate({ pageId, template, bgColor, lineSpacing }) {
 }
 
 // ─── Single page canvas ────────────────────────────────────────────────────────
-function PageCanvas({ page, pageH, maxW, pageIdx, totalPages, onStrokesChange, onTransferStrokes, penColor, penSize, tool, shapeType, opacity, smoothness, template, bgColor, lineSpacing, eraserMode, eraserRadius, readonly, onUndo, onPinch, zoom = 1, clipboard, onCopy, pageBackground }) {
+function PageCanvas({ page, pageH, maxW, pageIdx, totalPages, onStrokesChange, onTransferStrokes, penColor, penSize, tool, shapeType, opacity, smoothness, template, bgColor, lineSpacing, eraserMode, eraserRadius, readonly, onUndo, onPinch, onPinchEnd, zoom = 1, clipboard, onCopy, pageBackground }) {
   const svgRef        = useRef()
   const livePathRef   = useRef(null)
   const liveShapeRef  = useRef(null)
@@ -495,7 +496,10 @@ function PageCanvas({ page, pageH, maxW, pageIdx, totalPages, onStrokesChange, o
           t2 = null
           return
         }
-        if (e.touches.length === 0) t2 = null
+        if (e.touches.length === 0) {
+          if (t2.pinching) stateRef.current.onPinchEnd?.()
+          t2 = null
+        }
       }
       if (!stylusActiveRef.current) return
       // Safety fallback: if no stylus touches remain, finish regardless of identifier match
@@ -578,7 +582,7 @@ function PageCanvas({ page, pageH, maxW, pageIdx, totalPages, onStrokesChange, o
   }
 
   stateRef.current = {
-    tool, drawColor, penSize, opacity, smoothness, shapeType, eraserMode, eraserRadius, strokes, onStrokesChange, onUndo, onPinch, onCopy, clipboard,
+    tool, drawColor, penSize, opacity, smoothness, shapeType, eraserMode, eraserRadius, strokes, onStrokesChange, onUndo, onPinch, onPinchEnd, onCopy, clipboard,
     selectedIndices, selRect, isMoving, moveStart, moveOff,
     commitMove, pageIdx, totalPages, onTransferStrokes, pageH,
   }
@@ -1058,18 +1062,21 @@ const NoteCanvas = forwardRef(function NoteCanvas({
   const toolMemoryRef    = useRef({
     pen:         { color: '#111827', presetIdx: 1 },
     highlighter: { color: '#f59e0b', presetIdx: 1 },
+    eraser:      { presetIdx: 1 },
   })
 
   function loadSetting(key, fallback) {
     try { return JSON.parse(localStorage.getItem('notecanvas_settings') || '{}')[key] ?? fallback } catch { return fallback }
   }
 
-  const [penColor,      setPenColor]      = useState('#111827')
-  const [penPresets,    setPenPresets]    = useState(() => loadSetting('penPresets', DEFAULT_PEN_PRESETS))
-  const [hlPresets,     setHlPresets]     = useState(() => loadSetting('hlPresets', DEFAULT_HL_PRESETS))
-  const [penPresetIdx,  setPenPresetIdx]  = useState(1)
-  const [hlPresetIdx,   setHlPresetIdx]   = useState(1)
-  const [activeSlider,  setActiveSlider]  = useState(null)
+  const [penColor,        setPenColor]        = useState('#111827')
+  const [penPresets,      setPenPresets]      = useState(() => loadSetting('penPresets', DEFAULT_PEN_PRESETS))
+  const [hlPresets,       setHlPresets]       = useState(() => loadSetting('hlPresets', DEFAULT_HL_PRESETS))
+  const [eraserPresets,   setEraserPresets]   = useState(() => loadSetting('eraserPresets', DEFAULT_ERASER_PRESETS))
+  const [penPresetIdx,    setPenPresetIdx]    = useState(1)
+  const [hlPresetIdx,     setHlPresetIdx]     = useState(1)
+  const [eraserPresetIdx, setEraserPresetIdx] = useState(1)
+  const [activeSlider,    setActiveSlider]    = useState(null)
   const [tool,          setTool]          = useState('pen')
   const [shapeType,     setShapeType]     = useState('rect')
   const [eraserMode,    setEraserMode]    = useState('standard')
@@ -1082,22 +1089,28 @@ const NoteCanvas = forwardRef(function NoteCanvas({
   const [undoToast,    setUndoToast]    = useState(false)
   const [undoToastKey, setUndoToastKey] = useState(0)
   const [clipboard,    setClipboard]    = useState(null)
-  const undoToastTimer  = useRef(null)
+  const undoToastTimer      = useRef(null)
   const zoomRef             = useRef(zoom)
   const zoomRafRef          = useRef(null)
   const pendingScrollTopRef = useRef(null)
   const pagesRef            = useRef(pages)
-  const bottomTimerRef      = useRef(null)
+  const committedZoomRef    = useRef(zoom)
+  const pagesWrapperRef     = useRef(null)
 
-  useEffect(() => { zoomRef.current = zoom }, [zoom])
+  useEffect(() => { zoomRef.current = zoom; committedZoomRef.current = zoom }, [zoom])
   useEffect(() => { pagesRef.current = pages }, [pages])
+
+  // Remove CSS transform once React re-renders with the new zoom dimensions
+  useEffect(() => {
+    if (pagesWrapperRef.current) pagesWrapperRef.current.style.transform = ''
+  }, [zoom])
 
   useEffect(() => {
     try {
       const existing = JSON.parse(localStorage.getItem('notecanvas_settings') || '{}')
-      localStorage.setItem('notecanvas_settings', JSON.stringify({ ...existing, penPresets, hlPresets, smoothness, zoom }))
+      localStorage.setItem('notecanvas_settings', JSON.stringify({ ...existing, penPresets, hlPresets, eraserPresets, smoothness, zoom }))
     } catch {}
-  }, [penPresets, hlPresets, smoothness, zoom])
+  }, [penPresets, hlPresets, eraserPresets, smoothness, zoom])
 
   useEffect(() => { setActiveSlider(null) }, [tool])
 
@@ -1108,12 +1121,15 @@ const NoteCanvas = forwardRef(function NoteCanvas({
     return () => document.removeEventListener('pointerdown', close)
   }, [activeSlider])
 
-  const penSize = tool === 'highlighter' ? hlPresets[hlPresetIdx] : penPresets[penPresetIdx]
+  const penSize = tool === 'highlighter' ? hlPresets[hlPresetIdx]
+    : tool === 'eraser' ? eraserPresets[eraserPresetIdx]
+    : penPresets[penPresetIdx]
 
   function handleSetTool(t) {
     const mem = toolMemoryRef.current
     if (tool === 'pen') mem.pen = { color: penColor, presetIdx: penPresetIdx }
     if (tool === 'highlighter') mem.highlighter = { color: penColor, presetIdx: hlPresetIdx }
+    if (tool === 'eraser') mem.eraser = { presetIdx: eraserPresetIdx }
     if (t === 'pen') {
       setPenColor(mem.pen.color)
       setCustomColor(mem.pen.color)
@@ -1122,6 +1138,8 @@ const NoteCanvas = forwardRef(function NoteCanvas({
       setPenColor(mem.highlighter.color)
       setCustomColor(mem.highlighter.color)
       setHlPresetIdx(mem.highlighter.presetIdx ?? 1)
+    } else if (t === 'eraser') {
+      setEraserPresetIdx(mem.eraser.presetIdx ?? 1)
     }
     setActiveSlider(null)
     setTool(t)
@@ -1135,8 +1153,6 @@ const NoteCanvas = forwardRef(function NoteCanvas({
     const actualFactor = newZoom / prevZoom
     zoomRef.current = newZoom
 
-    // Adjust scroll immediately — scrollTop is not React-controlled so direct writes are safe.
-    // Use pendingScrollTopRef so rapid events compound from the latest target, not a stale DOM read.
     if (scrollEl && midScreenY != null) {
       const rect   = scrollEl.getBoundingClientRect()
       const midInY = midScreenY - rect.top
@@ -1146,21 +1162,26 @@ const NoteCanvas = forwardRef(function NoteCanvas({
       scrollEl.scrollTop = next
     }
 
-    // Throttle React zoom re-render to once per animation frame.
-    // Between events, zoomRef holds the live value; setZoom commits the latest at render time.
-    if (!zoomRafRef.current) {
-      zoomRafRef.current = requestAnimationFrame(() => {
-        setZoom(zoomRef.current)
-        zoomRafRef.current = null
-        pendingScrollTopRef.current = null
-      })
+    // GPU-composited CSS scale — no React re-render, no SVG reflow during gesture.
+    // gestureScale is relative to the last committed zoom so the SVG base size stays correct.
+    if (pagesWrapperRef.current) {
+      const gestureScale = newZoom / committedZoomRef.current
+      pagesWrapperRef.current.style.transform = `scale(${gestureScale})`
+      pagesWrapperRef.current.style.transformOrigin = 'top center'
     }
+  }
+
+  function handlePinchEnd() {
+    if (zoomRafRef.current) { cancelAnimationFrame(zoomRafRef.current); zoomRafRef.current = null }
+    setZoom(zoomRef.current)
+    pendingScrollTopRef.current = null
+    // useEffect on zoom cleans up the CSS transform after React re-renders with new SVG dimensions
   }
 
   const pageH        = PAGE_HEIGHTS[orientation]    ?? 1200
   const maxW         = PAGE_MAX_WIDTHS[orientation] ?? 900
   const opacity      = tool === 'highlighter' ? 0.35 : 1
-  const eraserRadius = penSize * 4
+  const eraserRadius = tool === 'eraser' ? penSize : penSize * 4
   // pages beyond the PDF backgrounds are user-added blank pages
   const hasUserPages = isPdfNote && pages.length > (pageBackgrounds?.length ?? 0)
   const totalStrokes = pages.reduce((s, p) => s + p.strokes.length, 0)
@@ -1385,40 +1406,109 @@ const NoteCanvas = forwardRef(function NoteCanvas({
       {/* ── Canvas area ── */}
       <div style={{ flex: 1, position: 'relative', overflow: 'hidden' }}>
 
-        {/* Floating toolbar */}
+        {/* ── Tool bar ── */}
         {!readonly && (
           <div style={{
-            position: 'absolute', top: 14, left: '50%', transform: 'translateX(-50%)',
-            zIndex: 100, display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap',
+            position: 'absolute', top: 12, left: '50%', transform: 'translateX(-50%)',
+            zIndex: 100, display: 'flex', alignItems: 'center', gap: 3,
+            background: 'rgba(13,14,22,0.95)', backdropFilter: 'blur(16px) saturate(1.4)',
+            border: '1px solid rgba(255,255,255,0.08)',
+            borderRadius: 14, padding: '5px 8px',
+            boxShadow: '0 8px 32px rgba(0,0,0,0.6)',
+            pointerEvents: 'none',
+          }}>
+            {TOOLS.map(([t, Icon, label]) => (
+              <button key={t} title={label} onClick={() => handleSetTool(t)} style={{
+                display: 'flex', alignItems: 'center', justifyContent: 'center',
+                width: 42, height: 36, borderRadius: 9, border: '1px solid transparent',
+                cursor: 'pointer', pointerEvents: 'auto',
+                background: tool === t ? 'rgba(91,140,255,0.18)' : 'none',
+                color: tool === t ? '#5b8cff' : 'rgba(255,255,255,0.5)',
+                borderColor: tool === t ? 'rgba(91,140,255,0.28)' : 'transparent',
+                transition: 'background 0.14s, color 0.14s, border-color 0.14s',
+              }}>
+                <Icon size={15} />
+              </button>
+            ))}
+          </div>
+        )}
+
+        {/* ── Settings pill (dynamic per tool) ── */}
+        {!readonly && tool !== 'select' && (
+          <div style={{
+            position: 'absolute', top: 62, left: '50%', transform: 'translateX(-50%)',
+            zIndex: 100, display: 'flex', alignItems: 'center', gap: 8,
             background: 'rgba(13,14,22,0.93)', backdropFilter: 'blur(16px) saturate(1.4)',
             border: '1px solid rgba(255,255,255,0.07)',
-            borderRadius: 16, padding: '7px 14px',
-            boxShadow: '0 8px 32px rgba(0,0,0,0.6)',
+            borderRadius: 24, padding: '6px 14px',
+            boxShadow: '0 4px 20px rgba(0,0,0,0.5)',
             maxWidth: 'calc(100% - 28px)',
             pointerEvents: 'none',
           }}>
-            {/* Tool buttons */}
-            <div style={{ display: 'flex', gap: 3 }}>
-              {TOOLS.map(([t, Icon, label]) => (
-                <button key={t} title={label} onClick={() => handleSetTool(t)} style={tbtn(tool === t)}>
-                  <Icon size={13} />
-                </button>
-              ))}
-            </div>
 
-            {tool === 'shape' && (
-              <>
-                {sep}
-                <div style={{ display: 'flex', gap: 3 }}>
-                  {SHAPE_TYPES.map(([t, Icon, label]) => (
-                    <button key={t} title={label} onClick={() => setShapeType(t)} style={tbtn(shapeType === t)}>
-                      <Icon size={13} />
-                    </button>
-                  ))}
+            {/* Size presets — pen / highlighter / eraser */}
+            {(tool === 'pen' || tool === 'highlighter' || tool === 'eraser') && (() => {
+              const presets    = tool === 'highlighter' ? hlPresets : tool === 'eraser' ? eraserPresets : penPresets
+              const activeIdx  = tool === 'highlighter' ? hlPresetIdx : tool === 'eraser' ? eraserPresetIdx : penPresetIdx
+              const setIdx     = tool === 'highlighter' ? setHlPresetIdx : tool === 'eraser' ? setEraserPresetIdx : setPenPresetIdx
+              const setPresets = tool === 'highlighter' ? setHlPresets : tool === 'eraser' ? setEraserPresets : setPenPresets
+              const min        = tool === 'highlighter' ? 4 : tool === 'eraser' ? 4 : 1
+              const max        = tool === 'highlighter' ? 60 : tool === 'eraser' ? 80 : 20
+              const dotColor   = tool === 'eraser' ? 'rgba(255,255,255,0.75)' : penColor
+              const accentCol  = tool === 'eraser' ? 'rgba(255,255,255,0.7)' : penColor
+              return (
+                <div style={{ display: 'flex', gap: 4, alignItems: 'center' }}>
+                  {presets.map((size, idx) => {
+                    const isActive   = activeIdx === idx
+                    const sliderOpen = isActive && activeSlider === idx
+                    const dotD       = 11 + idx * 3.5
+                    return (
+                      <div key={idx} style={{ position: 'relative', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+                        <button
+                          onPointerDown={e => e.stopPropagation()}
+                          onClick={() => {
+                            if (isActive) setActiveSlider(prev => prev === idx ? null : idx)
+                            else { setIdx(idx); setActiveSlider(null) }
+                          }}
+                          style={{ width: 28, height: 28, borderRadius: '50%', background: 'none', border: 'none', cursor: 'pointer', padding: 0, flexShrink: 0, pointerEvents: 'auto', display: 'flex', alignItems: 'center', justifyContent: 'center' }}
+                        >
+                          <div style={{
+                            width: Math.round(dotD), height: Math.round(dotD), borderRadius: '50%',
+                            background: isActive ? dotColor : 'rgba(255,255,255,0.28)',
+                            boxShadow: isActive ? `0 0 0 2.5px rgba(255,255,255,0.9), 0 0 0 5px rgba(255,255,255,0.15)` : 'none',
+                            transition: 'background 0.12s, box-shadow 0.12s', pointerEvents: 'none',
+                          }} />
+                        </button>
+                        <div
+                          onPointerDown={e => e.stopPropagation()}
+                          style={{
+                            position: 'absolute', top: 'calc(100% + 12px)', left: '50%',
+                            transform: `translateX(-50%) translateY(${sliderOpen ? 0 : -6}px) scale(${sliderOpen ? 1 : 0.92})`,
+                            opacity: sliderOpen ? 1 : 0, pointerEvents: sliderOpen ? 'auto' : 'none',
+                            transition: 'opacity 0.18s cubic-bezier(0.16,1,0.3,1), transform 0.18s cubic-bezier(0.16,1,0.3,1)',
+                            zIndex: 200, display: 'flex', alignItems: 'center', gap: 8,
+                            background: 'rgba(13,14,22,0.97)', backdropFilter: sliderOpen ? 'blur(16px)' : 'none',
+                            border: '1px solid rgba(255,255,255,0.1)', borderRadius: 20, padding: '7px 12px',
+                            boxShadow: sliderOpen ? '0 8px 28px rgba(0,0,0,0.65)' : 'none', whiteSpace: 'nowrap',
+                          }}
+                        >
+                          <input
+                            type="range" min={min} max={max} step="0.5" value={size}
+                            onChange={e => { const v = parseFloat(e.target.value); setPresets(prev => prev.map((p, i) => i === idx ? v : p)) }}
+                            style={{ width: 72, accentColor: accentCol, cursor: 'pointer', pointerEvents: sliderOpen ? 'auto' : 'none' }}
+                          />
+                          <span style={{ fontSize: 10, fontWeight: 700, color: 'rgba(255,255,255,0.82)', minWidth: 26, textAlign: 'right', fontVariantNumeric: 'tabular-nums', fontFamily: 'monospace' }}>
+                            {size % 1 === 0 ? size : size.toFixed(1)}
+                          </span>
+                        </div>
+                      </div>
+                    )
+                  })}
                 </div>
-              </>
-            )}
+              )
+            })()}
 
+            {/* Eraser mode */}
             {tool === 'eraser' && (
               <>
                 {sep}
@@ -1436,128 +1526,120 @@ const NoteCanvas = forwardRef(function NoteCanvas({
               </>
             )}
 
-            {sep}
-
-            {/* Colors */}
-            <div style={{ display: 'flex', gap: 7, alignItems: 'center' }}>
-              {PRESETS.map(c => {
-                const active = penColor === c
-                return (
-                  <button key={c} onClick={() => setPenColor(c)} style={{
-                    width: 16, height: 16, borderRadius: '50%', background: c,
-                    border: 'none', cursor: 'pointer', padding: 0, flexShrink: 0,
-                    pointerEvents: 'auto',
-                    outline: active ? `2.5px solid ${c}` : '2px solid transparent',
-                    outlineOffset: 2, transform: active ? 'scale(1.25)' : 'scale(1)',
-                    transition: 'transform 0.12s',
-                  }} />
-                )
-              })}
-              <div style={{ position: 'relative', width: 16, height: 16, flexShrink: 0, pointerEvents: 'auto' }}>
-                <div style={{
-                  width: 16, height: 16, borderRadius: '50%',
-                  background: 'conic-gradient(red, yellow, lime, cyan, blue, magenta, red)',
-                  outline: !PRESETS.includes(penColor) ? '2.5px solid white' : '2px solid transparent',
-                  outlineOffset: 2, transform: !PRESETS.includes(penColor) ? 'scale(1.25)' : 'scale(1)',
-                  transition: 'transform 0.12s',
-                }} />
-                <input type="color" value={customColor}
-                  onChange={e => { setCustomColor(e.target.value); setPenColor(e.target.value) }}
-                  style={{ position: 'absolute', inset: 0, opacity: 0, cursor: 'pointer', width: '100%', height: '100%', pointerEvents: 'auto' }} />
+            {/* Shape type buttons */}
+            {tool === 'shape' && (
+              <div style={{ display: 'flex', gap: 3 }}>
+                {SHAPE_TYPES.map(([t, Icon, label]) => (
+                  <button key={t} title={label} onClick={() => setShapeType(t)} style={tbtn(shapeType === t)}>
+                    <Icon size={13} />
+                  </button>
+                ))}
               </div>
-            </div>
+            )}
 
-            {sep}
-
-            {/* Size presets */}
-            <div style={{ display: 'flex', gap: 4, alignItems: 'center' }}>
-              {(tool === 'highlighter' ? hlPresets : penPresets).map((size, idx) => {
-                const isActive = (tool === 'highlighter' ? hlPresetIdx : penPresetIdx) === idx
-                const sliderOpen = isActive && activeSlider === idx
-                const dotD = 11 + idx * 3.5
-                const min = tool === 'highlighter' ? 4 : 1
-                const max = tool === 'highlighter' ? 60 : 20
-                return (
-                  <div key={idx} style={{ position: 'relative', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
-                    <button
-                      onPointerDown={e => e.stopPropagation()}
-                      onClick={() => {
-                        if (isActive) { setActiveSlider(prev => prev === idx ? null : idx) }
-                        else {
-                          if (tool === 'highlighter') setHlPresetIdx(idx); else setPenPresetIdx(idx)
-                          setActiveSlider(null)
-                        }
-                      }}
-                      style={{
-                        width: 28, height: 28, borderRadius: '50%',
-                        background: 'none', border: 'none', cursor: 'pointer', padding: 0, flexShrink: 0,
-                        pointerEvents: 'auto', display: 'flex', alignItems: 'center', justifyContent: 'center',
-                      }}
-                    >
-                      <div style={{
-                        width: Math.round(dotD), height: Math.round(dotD), borderRadius: '50%',
-                        background: isActive ? penColor : 'rgba(255,255,255,0.28)',
-                        boxShadow: isActive
-                          ? `0 0 0 2.5px rgba(255,255,255,0.9), 0 0 0 5px rgba(255,255,255,0.15)`
-                          : 'none',
-                        transition: 'background 0.12s, box-shadow 0.12s',
-                        pointerEvents: 'none',
+            {/* Color swatches — pen / highlighter / shape */}
+            {(tool === 'pen' || tool === 'highlighter' || tool === 'shape') && (
+              <>
+                {sep}
+                <div style={{ display: 'flex', gap: 7, alignItems: 'center' }}>
+                  {PRESETS.map(c => {
+                    const active = penColor === c
+                    return (
+                      <button key={c} onClick={() => setPenColor(c)} style={{
+                        width: 16, height: 16, borderRadius: '50%', background: c, border: 'none',
+                        cursor: 'pointer', padding: 0, flexShrink: 0, pointerEvents: 'auto',
+                        outline: active ? `2.5px solid ${c}` : '2px solid transparent',
+                        outlineOffset: 2, transform: active ? 'scale(1.25)' : 'scale(1)',
+                        transition: 'transform 0.12s',
                       }} />
-                    </button>
-                    {/* Always rendered — CSS transition drives open/close animation */}
-                    <div
-                      onPointerDown={e => e.stopPropagation()}
-                      style={{
-                        position: 'absolute', top: 'calc(100% + 12px)', left: '50%',
-                        transform: `translateX(-50%) translateY(${sliderOpen ? 0 : -6}px) scale(${sliderOpen ? 1 : 0.92})`,
-                        opacity: sliderOpen ? 1 : 0,
-                        pointerEvents: sliderOpen ? 'auto' : 'none',
-                        transition: 'opacity 0.18s cubic-bezier(0.16,1,0.3,1), transform 0.18s cubic-bezier(0.16,1,0.3,1)',
-                        zIndex: 200, display: 'flex', alignItems: 'center', gap: 8,
-                        background: 'rgba(13,14,22,0.97)',
-                        backdropFilter: sliderOpen ? 'blur(16px)' : 'none',
-                        border: '1px solid rgba(255,255,255,0.1)',
-                        borderRadius: 20, padding: '7px 12px',
-                        boxShadow: sliderOpen ? '0 8px 28px rgba(0,0,0,0.65)' : 'none',
-                        whiteSpace: 'nowrap',
-                      }}
-                    >
-                      <input
-                        type="range"
-                        min={min} max={max} step="0.5"
-                        value={size}
-                        onChange={e => {
-                          const v = parseFloat(e.target.value)
-                          if (tool === 'highlighter') setHlPresets(prev => prev.map((p, i) => i === idx ? v : p))
-                          else setPenPresets(prev => prev.map((p, i) => i === idx ? v : p))
-                        }}
-                        style={{ width: 72, accentColor: penColor, cursor: 'pointer', pointerEvents: sliderOpen ? 'auto' : 'none' }}
-                      />
-                      <span style={{
-                        fontSize: 10, fontWeight: 700, letterSpacing: '0.2px',
-                        color: 'rgba(255,255,255,0.82)', minWidth: 26, textAlign: 'right',
-                        fontVariantNumeric: 'tabular-nums', fontFamily: 'monospace',
-                      }}>
-                        {size % 1 === 0 ? size : size.toFixed(1)}
-                      </span>
-                    </div>
+                    )
+                  })}
+                  <div style={{ position: 'relative', width: 16, height: 16, flexShrink: 0, pointerEvents: 'auto' }}>
+                    <div style={{
+                      width: 16, height: 16, borderRadius: '50%',
+                      background: 'conic-gradient(red, yellow, lime, cyan, blue, magenta, red)',
+                      outline: !PRESETS.includes(penColor) ? '2.5px solid white' : '2px solid transparent',
+                      outlineOffset: 2, transform: !PRESETS.includes(penColor) ? 'scale(1.25)' : 'scale(1)',
+                      transition: 'transform 0.12s',
+                    }} />
+                    <input type="color" value={customColor}
+                      onChange={e => { setCustomColor(e.target.value); setPenColor(e.target.value) }}
+                      style={{ position: 'absolute', inset: 0, opacity: 0, cursor: 'pointer', width: '100%', height: '100%', pointerEvents: 'auto' }} />
                   </div>
-                )
-              })}
-            </div>
+                </div>
+              </>
+            )}
 
-            {sep}
+            {/* Shape size presets (pen presets used for stroke width) */}
+            {tool === 'shape' && (
+              <>
+                {sep}
+                <div style={{ display: 'flex', gap: 4, alignItems: 'center' }}>
+                  {penPresets.map((size, idx) => {
+                    const isActive   = penPresetIdx === idx
+                    const sliderOpen = isActive && activeSlider === idx
+                    const dotD       = 11 + idx * 3.5
+                    return (
+                      <div key={idx} style={{ position: 'relative', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+                        <button
+                          onPointerDown={e => e.stopPropagation()}
+                          onClick={() => {
+                            if (isActive) setActiveSlider(prev => prev === idx ? null : idx)
+                            else { setPenPresetIdx(idx); setActiveSlider(null) }
+                          }}
+                          style={{ width: 28, height: 28, borderRadius: '50%', background: 'none', border: 'none', cursor: 'pointer', padding: 0, flexShrink: 0, pointerEvents: 'auto', display: 'flex', alignItems: 'center', justifyContent: 'center' }}
+                        >
+                          <div style={{
+                            width: Math.round(dotD), height: Math.round(dotD), borderRadius: '50%',
+                            background: isActive ? penColor : 'rgba(255,255,255,0.28)',
+                            boxShadow: isActive ? `0 0 0 2.5px rgba(255,255,255,0.9), 0 0 0 5px rgba(255,255,255,0.15)` : 'none',
+                            transition: 'background 0.12s, box-shadow 0.12s', pointerEvents: 'none',
+                          }} />
+                        </button>
+                        <div
+                          onPointerDown={e => e.stopPropagation()}
+                          style={{
+                            position: 'absolute', top: 'calc(100% + 12px)', left: '50%',
+                            transform: `translateX(-50%) translateY(${sliderOpen ? 0 : -6}px) scale(${sliderOpen ? 1 : 0.92})`,
+                            opacity: sliderOpen ? 1 : 0, pointerEvents: sliderOpen ? 'auto' : 'none',
+                            transition: 'opacity 0.18s cubic-bezier(0.16,1,0.3,1), transform 0.18s cubic-bezier(0.16,1,0.3,1)',
+                            zIndex: 200, display: 'flex', alignItems: 'center', gap: 8,
+                            background: 'rgba(13,14,22,0.97)', backdropFilter: sliderOpen ? 'blur(16px)' : 'none',
+                            border: '1px solid rgba(255,255,255,0.1)', borderRadius: 20, padding: '7px 12px',
+                            boxShadow: sliderOpen ? '0 8px 28px rgba(0,0,0,0.65)' : 'none', whiteSpace: 'nowrap',
+                          }}
+                        >
+                          <input
+                            type="range" min={1} max={20} step="0.5" value={size}
+                            onChange={e => { const v = parseFloat(e.target.value); setPenPresets(prev => prev.map((p, i) => i === idx ? v : p)) }}
+                            style={{ width: 72, accentColor: penColor, cursor: 'pointer', pointerEvents: sliderOpen ? 'auto' : 'none' }}
+                          />
+                          <span style={{ fontSize: 10, fontWeight: 700, color: 'rgba(255,255,255,0.82)', minWidth: 26, textAlign: 'right', fontVariantNumeric: 'tabular-nums', fontFamily: 'monospace' }}>
+                            {size % 1 === 0 ? size : size.toFixed(1)}
+                          </span>
+                        </div>
+                      </div>
+                    )
+                  })}
+                </div>
+              </>
+            )}
 
-            {/* Smoothness */}
-            <div style={{ display: 'flex', alignItems: 'center', gap: 5 }}>
-              <span style={{ fontSize: 9, color: 'rgba(255,255,255,0.38)', userSelect: 'none' }}>Rigid</span>
-              <input
-                type="range" min="0" max="1" step="0.05" value={smoothness}
-                onChange={e => setSmoothness(parseFloat(e.target.value))}
-                style={{ width: 68, accentColor: penColor, cursor: 'pointer', pointerEvents: 'auto' }}
-              />
-              <span style={{ fontSize: 9, color: 'rgba(255,255,255,0.38)', userSelect: 'none' }}>Smooth</span>
-            </div>
+            {/* Smoothness — pen / highlighter only */}
+            {(tool === 'pen' || tool === 'highlighter') && (
+              <>
+                {sep}
+                <div style={{ display: 'flex', alignItems: 'center', gap: 5 }}>
+                  <span style={{ fontSize: 9, color: 'rgba(255,255,255,0.38)', userSelect: 'none' }}>Rigid</span>
+                  <input
+                    type="range" min="0" max="1" step="0.05" value={smoothness}
+                    onChange={e => setSmoothness(parseFloat(e.target.value))}
+                    style={{ width: 68, accentColor: penColor, cursor: 'pointer', pointerEvents: 'auto' }}
+                  />
+                  <span style={{ fontSize: 9, color: 'rgba(255,255,255,0.38)', userSelect: 'none' }}>Smooth</span>
+                </div>
+              </>
+            )}
           </div>
         )}
 
@@ -1581,7 +1663,7 @@ const NoteCanvas = forwardRef(function NoteCanvas({
 
         {/* Scroll container */}
         <div ref={scrollRef} onScroll={onScroll} style={{ height: '100%', overflowY: 'auto', overflowX: 'hidden', background: 'var(--canvas-outer, #14141e)' }}>
-          <div style={{ padding: readonly ? 24 : '72px 24px 24px', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 16 }}>
+          <div ref={pagesWrapperRef} style={{ padding: readonly ? 24 : '108px 24px 24px', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 16 }}>
             {pages.map((page, pageIdx) => (
               <div key={page.id} style={{ flexShrink: 0 }}>
                 <PageCanvas
@@ -1609,6 +1691,7 @@ const NoteCanvas = forwardRef(function NoteCanvas({
                   readonly={readonly}
                   onUndo={handleUndo}
                   onPinch={handlePinch}
+                  onPinchEnd={handlePinchEnd}
                   zoom={zoom}
                   clipboard={clipboard}
                   onCopy={strokes => setClipboard(strokes)}
