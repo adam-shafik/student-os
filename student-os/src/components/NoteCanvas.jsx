@@ -1685,9 +1685,13 @@ const NoteCanvas = forwardRef(function NoteCanvas({
 
         {/* Scroll container */}
         <div ref={scrollRef} onScroll={onScroll} style={{ height: '100%', overflowY: 'auto', overflowX: 'hidden', background: 'var(--canvas-outer, #14141e)' }}>
-          <div ref={pagesWrapperRef} style={{ padding: readonly ? 24 : '108px 24px 24px', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 16 }}>
+          <div ref={pagesWrapperRef} style={{ padding: readonly ? 24 : '108px 24px 24px', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: Math.round(16 * zoom) }}>
             {pages.map((page, pageIdx) => (
-              <div key={page.id} style={{ flexShrink: 0 }}>
+              // position:relative + explicit height = pageH*zoom so the flex item contributes
+              // exactly pageH*zoom to the column — no fixed-pixel controls in the flow.
+              // This makes every element below the top padding scale linearly with zoom,
+              // which is required for the CSS-transform pinch-zoom math to be accurate.
+              <div key={page.id} style={{ flexShrink: 0, position: 'relative', height: pageH * zoom }}>
                 <PageCanvas
                   page={page}
                   pageH={pageH}
@@ -1719,7 +1723,8 @@ const NoteCanvas = forwardRef(function NoteCanvas({
                   onCopy={strokes => setClipboard(strokes)}
                   pageBackground={pageBackgrounds?.[pageIdx]}
                 />
-                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', marginTop: 8, gap: 10 }}>
+                {/* Controls float in the gap between pages; zero layout height so they don't shift the column */}
+                <div style={{ position: 'absolute', top: '100%', left: 0, right: 0, paddingTop: 4, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 10 }}>
                   <span style={{ fontSize: 10, color: 'rgba(255,255,255,0.15)', letterSpacing: '0.5px' }}>{pageIdx + 1}</span>
                   {!readonly && pages.length > 1 && (
                     <button onClick={() => deletePage(pageIdx)} title="Delete page" style={{
