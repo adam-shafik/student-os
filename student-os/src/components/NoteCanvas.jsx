@@ -1096,13 +1096,18 @@ const NoteCanvas = forwardRef(function NoteCanvas({
   const pagesRef            = useRef(pages)
   const committedZoomRef    = useRef(zoom)
   const pagesWrapperRef     = useRef(null)
+  const gestureAnchorRef    = useRef(null) // { midInScrollY, wrapperY } — pinch anchor in wrapper coords
 
   useEffect(() => { zoomRef.current = zoom; committedZoomRef.current = zoom }, [zoom])
   useEffect(() => { pagesRef.current = pages }, [pages])
 
-  // Remove CSS transform once React re-renders with the new zoom dimensions
+  // After React re-renders with new zoom dimensions: clear CSS transform and snap scrollTop to anchor
   useEffect(() => {
     if (pagesWrapperRef.current) pagesWrapperRef.current.style.transform = ''
+    if (scrollRef.current && pendingScrollTopRef.current !== null) {
+      scrollRef.current.scrollTop = pendingScrollTopRef.current
+      pendingScrollTopRef.current = null
+    }
   }, [zoom])
 
   useEffect(() => {
@@ -1147,35 +1152,52 @@ const NoteCanvas = forwardRef(function NoteCanvas({
 
   function handlePinch(scaleFactor, midScreenX, midScreenY) {
     const scrollEl = scrollRef.current
+    if (!scrollEl) return
+
+    // Lock the pinch anchor on the very first event of this gesture.
+    // wrapperY = position of the pinch midpoint inside the wrapper (wrapper-local px, top=0).
+    // scrollTop doesn't change during the gesture so this stays accurate throughout.
+    if (!gestureAnchorRef.current && midScreenY != null) {
+      const rect       = scrollEl.getBoundingClientRect()
+      const midInScrollY = midScreenY - rect.top
+      const wrapperY   = scrollEl.scrollTop + midInScrollY
+      gestureAnchorRef.current = { midInScrollY, wrapperY }
+    }
+
     const prevZoom = zoomRef.current
     const newZoom  = Math.min(3, Math.max(0.4, prevZoom * scaleFactor))
     if (newZoom === prevZoom) return
-    const actualFactor = newZoom / prevZoom
     zoomRef.current = newZoom
 
-    if (scrollEl && midScreenY != null) {
-      const rect   = scrollEl.getBoundingClientRect()
-      const midInY = midScreenY - rect.top
-      const base   = pendingScrollTopRef.current ?? scrollEl.scrollTop
-      const next   = Math.max(0, (base + midInY) * actualFactor - midInY)
-      pendingScrollTopRef.current = next
-      scrollEl.scrollTop = next
-    }
-
-    // GPU-composited CSS scale — no React re-render, no SVG reflow during gesture.
-    // gestureScale is relative to the last committed zoom so the SVG base size stays correct.
-    if (pagesWrapperRef.current) {
+    // Scale the wrapper from the exact pinch point — GPU composited, zero React re-renders.
+    // transformOrigin pins the anchor position so it never visually moves during the gesture.
+    if (pagesWrapperRef.current && gestureAnchorRef.current) {
       const gestureScale = newZoom / committedZoomRef.current
+      const { wrapperY } = gestureAnchorRef.current
+      pagesWrapperRef.current.style.transformOrigin = `center ${wrapperY}px`
       pagesWrapperRef.current.style.transform = `scale(${gestureScale})`
-      pagesWrapperRef.current.style.transformOrigin = 'top center'
     }
   }
 
   function handlePinchEnd() {
     if (zoomRafRef.current) { cancelAnimationFrame(zoomRafRef.current); zoomRafRef.current = null }
+
+    // Compute where scrollTop must be after React re-renders SVGs at the new zoom level.
+    // The anchor point (wrapperY, in old-zoom px) maps to wrapperY * (newZoom / oldZoom) in new-zoom px.
+    // Subtract the anchor's screen offset so it lands at exactly the same viewport position.
+    const anchor = gestureAnchorRef.current
+    if (anchor) {
+      const { midInScrollY, wrapperY } = anchor
+      const CANVAS_TOP_PAD = 108 // matches the top padding on pagesWrapperRef
+      // Only scale the content portion (below the static toolbar padding) to avoid drift
+      const contentY  = wrapperY - CANVAS_TOP_PAD
+      const newContentY = contentY * (zoomRef.current / committedZoomRef.current)
+      pendingScrollTopRef.current = Math.max(0, newContentY + CANVAS_TOP_PAD - midInScrollY)
+    }
+
+    gestureAnchorRef.current = null
     setZoom(zoomRef.current)
-    pendingScrollTopRef.current = null
-    // useEffect on zoom cleans up the CSS transform after React re-renders with new SVG dimensions
+    // useEffect on zoom clears the CSS transform and applies pendingScrollTopRef after re-render
   }
 
   const pageH        = PAGE_HEIGHTS[orientation]    ?? 1200
