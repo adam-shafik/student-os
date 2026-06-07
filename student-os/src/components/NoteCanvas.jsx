@@ -9,8 +9,8 @@ import {
 const PAGE_HEIGHTS    = { portrait: 1200, landscape: 520 }
 const PAGE_MAX_WIDTHS = { portrait: 900,  landscape: 1200 }
 const PRESETS         = ['#111827', '#5b8cff', '#a78bfa', '#f59e0b', '#34d399', '#fb7185']
-const SIZES            = [2, 5, 10, 18]
-const HIGHLIGHTER_SIZES = [14, 22, 36, 56]
+const DEFAULT_PEN_PRESETS = [3, 5, 8]
+const DEFAULT_HL_PRESETS  = [12, 18, 28]
 const TOOLS           = [
   ['pen',         PenLine,       'Pen'],
   ['highlighter', Highlighter,   'Highlighter'],
@@ -235,7 +235,7 @@ function PageTemplate({ pageId, template, bgColor, lineSpacing }) {
 }
 
 // ─── Single page canvas ────────────────────────────────────────────────────────
-function PageCanvas({ page, pageH, maxW, pageIdx, totalPages, onStrokesChange, onTransferStrokes, penColor, penSize, tool, shapeType, opacity, smoothness, template, bgColor, lineSpacing, eraserMode, eraserRadius, readonly, onUndo, clipboard, onCopy, pageBackground }) {
+function PageCanvas({ page, pageH, maxW, pageIdx, totalPages, onStrokesChange, onTransferStrokes, penColor, penSize, tool, shapeType, opacity, smoothness, template, bgColor, lineSpacing, eraserMode, eraserRadius, readonly, onUndo, onPinch, clipboard, onCopy, pageBackground }) {
   const svgRef        = useRef()
   const livePathRef   = useRef(null)
   const liveShapeRef  = useRef(null)
@@ -396,11 +396,12 @@ function PageCanvas({ page, pageH, maxW, pageIdx, totalPages, onStrokesChange, o
         return
       }
 
-      // Fingers: only detect 2-finger tap, never draw
+      // Fingers: detect 2-finger tap (undo) and pinch-to-zoom
       if (stylusActiveRef.current) return
       if (touches.length === 2) {
         e.preventDefault()
-        t2 = { t: Date.now(), x1: touches[0].clientX, y1: touches[0].clientY, x2: touches[1].clientX, y2: touches[1].clientY }
+        const dist = Math.hypot(touches[1].clientX - touches[0].clientX, touches[1].clientY - touches[0].clientY)
+        t2 = { t: Date.now(), x1: touches[0].clientX, y1: touches[0].clientY, x2: touches[1].clientX, y2: touches[1].clientY, dist, pinching: false }
       } else {
         t2 = null
       }
@@ -408,11 +409,20 @@ function PageCanvas({ page, pageH, maxW, pageIdx, totalPages, onStrokesChange, o
 
     function onTouchMove(e) {
       if (t2 && e.touches.length === 2) {
-        const moved = Math.max(
-          Math.abs(e.touches[0].clientX - t2.x1), Math.abs(e.touches[0].clientY - t2.y1),
-          Math.abs(e.touches[1].clientX - t2.x2), Math.abs(e.touches[1].clientY - t2.y2),
-        )
-        if (moved > 30) t2 = null
+        const newDist = Math.hypot(e.touches[1].clientX - e.touches[0].clientX, e.touches[1].clientY - e.touches[0].clientY)
+        if (Math.abs(newDist - t2.dist) > 8) {
+          t2.pinching = true
+          stateRef.current.onPinch?.(newDist / t2.dist)
+          t2.dist = newDist
+          t2.x1 = e.touches[0].clientX; t2.y1 = e.touches[0].clientY
+          t2.x2 = e.touches[1].clientX; t2.y2 = e.touches[1].clientY
+        } else {
+          const moved = Math.max(
+            Math.abs(e.touches[0].clientX - t2.x1), Math.abs(e.touches[0].clientY - t2.y1),
+            Math.abs(e.touches[1].clientX - t2.x2), Math.abs(e.touches[1].clientY - t2.y2),
+          )
+          if (moved > 30) t2 = null
+        }
       }
 
       if (!stylusActiveRef.current) return
@@ -475,7 +485,7 @@ function PageCanvas({ page, pageH, maxW, pageIdx, totalPages, onStrokesChange, o
 
     function onTouchEnd(e) {
       if (t2) {
-        if (Date.now() - t2.t < 600 && e.touches.length <= 1) {
+        if (!t2.pinching && Date.now() - t2.t < 600 && e.touches.length <= 1) {
           e.preventDefault()
           stateRef.current.onUndo?.()
           t2 = null
@@ -564,7 +574,7 @@ function PageCanvas({ page, pageH, maxW, pageIdx, totalPages, onStrokesChange, o
   }
 
   stateRef.current = {
-    tool, drawColor, penSize, opacity, smoothness, shapeType, eraserMode, eraserRadius, strokes, onStrokesChange, onUndo, onCopy, clipboard,
+    tool, drawColor, penSize, opacity, smoothness, shapeType, eraserMode, eraserRadius, strokes, onStrokesChange, onUndo, onPinch, onCopy, clipboard,
     selectedIndices, selRect, isMoving, moveStart, moveOff,
     commitMove, pageIdx, totalPages, onTransferStrokes, pageH,
   }
@@ -1040,17 +1050,26 @@ const NoteCanvas = forwardRef(function NoteCanvas({
   const addingPageRef    = useRef(false)
   const undoStackRef     = useRef([])
   const toolMemoryRef    = useRef({
-    pen:         { color: '#111827', size: 5 },
-    highlighter: { color: '#f59e0b', size: 22 },
+    pen:         { color: '#111827', presetIdx: 1 },
+    highlighter: { color: '#f59e0b', presetIdx: 1 },
   })
 
-  const [penColor,     setPenColor]     = useState('#111827')
-  const [penSize,      setPenSize]      = useState(5)
-  const [tool,         setTool]         = useState('pen')
-  const [shapeType,    setShapeType]    = useState('rect')
-  const [eraserMode,   setEraserMode]   = useState('standard')
-  const [smoothness,   setSmoothness]   = useState(0.5)
-  const [customColor,  setCustomColor]  = useState('#111827')
+  function loadSetting(key, fallback) {
+    try { return JSON.parse(localStorage.getItem('notecanvas_settings') || '{}')[key] ?? fallback } catch { return fallback }
+  }
+
+  const [penColor,      setPenColor]      = useState('#111827')
+  const [penPresets,    setPenPresets]    = useState(() => loadSetting('penPresets', DEFAULT_PEN_PRESETS))
+  const [hlPresets,     setHlPresets]     = useState(() => loadSetting('hlPresets', DEFAULT_HL_PRESETS))
+  const [penPresetIdx,  setPenPresetIdx]  = useState(1)
+  const [hlPresetIdx,   setHlPresetIdx]   = useState(1)
+  const [activeSlider,  setActiveSlider]  = useState(null)
+  const [tool,          setTool]          = useState('pen')
+  const [shapeType,     setShapeType]     = useState('rect')
+  const [eraserMode,    setEraserMode]    = useState('standard')
+  const [smoothness,    setSmoothness]    = useState(() => loadSetting('smoothness', 0.5))
+  const [zoom,          setZoom]          = useState(() => loadSetting('zoom', 1))
+  const [customColor,   setCustomColor]   = useState('#111827')
   const [customBg,     setCustomBg]     = useState(bgColor)
   const [showSettings, setShowSettings] = useState(false)
   const [isFullscreen, setIsFullscreen] = useState(false)
@@ -1059,15 +1078,43 @@ const NoteCanvas = forwardRef(function NoteCanvas({
   const [clipboard,    setClipboard]    = useState(null)
   const undoToastTimer = useRef(null)
 
+  useEffect(() => {
+    try {
+      const existing = JSON.parse(localStorage.getItem('notecanvas_settings') || '{}')
+      localStorage.setItem('notecanvas_settings', JSON.stringify({ ...existing, penPresets, hlPresets, smoothness, zoom }))
+    } catch {}
+  }, [penPresets, hlPresets, smoothness, zoom])
+
+  useEffect(() => { setActiveSlider(null) }, [tool])
+
+  useEffect(() => {
+    if (activeSlider === null) return
+    function close() { setActiveSlider(null) }
+    document.addEventListener('pointerdown', close)
+    return () => document.removeEventListener('pointerdown', close)
+  }, [activeSlider])
+
+  const penSize = tool === 'highlighter' ? hlPresets[hlPresetIdx] : penPresets[penPresetIdx]
+
   function handleSetTool(t) {
     const mem = toolMemoryRef.current
-    if (tool === 'pen' || tool === 'highlighter') mem[tool] = { color: penColor, size: penSize }
-    if (t === 'pen' || t === 'highlighter') {
-      setPenColor(mem[t].color)
-      setCustomColor(mem[t].color)
-      setPenSize(mem[t].size)
+    if (tool === 'pen') mem.pen = { color: penColor, presetIdx: penPresetIdx }
+    if (tool === 'highlighter') mem.highlighter = { color: penColor, presetIdx: hlPresetIdx }
+    if (t === 'pen') {
+      setPenColor(mem.pen.color)
+      setCustomColor(mem.pen.color)
+      setPenPresetIdx(mem.pen.presetIdx ?? 1)
+    } else if (t === 'highlighter') {
+      setPenColor(mem.highlighter.color)
+      setCustomColor(mem.highlighter.color)
+      setHlPresetIdx(mem.highlighter.presetIdx ?? 1)
     }
+    setActiveSlider(null)
     setTool(t)
+  }
+
+  function handlePinch(scaleFactor) {
+    setZoom(z => Math.min(3, Math.max(0.4, z * scaleFactor)))
   }
 
   const pageH        = PAGE_HEIGHTS[orientation]    ?? 1200
@@ -1204,6 +1251,14 @@ const NoteCanvas = forwardRef(function NoteCanvas({
               <Trash2 size={12} /> Clear
             </button>
             <div style={{ flex: 1 }} />
+            {zoom !== 1 && (
+              <button onClick={() => setZoom(1)} title="Reset zoom" style={{
+                padding: '3px 8px', borderRadius: 6, border: '1px solid var(--border)',
+                background: 'none', color: 'var(--text-secondary)', cursor: 'pointer', fontSize: 11,
+              }}>
+                {Math.round(zoom * 100)}%
+              </button>
+            )}
             <button title={isFullscreen ? 'Exit fullscreen' : 'Fullscreen'} onClick={() => setIsFullscreen(v => !v)} style={tbtn(isFullscreen)}>
               {isFullscreen ? <Minimize2 size={13} /> : <Maximize2 size={13} />}
             </button>
@@ -1384,18 +1439,68 @@ const NoteCanvas = forwardRef(function NoteCanvas({
 
             {sep}
 
-            {/* Sizes */}
+            {/* Size presets */}
             <div style={{ display: 'flex', gap: 10, alignItems: 'center' }}>
-              {(tool === 'highlighter' ? HIGHLIGHTER_SIZES : SIZES).map((s, idx) => {
-                const DOT = [7, 10, 14, 19]
-                const d = DOT[idx]
+              {(tool === 'highlighter' ? hlPresets : penPresets).map((size, idx) => {
+                const isActive = (tool === 'highlighter' ? hlPresetIdx : penPresetIdx) === idx
+                const sliderOpen = isActive && activeSlider === idx
+                const dotD = 7 + idx * 3.5
+                const min = tool === 'highlighter' ? 4 : 1
+                const max = tool === 'highlighter' ? 60 : 20
                 return (
-                  <button key={s} onClick={() => setPenSize(s)} style={{
-                    width: d, height: d, borderRadius: '50%',
-                    background: penSize === s ? penColor : 'rgba(255,255,255,0.28)',
-                    border: 'none', cursor: 'pointer', padding: 0, flexShrink: 0,
-                    pointerEvents: 'auto', transition: 'background 0.12s',
-                  }} />
+                  <div key={idx} style={{ position: 'relative', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+                    <button
+                      onPointerDown={e => e.stopPropagation()}
+                      onClick={() => {
+                        if (isActive) { setActiveSlider(prev => prev === idx ? null : idx) }
+                        else {
+                          if (tool === 'highlighter') setHlPresetIdx(idx); else setPenPresetIdx(idx)
+                          setActiveSlider(null)
+                        }
+                      }}
+                      style={{
+                        width: Math.round(dotD), height: Math.round(dotD), borderRadius: '50%',
+                        background: isActive ? penColor : 'rgba(255,255,255,0.28)',
+                        boxShadow: sliderOpen ? `0 0 0 2px rgba(255,255,255,0.45)` : 'none',
+                        border: 'none', cursor: 'pointer', padding: 0, flexShrink: 0,
+                        pointerEvents: 'auto', transition: 'background 0.12s, box-shadow 0.12s',
+                      }}
+                    />
+                    {sliderOpen && (
+                      <div
+                        onPointerDown={e => e.stopPropagation()}
+                        style={{
+                          position: 'absolute', top: 'calc(100% + 12px)', left: '50%',
+                          animation: '_size-drop 0.16s cubic-bezier(0.16,1,0.3,1) forwards',
+                          zIndex: 200, display: 'flex', alignItems: 'center', gap: 8,
+                          background: 'rgba(13,14,22,0.97)', backdropFilter: 'blur(16px)',
+                          border: '1px solid rgba(255,255,255,0.1)',
+                          borderRadius: 20, padding: '7px 12px',
+                          boxShadow: '0 8px 28px rgba(0,0,0,0.65)',
+                          pointerEvents: 'auto', whiteSpace: 'nowrap',
+                        }}
+                      >
+                        <input
+                          type="range"
+                          min={min} max={max} step="0.5"
+                          value={size}
+                          onChange={e => {
+                            const v = parseFloat(e.target.value)
+                            if (tool === 'highlighter') setHlPresets(prev => prev.map((p, i) => i === idx ? v : p))
+                            else setPenPresets(prev => prev.map((p, i) => i === idx ? v : p))
+                          }}
+                          style={{ width: 72, accentColor: penColor, cursor: 'pointer', pointerEvents: 'auto' }}
+                        />
+                        <span style={{
+                          fontSize: 10, fontWeight: 700, letterSpacing: '0.2px',
+                          color: 'rgba(255,255,255,0.82)', minWidth: 26, textAlign: 'right',
+                          fontVariantNumeric: 'tabular-nums', fontFamily: 'monospace',
+                        }}>
+                          {size % 1 === 0 ? size : size.toFixed(1)}
+                        </span>
+                      </div>
+                    )}
+                  </div>
                 )
               })}
             </div>
@@ -1416,7 +1521,7 @@ const NoteCanvas = forwardRef(function NoteCanvas({
         )}
 
         {/* Undo toast */}
-        <style>{`@keyframes _undo-pop{0%{opacity:0;transform:translateX(-50%) scale(0.88)}12%{opacity:1;transform:translateX(-50%) scale(1)}80%{opacity:1}100%{opacity:0;transform:translateX(-50%) scale(0.95)}}`}</style>
+        <style>{`@keyframes _undo-pop{0%{opacity:0;transform:translateX(-50%) scale(0.88)}12%{opacity:1;transform:translateX(-50%) scale(1)}80%{opacity:1}100%{opacity:0;transform:translateX(-50%) scale(0.95)}}@keyframes _size-drop{0%{opacity:0;transform:translateX(-50%) translateY(-5px) scale(0.95)}100%{opacity:1;transform:translateX(-50%) translateY(0) scale(1)}}`}</style>
         {undoToast && (
           <div key={undoToastKey} style={{
             position: 'fixed', bottom: 52, left: '50%',
@@ -1435,7 +1540,7 @@ const NoteCanvas = forwardRef(function NoteCanvas({
 
         {/* Scroll container */}
         <div ref={scrollRef} onScroll={onScroll} style={{ height: '100%', overflowY: 'auto', overflowX: 'hidden', background: 'var(--canvas-outer, #14141e)' }}>
-          <div style={{ padding: readonly ? 24 : '72px 24px 24px', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 16 }}>
+          <div style={{ padding: readonly ? 24 : '72px 24px 24px', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 16, zoom }}>
             {pages.map((page, pageIdx) => (
               <div key={page.id} style={{ width: '100%', maxWidth: maxW, flexShrink: 0 }}>
                 <PageCanvas
@@ -1462,6 +1567,7 @@ const NoteCanvas = forwardRef(function NoteCanvas({
                   onTransferStrokes={handleTransferStrokes}
                   readonly={readonly}
                   onUndo={handleUndo}
+                  onPinch={handlePinch}
                   clipboard={clipboard}
                   onCopy={strokes => setClipboard(strokes)}
                   pageBackground={pageBackgrounds?.[pageIdx]}

@@ -173,9 +173,42 @@ function slashMenuPos(textarea, slashPos) {
 }
 
 // ─── Typed note editor ────────────────────────────────────────────────────────
-function TypedEditor({ note, onUpdate, viewMode }) {
-  const taRef = useRef()
+function TypedEditor({ note, onUpdate, viewMode, zoom = 1, onZoomChange }) {
+  const taRef        = useRef()
+  const containerRef = useRef()
   const pendingCursor = useRef(null)
+  const onZoomChangeRef = useRef(onZoomChange)
+  useEffect(() => { onZoomChangeRef.current = onZoomChange }, [onZoomChange])
+
+  useEffect(() => {
+    const el = containerRef.current
+    if (!el) return
+    let lastDist = null
+    function onTouchStart(e) {
+      lastDist = e.touches.length === 2
+        ? Math.hypot(e.touches[1].clientX - e.touches[0].clientX, e.touches[1].clientY - e.touches[0].clientY)
+        : null
+    }
+    function onTouchMove(e) {
+      if (e.touches.length !== 2 || lastDist === null) return
+      const newDist = Math.hypot(e.touches[1].clientX - e.touches[0].clientX, e.touches[1].clientY - e.touches[0].clientY)
+      if (Math.abs(newDist - lastDist) > 5) {
+        e.preventDefault()
+        onZoomChangeRef.current?.(newDist / lastDist)
+        lastDist = newDist
+      }
+    }
+    function onTouchEnd(e) { if (e.touches.length < 2) lastDist = null }
+    el.addEventListener('touchstart', onTouchStart, { passive: true })
+    el.addEventListener('touchmove', onTouchMove, { passive: false })
+    el.addEventListener('touchend', onTouchEnd, { passive: true })
+    return () => {
+      el.removeEventListener('touchstart', onTouchStart)
+      el.removeEventListener('touchmove', onTouchMove)
+      el.removeEventListener('touchend', onTouchEnd)
+    }
+  }, [])
+
   const [slash, setSlash] = useState({ open: false, query: '', slashPos: -1, selected: 0, pos: { top: 0, left: 0 } })
 
   const matches = useMemo(() => {
@@ -224,13 +257,16 @@ function TypedEditor({ note, onUpdate, viewMode }) {
     else if (e.key === 'Escape') { e.preventDefault(); setSlash(s => ({ ...s, open: false })) }
   }
 
+  const baseFontSize = 15
+  const scaledFont = Math.round(baseFontSize * zoom * 10) / 10
+
   if (viewMode === 'preview') {
     return (
-      <div style={{ height: '100%', overflowY: 'auto', background: 'var(--bg-page)' }}>
-        <div style={{ padding: '40px 80px', maxWidth: 860, boxSizing: 'border-box' }}>
+      <div ref={containerRef} style={{ height: '100%', overflowY: 'auto', background: 'var(--bg-page)' }}>
+        <div style={{ padding: '40px 80px', maxWidth: 860, boxSizing: 'border-box', fontSize: scaledFont }}>
           {note.content
             ? <ReactMarkdown remarkPlugins={[remarkGfm, remarkMath]} rehypePlugins={[rehypeKatex]} components={MD_COMPONENTS}>{note.content}</ReactMarkdown>
-            : <p style={{ color: 'var(--text-muted)', fontStyle: 'italic', fontSize: 14, margin: 0 }}>Nothing to preview yet.</p>
+            : <p style={{ color: 'var(--text-muted)', fontStyle: 'italic', fontSize: scaledFont, margin: 0 }}>Nothing to preview yet.</p>
           }
         </div>
       </div>
@@ -238,7 +274,7 @@ function TypedEditor({ note, onUpdate, viewMode }) {
   }
 
   return (
-    <div style={{ height: '100%', overflowY: 'auto', background: 'var(--bg-page)' }}>
+    <div ref={containerRef} style={{ height: '100%', overflowY: 'auto', background: 'var(--bg-page)' }}>
       <textarea
         ref={taRef}
         value={note.content || ''}
@@ -250,7 +286,7 @@ function TypedEditor({ note, onUpdate, viewMode }) {
           display: 'block', width: '100%', minHeight: '100%',
           border: 'none', outline: 'none', resize: 'none',
           background: 'transparent', color: 'var(--text-primary)',
-          fontSize: 15, lineHeight: 1.85, padding: '40px 80px',
+          fontSize: scaledFont, lineHeight: 1.85, padding: '40px 80px',
           fontFamily: 'system-ui, -apple-system, "Segoe UI", sans-serif',
           boxSizing: 'border-box',
         }}
@@ -573,6 +609,7 @@ export default function NotesPage({ notes, domains, noteToOpen, onClearNoteToOpe
   const [sharing,          setSharing]          = useState(false)
   const [typedViewMode,    setTypedViewMode]    = useState('edit')
   const [typedFullscreen,  setTypedFullscreen]  = useState(false)
+  const [typedZoom,        setTypedZoom]        = useState(() => { try { return JSON.parse(localStorage.getItem('notecanvas_settings') || '{}').typedZoom ?? 1 } catch { return 1 } })
   const pdfInputRef        = useRef()
   const pendingPdfMeta     = useRef({})
   const autoSaveTimerRef   = useRef(null)
@@ -667,6 +704,13 @@ export default function NotesPage({ notes, domains, noteToOpen, onClearNoteToOpe
       openNoteBaseline.current = null
     }
   }, [openNoteId]) // eslint-disable-line react-hooks/exhaustive-deps
+
+  useEffect(() => {
+    try {
+      const existing = JSON.parse(localStorage.getItem('notecanvas_settings') || '{}')
+      localStorage.setItem('notecanvas_settings', JSON.stringify({ ...existing, typedZoom }))
+    } catch {}
+  }, [typedZoom])
 
   // Escape to exit fullscreen
   useEffect(() => {
@@ -991,6 +1035,14 @@ export default function NotesPage({ notes, domains, noteToOpen, onClearNoteToOpe
                 }}>
                   {saveState === 'saving' ? 'Saving…' : saveState === 'saved' ? <><Check size={11} style={{ verticalAlign: 'middle', marginRight: 3 }} />Saved</> : saveState === 'error' ? 'Save failed' : ''}
                 </span>
+                {openNote?.type === 'typed' && typedZoom !== 1 && (
+                  <button onClick={() => setTypedZoom(1)} title="Reset zoom" style={{
+                    padding: '5px 8px', borderRadius: 7, border: '1px solid var(--border)',
+                    background: 'none', color: 'var(--text-secondary)', cursor: 'pointer', fontSize: 11,
+                  }}>
+                    {Math.round(typedZoom * 100)}%
+                  </button>
+                )}
                 {openNote?.type === 'typed' && (
                   <button
                     onClick={() => setTypedFullscreen(v => !v)}
@@ -1062,6 +1114,8 @@ export default function NotesPage({ notes, domains, noteToOpen, onClearNoteToOpe
                   note={openNote}
                   onUpdate={updates => onUpdateNote(openNote.id, updates)}
                   viewMode={typedViewMode}
+                  zoom={typedZoom}
+                  onZoomChange={sf => setTypedZoom(z => Math.min(3, Math.max(0.5, z * sf)))}
                 />
               ) : (
                 <NoteCanvas
