@@ -194,7 +194,7 @@ function snapShapeCoords(type, x1, y1, x2, y2) {
     if (len < 4) return [x2, y2]
     const angleDeg = Math.atan2(dy, dx) * 180 / Math.PI
     const nearest  = Math.round(angleDeg / 45) * 45
-    if (Math.abs(angleDeg - nearest) < 13) {
+    if (Math.abs(angleDeg - nearest) < 8) {
       const rad = nearest * Math.PI / 180
       return [x1 + Math.cos(rad) * len, y1 + Math.sin(rad) * len]
     }
@@ -203,7 +203,7 @@ function snapShapeCoords(type, x1, y1, x2, y2) {
     const w = Math.abs(dx), h = Math.abs(dy)
     if (w > 0 && h > 0) {
       const ratio = w / h
-      if (ratio > 0.82 && ratio < 1.22) {
+      if (ratio > 0.92 && ratio < 1.09) {
         const size = Math.max(w, h)
         return [x1 + Math.sign(dx) * size, y1 + Math.sign(dy) * size]
       }
@@ -213,7 +213,7 @@ function snapShapeCoords(type, x1, y1, x2, y2) {
 }
 
 function detectShape(points) {
-  if (points.length < 8) return null
+  if (points.length < 12) return null
   const first = points[0], last = points[points.length - 1]
   let minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity
   for (const [x, y] of points) {
@@ -222,12 +222,11 @@ function detectShape(points) {
   }
   const w = maxX - minX, h = maxY - minY
   const diagonal = Math.hypot(w, h)
-  if (diagonal < 20) return null
+  if (diagonal < 30) return null
   const gap = Math.hypot(last[0] - first[0], last[1] - first[1])
-  const isClosed = gap / diagonal < 0.35
+  const isClosed = gap / diagonal < 0.25
 
-  if (isClosed && w >= 20 && h >= 20) {
-    // Try ellipse: points should roughly satisfy the ellipse equation
+  if (isClosed && w >= 30 && h >= 30) {
     const cx = (minX + maxX) / 2, cy = (minY + maxY) / 2
     const a = w / 2, b = h / 2
     let ellipseErr = 0
@@ -235,31 +234,29 @@ function detectShape(points) {
       const nx = (x - cx) / a, ny = (y - cy) / b
       ellipseErr += Math.abs(Math.sqrt(nx * nx + ny * ny) - 1)
     }
-    if (ellipseErr / points.length < 0.25)
+    if (ellipseErr / points.length < 0.15)
       return { shape: 'ellipse', x1: minX, y1: minY, x2: maxX, y2: maxY }
 
-    // Try rectangle: points should hug the bounding box edges
     let rectErr = 0
     for (const [x, y] of points) {
       const dL = Math.abs(x - minX), dR = Math.abs(x - maxX)
       const dT = Math.abs(y - minY), dB = Math.abs(y - maxY)
       rectErr += Math.min(dL, dR, dT, dB)
     }
-    if (rectErr / points.length / Math.min(w, h) < 0.15)
+    if (rectErr / points.length / Math.min(w, h) < 0.10)
       return { shape: 'rect', x1: minX, y1: minY, x2: maxX, y2: maxY }
   }
 
   if (!isClosed) {
-    // Try line: points should be roughly collinear with start→end vector
     const dx = last[0] - first[0], dy = last[1] - first[1]
     const len = Math.hypot(dx, dy)
-    if (len >= 30) {
+    if (len >= 50) {
       let lineErr = 0
       for (const [x, y] of points) {
         const t = ((x - first[0]) * dx + (y - first[1]) * dy) / (len * len)
         lineErr += Math.hypot(x - (first[0] + t * dx), y - (first[1] + t * dy))
       }
-      if (lineErr / points.length / len < 0.08) {
+      if (lineErr / points.length / len < 0.05) {
         const [sx2, sy2] = snapShapeCoords('line', first[0], first[1], last[0], last[1])
         return { shape: 'line', x1: first[0], y1: first[1], x2: sx2, y2: sy2 }
       }
@@ -329,6 +326,10 @@ function PageCanvas({ page, pageH, maxW, pageIdx, totalPages, onStrokesChange, o
   const shapeModeRef  = useRef(false)
   const shapeStartRef = useRef(null)
   const shapeRAFRef   = useRef(null)
+  const penHoldTimerRef  = useRef(null)
+  const penSnapRef       = useRef(null)
+  const penStillPtRef    = useRef(null)
+  const penLiveShapeRef  = useRef(null)
   const lastPtRef     = useRef(null)
   const isErasingRef  = useRef(false)
   const erasingRef    = useRef(null)
@@ -422,12 +423,13 @@ function PageCanvas({ page, pageH, maxW, pageIdx, totalPages, onStrokesChange, o
         if (drawRAFRef.current) { cancelAnimationFrame(drawRAFRef.current); drawRAFRef.current = null }
         livePathRef.current?.remove(); livePathRef.current = null
         const s = activeStroke.current; activeStroke.current = null
+        clearTimeout(penHoldTimerRef.current); penHoldTimerRef.current = null
+        penStillPtRef.current = null
+        const snap = penSnapRef.current; penSnapRef.current = null
+        penLiveShapeRef.current?.remove(); penLiveShapeRef.current = null
         if (s.points.length >= 1) {
           const points = s.points.length === 1 ? [s.points[0], s.points[0]] : s.points
-          if (tool === 'pen') {
-            const detected = detectShape(points)
-            if (detected) { onStrokesChange([...strokes, { ...detected, color: s.color, size: s.size, opacity: s.opacity }]); return }
-          }
+          if (snap) { onStrokesChange([...strokes, { ...snap, color: s.color, size: s.size, opacity: s.opacity }]); return }
           onStrokesChange([...strokes, { ...s, points }])
         }
       }
@@ -581,6 +583,37 @@ function PageCanvas({ page, pageH, maxW, pageIdx, totalPages, onStrokesChange, o
             }
             drawRAFRef.current = null
           })
+        }
+        // Hold-to-snap: reset timer on significant movement
+        const still = penStillPtRef.current
+        if (!still || Math.hypot(pt[0] - still[0], pt[1] - still[1]) > 10) {
+          penStillPtRef.current = pt
+          clearTimeout(penHoldTimerRef.current); penHoldTimerRef.current = null
+          if (penSnapRef.current) {
+            penSnapRef.current = null
+            penLiveShapeRef.current?.remove(); penLiveShapeRef.current = null
+            if (livePathRef.current) livePathRef.current.style.display = ''
+          }
+          penHoldTimerRef.current = setTimeout(() => {
+            penHoldTimerRef.current = null
+            const s = activeStroke.current
+            if (!s || !svgRef.current) return
+            const pts = s.points.length === 1 ? [s.points[0], s.points[0]] : s.points
+            const detected = detectShape(pts)
+            if (!detected) return
+            penSnapRef.current = detected
+            if (livePathRef.current) livePathRef.current.style.display = 'none'
+            const tagMap = { rect: 'rect', ellipse: 'ellipse', line: 'line' }
+            const tag = tagMap[detected.shape]; if (!tag) return
+            const el = document.createElementNS('http://www.w3.org/2000/svg', tag)
+            el.setAttribute('stroke', s.color); el.setAttribute('stroke-width', s.size)
+            el.setAttribute('fill', 'none'); el.setAttribute('opacity', s.opacity)
+            el.setAttribute('stroke-linecap', 'round'); el.setAttribute('stroke-linejoin', 'round')
+            if (detected.shape === 'rect') el.setAttribute('rx', '3')
+            setLiveShapeAttrs(el, detected.shape, detected.x1, detected.y1, detected.x2, detected.y2)
+            svgRef.current.appendChild(el)
+            penLiveShapeRef.current = el
+          }, 1500)
         }
       }
     }
@@ -869,6 +902,38 @@ function PageCanvas({ page, pageH, maxW, pageIdx, totalPages, onStrokesChange, o
           drawRAFRef.current = null
         })
       }
+      // Hold-to-snap: reset timer on significant movement
+      const still = penStillPtRef.current
+      if (!still || Math.hypot(pt[0] - still[0], pt[1] - still[1]) > 10) {
+        penStillPtRef.current = pt
+        clearTimeout(penHoldTimerRef.current); penHoldTimerRef.current = null
+        if (penSnapRef.current) {
+          penSnapRef.current = null
+          penLiveShapeRef.current?.remove(); penLiveShapeRef.current = null
+          if (livePathRef.current) livePathRef.current.style.display = ''
+        }
+        penHoldTimerRef.current = setTimeout(() => {
+          penHoldTimerRef.current = null
+          const s = activeStroke.current
+          if (!s || !svgRef.current) return
+          const pts = s.points.length === 1 ? [s.points[0], s.points[0]] : s.points
+          const detected = detectShape(pts)
+          if (!detected) return
+          penSnapRef.current = detected
+          if (livePathRef.current) livePathRef.current.style.display = 'none'
+          const tagMap = { rect: 'rect', ellipse: 'ellipse', line: 'line' }
+          const tag = tagMap[detected.shape]; if (!tag) return
+          const el = document.createElementNS('http://www.w3.org/2000/svg', tag)
+          el.setAttribute('stroke', activeStroke.current?.color ?? drawColor)
+          el.setAttribute('stroke-width', activeStroke.current?.size ?? penSize)
+          el.setAttribute('fill', 'none'); el.setAttribute('opacity', activeStroke.current?.opacity ?? opacity)
+          el.setAttribute('stroke-linecap', 'round'); el.setAttribute('stroke-linejoin', 'round')
+          if (detected.shape === 'rect') el.setAttribute('rx', '3')
+          setLiveShapeAttrs(el, detected.shape, detected.x1, detected.y1, detected.x2, detected.y2)
+          svgRef.current.appendChild(el)
+          penLiveShapeRef.current = el
+        }, 1500)
+      }
     }
   }
 
@@ -918,12 +983,13 @@ function PageCanvas({ page, pageH, maxW, pageIdx, totalPages, onStrokesChange, o
       if (drawRAFRef.current) { cancelAnimationFrame(drawRAFRef.current); drawRAFRef.current = null }
       livePathRef.current?.remove(); livePathRef.current = null
       const s = activeStroke.current; activeStroke.current = null
+      clearTimeout(penHoldTimerRef.current); penHoldTimerRef.current = null
+      penStillPtRef.current = null
+      const snap = penSnapRef.current; penSnapRef.current = null
+      penLiveShapeRef.current?.remove(); penLiveShapeRef.current = null
       if (s.points.length >= 1) {
         const points = s.points.length === 1 ? [s.points[0], s.points[0]] : s.points
-        if (tool === 'pen') {
-          const detected = detectShape(points)
-          if (detected) { onStrokesChange([...strokes, { ...detected, color: s.color, size: s.size, opacity: s.opacity }]); return }
-        }
+        if (snap) { onStrokesChange([...strokes, { ...snap, color: s.color, size: s.size, opacity: s.opacity }]); return }
         onStrokesChange([...strokes, { ...s, points }])
       }
     }
@@ -935,6 +1001,9 @@ function PageCanvas({ page, pageH, maxW, pageIdx, totalPages, onStrokesChange, o
     if (eraserRAFRef.current) { cancelAnimationFrame(eraserRAFRef.current); eraserRAFRef.current = null }
     if (drawRAFRef.current) { cancelAnimationFrame(drawRAFRef.current); drawRAFRef.current = null }
     clearTimeout(holdTimer.current)
+    clearTimeout(penHoldTimerRef.current); penHoldTimerRef.current = null
+    penStillPtRef.current = null; penSnapRef.current = null
+    penLiveShapeRef.current?.remove(); penLiveShapeRef.current = null
     clearLiveShape()
     shapeModeRef.current = false; shapeStartRef.current = null; setShapeHeld(false)
     if (activeStroke.current) {
