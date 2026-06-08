@@ -2,7 +2,7 @@ import { useRef, useState, useEffect, useLayoutEffect, forwardRef, useImperative
 import { motion, MotionConfig } from 'framer-motion'
 import { getStroke } from 'perfect-freehand'
 import {
-  Undo2, Trash2, PenLine, Highlighter, Shapes, MousePointer2, Eraser,
+  Undo2, Redo2, Trash2, PenLine, Highlighter, Shapes, MousePointer2, Eraser,
   Square, Circle, Minus, Triangle, SlidersHorizontal, Plus, Maximize2, Minimize2,
 } from 'lucide-react'
 
@@ -317,7 +317,7 @@ function PageTemplate({ pageId, template, bgColor, lineSpacing }) {
 }
 
 // ─── Single page canvas ────────────────────────────────────────────────────────
-function PageCanvas({ page, pageH, maxW, pageIdx, totalPages, onStrokesChange, onTransferStrokes, penColor, penSize, tool, shapeType, opacity, smoothness, template, bgColor, lineSpacing, eraserMode, eraserRadius, readonly, onUndo, onPinch, onPinchEnd, zoom = 1, clipboard, onCopy, pageBackground }) {
+function PageCanvas({ page, pageH, maxW, pageIdx, totalPages, onStrokesChange, onTransferStrokes, penColor, penSize, tool, shapeType, opacity, smoothness, template, bgColor, lineSpacing, eraserMode, eraserRadius, readonly, onUndo, onRedo, onPinch, onPinchEnd, zoom = 1, clipboard, onCopy, pageBackground }) {
   const svgRef        = useRef()
   const livePathRef   = useRef(null)
   const liveShapeRef  = useRef(null)
@@ -375,7 +375,8 @@ function PageCanvas({ page, pageH, maxW, pageIdx, totalPages, onStrokesChange, o
     const svg = svgRef.current
     if (!svg) return
 
-    let t2 = null       // 2-finger tap: { t, x1, y1, x2, y2 }
+    let t2 = null       // 2-finger tap/pinch tracker
+    let t3 = null       // 3-finger tap tracker: { t, moved }
     let stylusId = null // active Apple Pencil touch identifier
 
     function svgPt(touch) {
@@ -497,16 +498,29 @@ function PageCanvas({ page, pageH, maxW, pageIdx, totalPages, onStrokesChange, o
 
       // Fingers: detect 2-finger tap (undo) and pinch-to-zoom
       if (stylusActiveRef.current) return
-      if (touches.length === 2) {
+      if (touches.length === 3) {
+        e.preventDefault()
+        t3 = { t: Date.now(), moved: false, x1: touches[0].clientX, y1: touches[0].clientY, x2: touches[1].clientX, y2: touches[1].clientY, x3: touches[2].clientX, y3: touches[2].clientY }
+        t2 = null
+      } else if (touches.length === 2) {
         e.preventDefault()
         const dist = Math.hypot(touches[1].clientX - touches[0].clientX, touches[1].clientY - touches[0].clientY)
         t2 = { t: Date.now(), x1: touches[0].clientX, y1: touches[0].clientY, x2: touches[1].clientX, y2: touches[1].clientY, dist, pinching: false }
+        t3 = null
       } else {
-        t2 = null
+        t2 = null; t3 = null
       }
     }
 
     function onTouchMove(e) {
+      if (t3 && e.touches.length === 3) {
+        const moved = Math.max(
+          Math.abs(e.touches[0].clientX - t3.x1), Math.abs(e.touches[0].clientY - t3.y1),
+          Math.abs(e.touches[1].clientX - t3.x2), Math.abs(e.touches[1].clientY - t3.y2),
+          Math.abs(e.touches[2].clientX - t3.x3), Math.abs(e.touches[2].clientY - t3.y3),
+        )
+        if (moved > 20) t3 = null
+      }
       if (t2 && e.touches.length === 2) {
         const newDist = Math.hypot(e.touches[1].clientX - e.touches[0].clientX, e.touches[1].clientY - e.touches[0].clientY)
         if (Math.abs(newDist - t2.dist) > 1) {
@@ -642,6 +656,12 @@ function PageCanvas({ page, pageH, maxW, pageIdx, totalPages, onStrokesChange, o
     }
 
     function onTouchEnd(e) {
+      if (t3 && Date.now() - t3.t < 600 && e.touches.length <= 2) {
+        e.preventDefault()
+        stateRef.current.onRedo?.()
+        t3 = null; t2 = null
+        return
+      }
       if (t2) {
         if (!t2.pinching && Date.now() - t2.t < 600 && e.touches.length <= 1) {
           e.preventDefault()
@@ -737,7 +757,7 @@ function PageCanvas({ page, pageH, maxW, pageIdx, totalPages, onStrokesChange, o
   }
 
   stateRef.current = {
-    tool, drawColor, penSize, opacity, smoothness, shapeType, eraserMode, eraserRadius, strokes, onStrokesChange, onUndo, onPinch, onPinchEnd, onCopy, clipboard,
+    tool, drawColor, penSize, opacity, smoothness, shapeType, eraserMode, eraserRadius, strokes, onStrokesChange, onUndo, onRedo, onPinch, onPinchEnd, onCopy, clipboard,
     selectedIndices, selRect, isMoving, moveStart, moveOff,
     commitMove, pageIdx, totalPages, onTransferStrokes, pageH,
   }
@@ -1275,6 +1295,7 @@ const NoteCanvas = forwardRef(function NoteCanvas({
   const scrollRef        = useRef()
   const addingPageRef    = useRef(false)
   const undoStackRef     = useRef([])
+  const redoStackRef     = useRef([])
   const toolMemoryRef    = useRef({
     pen:         { color: '#111827', presetIdx: 1 },
     highlighter: { color: '#f59e0b', presetIdx: 1 },
@@ -1304,6 +1325,8 @@ const NoteCanvas = forwardRef(function NoteCanvas({
   const [isFullscreen, setIsFullscreen] = useState(false)
   const [undoToast,    setUndoToast]    = useState(false)
   const [undoToastKey, setUndoToastKey] = useState(0)
+  const [redoToast,    setRedoToast]    = useState(false)
+  const [redoToastKey, setRedoToastKey] = useState(0)
   const [clipboard,    setClipboard]    = useState(null)
   const toolbarRef          = useRef(null)
   const toolBtnRefs         = useRef({})
@@ -1319,6 +1342,7 @@ const NoteCanvas = forwardRef(function NoteCanvas({
   }, [tool])
 
   const undoToastTimer      = useRef(null)
+  const redoToastTimer      = useRef(null)
   const zoomRef             = useRef(zoom)
   const zoomRafRef          = useRef(null)
   const pendingScrollTopRef  = useRef(null)
@@ -1477,6 +1501,8 @@ const NoteCanvas = forwardRef(function NoteCanvas({
     if (undoStackRef.current.length === 0) return
     const entry = undoStackRef.current.pop()
     const snaps = Array.isArray(entry) ? entry : [entry]
+    // Save current state to redo stack before restoring
+    redoStackRef.current.push(snaps.map(s => ({ pageIdx: s.pageIdx, strokes: pages[s.pageIdx]?.strokes ?? [] })))
     onPagesChange(pages.map((p, i) => {
       const snap = snaps.find(s => s.pageIdx === i)
       return snap ? { ...p, strokes: snap.strokes } : p
@@ -1485,6 +1511,21 @@ const NoteCanvas = forwardRef(function NoteCanvas({
     setUndoToastKey(k => k + 1)
     clearTimeout(undoToastTimer.current)
     undoToastTimer.current = setTimeout(() => setUndoToast(false), 1400)
+  }
+
+  function handleRedo() {
+    if (redoStackRef.current.length === 0) return
+    const entry = redoStackRef.current.pop()
+    const snaps = Array.isArray(entry) ? entry : [entry]
+    undoStackRef.current.push(snaps.map(s => ({ pageIdx: s.pageIdx, strokes: pages[s.pageIdx]?.strokes ?? [] })))
+    onPagesChange(pages.map((p, i) => {
+      const snap = snaps.find(s => s.pageIdx === i)
+      return snap ? { ...p, strokes: snap.strokes } : p
+    }))
+    setRedoToast(true)
+    setRedoToastKey(k => k + 1)
+    clearTimeout(redoToastTimer.current)
+    redoToastTimer.current = setTimeout(() => setRedoToast(false), 1400)
   }
 
   function handleTransferStrokes(fromPageIdx, fromRemaining, toPageIdx, transferred) {
@@ -1562,6 +1603,14 @@ const NoteCanvas = forwardRef(function NoteCanvas({
               cursor: undoStackRef.current.length === 0 ? 'not-allowed' : 'pointer', fontSize: 12,
             }}>
               <Undo2 size={12} /> Undo
+            </button>
+            <button onClick={handleRedo} style={{
+              display: 'flex', alignItems: 'center', gap: 5, padding: '5px 11px',
+              borderRadius: 7, border: '1px solid var(--border)', background: 'none',
+              color: redoStackRef.current.length === 0 ? 'var(--text-muted)' : 'var(--text-secondary)',
+              cursor: redoStackRef.current.length === 0 ? 'not-allowed' : 'pointer', fontSize: 12,
+            }}>
+              <Redo2 size={12} /> Redo
             </button>
             <button onClick={() => totalStrokes > 0 && onPagesChange(pages.map(p => ({ ...p, strokes: [] })))} style={{
               display: 'flex', alignItems: 'center', gap: 5, padding: '5px 11px',
@@ -1961,6 +2010,21 @@ const NoteCanvas = forwardRef(function NoteCanvas({
             <Undo2 size={13} style={{ opacity: 0.7 }} /> Undo
           </div>
         )}
+        {redoToast && (
+          <div key={`redo-${redoToastKey}`} style={{
+            position: 'fixed', bottom: 52, left: '50%',
+            animation: '_undo-pop 1.4s ease forwards',
+            zIndex: 9999, pointerEvents: 'none',
+            background: 'rgba(20,21,32,0.95)', backdropFilter: 'blur(12px)',
+            border: '1px solid rgba(255,255,255,0.12)',
+            borderRadius: 20, padding: '8px 20px',
+            display: 'flex', alignItems: 'center', gap: 7,
+            fontSize: 13, color: 'rgba(255,255,255,0.82)',
+            boxShadow: '0 4px 24px rgba(0,0,0,0.6)',
+          }}>
+            <Redo2 size={13} style={{ opacity: 0.7 }} /> Redo
+          </div>
+        )}
 
         {/* Scroll container */}
         <div ref={scrollRef} onScroll={onScroll} style={{ height: '100%', overflowY: 'auto', overflowX: 'auto', background: 'var(--canvas-outer, #14141e)' }}>
@@ -1977,6 +2041,7 @@ const NoteCanvas = forwardRef(function NoteCanvas({
                   maxW={maxW}
                   onStrokesChange={newStrokes => {
                     undoStackRef.current.push({ pageIdx, strokes: pages[pageIdx].strokes })
+                    redoStackRef.current = []
                     onPagesChange(pages.map((p, i) => i === pageIdx ? { ...p, strokes: newStrokes } : p))
                   }}
                   penColor={penColor}
@@ -1995,6 +2060,7 @@ const NoteCanvas = forwardRef(function NoteCanvas({
                   onTransferStrokes={handleTransferStrokes}
                   readonly={readonly}
                   onUndo={handleUndo}
+                  onRedo={handleRedo}
                   onPinch={handlePinch}
                   onPinchEnd={handlePinchEnd}
                   zoom={zoom}
