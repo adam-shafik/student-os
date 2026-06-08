@@ -322,7 +322,8 @@ function PageCanvas({ page, pageH, maxW, pageIdx, totalPages, onStrokesChange, o
   const livePathRef   = useRef(null)
   const liveShapeRef  = useRef(null)
   const activeStroke  = useRef(null)
-  const holdTimer     = useRef(null)
+  const holdTimer          = useRef(null)
+  const pasteHoldStartRef  = useRef(null)
   const shapeModeRef  = useRef(false)
   const shapeStartRef = useRef(null)
   const shapeRAFRef   = useRef(null)
@@ -478,7 +479,12 @@ function PageCanvas({ page, pageH, maxW, pageIdx, totalPages, onStrokesChange, o
           }
           setSelectedIndices(new Set()); setSelRect({ x1: pt[0], y1: pt[1], x2: pt[0], y2: pt[1] }); setIsMoving(false)
           if (stateRef.current.clipboard?.length > 0) {
-            holdTimer.current = setTimeout(() => setPasteMenu({ x: pt[0], y: pt[1] }), 600)
+            pasteHoldStartRef.current = pt
+            holdTimer.current = setTimeout(() => {
+              const cur = lastPtRef.current
+              if (cur && Math.hypot(cur[0] - pt[0], cur[1] - pt[1]) < 12) setPasteMenu({ x: pt[0], y: pt[1] })
+              pasteHoldStartRef.current = null
+            }, 1200)
           }
         } else {
           activeStroke.current = { points: [pt], color: drawColor, size: penSize, opacity, smoothing: stateRef.current.smoothness }
@@ -568,7 +574,7 @@ function PageCanvas({ page, pageH, maxW, pageIdx, totalPages, onStrokesChange, o
           setLiveShapeAttrs(liveShapeRef.current.el, type, x1, y1, sx2, sy2)
         }
       } else if (tool === 'select') {
-        clearTimeout(holdTimer.current); holdTimer.current = null
+        clearTimeout(holdTimer.current); holdTimer.current = null; pasteHoldStartRef.current = null
         const { isMoving: im, moveStart: ms, selRect: sr } = stateRef.current
         if (im && ms) setMoveOff({ dx: pt[0] - ms.x, dy: pt[1] - ms.y })
         else if (sr) setSelRect(prev => ({ ...prev, x2: pt[0], y2: pt[1] }))
@@ -867,7 +873,12 @@ function PageCanvas({ page, pageH, maxW, pageIdx, totalPages, onStrokesChange, o
       setSelRect({ x1: pt[0], y1: pt[1], x2: pt[0], y2: pt[1] })
       setIsMoving(false)
       if (clipboard?.length > 0) {
-        holdTimer.current = setTimeout(() => setPasteMenu({ x: pt[0], y: pt[1] }), 600)
+        pasteHoldStartRef.current = pt
+        holdTimer.current = setTimeout(() => {
+          const cur = lastPtRef.current
+          if (cur && Math.hypot(cur[0] - pt[0], cur[1] - pt[1]) < 12) setPasteMenu({ x: pt[0], y: pt[1] })
+          pasteHoldStartRef.current = null
+        }, 1200)
       }
       return
     }
@@ -898,7 +909,7 @@ function PageCanvas({ page, pageH, maxW, pageIdx, totalPages, onStrokesChange, o
     }
 
     if (tool === 'select') {
-      clearTimeout(holdTimer.current); holdTimer.current = null
+      clearTimeout(holdTimer.current); holdTimer.current = null; pasteHoldStartRef.current = null
       if (isMoving && moveStart) setMoveOff({ dx: pt[0] - moveStart.x, dy: pt[1] - moveStart.y })
       else if (selRect) setSelRect(prev => ({ ...prev, x2: pt[0], y2: pt[1] }))
       return
