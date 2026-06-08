@@ -1,8 +1,8 @@
-import { useState } from 'react'
+import { useState, useEffect, useRef } from 'react'
 import AppSelect, { AppSelectItem } from '../components/AppSelect'
 import {
   Play, Pause, SkipForward, Square, Volume2, VolumeX,
-  Eye, EyeOff, BookOpen, Timer, X, ChevronRight, Pencil, Check, Brain, Trash2,
+  Eye, EyeOff, BookOpen, Timer, X, ChevronRight, Check, Trash2,
 } from 'lucide-react'
 
 // ─── Audio ─────────────────────────────────────────────────────────────────────
@@ -94,11 +94,19 @@ function RoundDots({ total, completed, currentRound, phase }) {
 
 // ─── Active timer (full tab) ──────────────────────────────────────────────────
 function ActiveTimerView({ session, domain, onPauseResume, onSkipPhase, onEndSession, soundEnabled, onToggleSound, onOpenNote }) {
-  const { phase, currentRound, totalRounds, roundsCompleted, secondsLeft, isRunning, topic, academicWeek, noteId } = session
+  const { phase, currentRound, totalRounds, roundsCompleted, secondsLeft, isRunning, topic, academicWeek, noteId, pomodoroWork, pomodoroBreak } = session
   const isDone     = phase === 'done'
   const color      = domain?.color ?? '#5b8cff'
   const phaseColor = isDone ? '#34d399' : phase === 'work' ? color : '#fbbf24'
   const phaseLabel = isDone ? 'Complete' : phase === 'work' ? 'Work' : 'Break'
+
+  const RING_R = 124
+  const RING_SIZE = (RING_R + 36) * 2
+  const CIRCUMFERENCE = 2 * Math.PI * RING_R
+  const totalSec = phase === 'work' ? pomodoroWork * 60 : phase === 'break' ? pomodoroBreak * 60 : 1
+  const ringPct = isDone ? 0 : Math.max(0, (totalSec - secondsLeft) / totalSec)
+  const ringOffset = CIRCUMFERENCE * ringPct
+  const [confirmingEnd, setConfirmingEnd] = useState(false)
 
   return (
     <div style={{
@@ -130,19 +138,53 @@ function ActiveTimerView({ session, domain, onPauseResume, onSkipPhase, onEndSes
         )}
       </div>
 
-      {/* Phase label + timer */}
-      <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 10 }}>
+      {/* Ring + timer */}
+      <div style={{ position: 'relative', width: RING_SIZE, height: RING_SIZE, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+        {/* Ambient phase glow */}
         <div style={{
-          fontSize: 11, fontWeight: 800, letterSpacing: '3px', textTransform: 'uppercase',
-          color: phaseColor,
-        }}>
-          {phaseLabel}
-        </div>
-        <div style={{
-          fontSize: 90, fontWeight: 200, letterSpacing: '-3px', lineHeight: 1,
-          color: 'var(--text-primary)', fontVariantNumeric: 'tabular-nums', fontFamily: 'monospace',
-        }}>
-          {isDone ? '✓' : fmt(secondsLeft)}
+          position: 'absolute',
+          width: RING_SIZE + 100, height: RING_SIZE + 100,
+          left: -50, top: -50,
+          background: `radial-gradient(circle, ${phaseColor}16 0%, transparent 60%)`,
+          borderRadius: '50%',
+          pointerEvents: 'none',
+          transition: 'background 0.7s ease',
+        }} />
+        <svg
+          style={{
+            position: 'absolute', inset: 0,
+            animation: isRunning && !isDone ? 'ringBreath 4s ease-in-out infinite' : 'none',
+          }}
+          width={RING_SIZE} height={RING_SIZE} viewBox={`0 0 ${RING_SIZE} ${RING_SIZE}`}
+        >
+          <circle cx={RING_SIZE / 2} cy={RING_SIZE / 2} r={RING_R} fill="none" stroke={phaseColor + '18'} strokeWidth={3} />
+          <circle
+            cx={RING_SIZE / 2} cy={RING_SIZE / 2} r={RING_R}
+            fill="none" stroke={phaseColor} strokeWidth={3} strokeLinecap="round"
+            strokeDasharray={CIRCUMFERENCE} strokeDashoffset={ringOffset}
+            transform={`rotate(-90 ${RING_SIZE / 2} ${RING_SIZE / 2})`}
+            style={{
+              transition: 'stroke-dashoffset 1s linear, stroke 0.6s ease',
+              filter: `drop-shadow(0 0 10px ${phaseColor}99)`,
+            }}
+          />
+        </svg>
+        <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 8, position: 'relative' }}>
+          <div style={{
+            fontSize: 11, fontWeight: 900, letterSpacing: '3px', textTransform: 'uppercase',
+            color: phaseColor, transition: 'color 0.5s ease',
+          }}>
+            {phaseLabel}
+          </div>
+          <div style={{
+            fontSize: 82, fontWeight: 300, letterSpacing: '-4px', lineHeight: 1,
+            color: 'var(--text-primary)', fontVariantNumeric: 'tabular-nums',
+            fontFamily: "'JetBrains Mono', monospace",
+          }}>
+            {isDone
+              ? <Check size={62} strokeWidth={1.0} style={{ animation: 'checkIn 0.45s cubic-bezier(0.34,1.56,0.64,1) both', color: '#34d399' }} />
+              : fmt(secondsLeft)}
+          </div>
         </div>
       </div>
 
@@ -165,15 +207,17 @@ function ActiveTimerView({ session, domain, onPauseResume, onSkipPhase, onEndSes
       <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
         {!isDone && (
           <>
-            <button onClick={onPauseResume} style={{
+            <button onClick={onPauseResume} aria-label={isRunning ? 'Pause session' : 'Resume session'} style={{
               display: 'flex', alignItems: 'center', justifyContent: 'center',
-              width: 54, height: 54, borderRadius: '50%',
-              background: color + '22', border: `1.5px solid ${color}55`,
+              width: 64, height: 64, borderRadius: '50%',
+              background: color + '20', border: `2px solid ${color}66`,
               cursor: 'pointer', color,
+              boxShadow: isRunning ? `0 0 24px ${color}44` : 'none',
+              transition: 'box-shadow 0.4s ease',
             }}>
               {isRunning ? <Pause size={21} /> : <Play size={21} />}
             </button>
-            <button onClick={onSkipPhase} title="Skip phase" style={{
+            <button onClick={onSkipPhase} title="Skip phase" aria-label="Skip phase" style={{
               display: 'flex', alignItems: 'center', justifyContent: 'center',
               width: 38, height: 38, borderRadius: '50%',
               background: 'none', border: '1px solid var(--border)',
@@ -183,15 +227,33 @@ function ActiveTimerView({ session, domain, onPauseResume, onSkipPhase, onEndSes
             </button>
           </>
         )}
-        <button onClick={onEndSession} style={{
-          display: 'flex', alignItems: 'center', gap: 7, padding: '9px 18px', borderRadius: 9,
-          background: isDone ? '#34d39922' : 'none',
-          border: isDone ? '1px solid #34d39966' : '1px solid var(--border)',
-          cursor: 'pointer', color: isDone ? '#34d399' : 'var(--text-muted)', fontSize: 13,
-        }}>
-          {isDone ? <Check size={14} /> : <Square size={14} />}
-          {isDone ? 'Save & Exit' : 'End Session'}
-        </button>
+        {confirmingEnd ? (
+          <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+            <span style={{ fontSize: 12, color: 'var(--text-muted)' }}>End session?</span>
+            <button onClick={onEndSession} style={{
+              padding: '6px 14px', borderRadius: 6, border: '1px solid rgba(251,113,133,0.4)',
+              background: 'rgba(251,113,133,0.12)', color: '#fb7185',
+              fontSize: 12, fontWeight: 600, cursor: 'pointer', fontFamily: 'inherit',
+            }}>Yes</button>
+            <button onClick={() => setConfirmingEnd(false)} style={{
+              padding: '6px 14px', borderRadius: 6, border: '1px solid var(--border)',
+              background: 'none', color: 'var(--text-muted)',
+              fontSize: 12, cursor: 'pointer', fontFamily: 'inherit',
+            }}>No</button>
+          </div>
+        ) : (
+          <button
+            onClick={isDone ? onEndSession : () => { setConfirmingEnd(true); setTimeout(() => setConfirmingEnd(false), 4000) }}
+            style={{
+              display: 'flex', alignItems: 'center', gap: 7, padding: '9px 18px', borderRadius: 9,
+              background: isDone ? '#34d39922' : 'none',
+              border: isDone ? '1px solid #34d39966' : '1px solid var(--border)',
+              cursor: 'pointer', color: isDone ? '#34d399' : 'var(--text-muted)', fontSize: 13,
+            }}>
+            {isDone ? <Check size={14} /> : <Square size={14} />}
+            {isDone ? 'Save & Exit' : 'End Session'}
+          </button>
+        )}
       </div>
 
       {/* Bottom row */}
@@ -200,7 +262,7 @@ function ActiveTimerView({ session, domain, onPauseResume, onSkipPhase, onEndSes
           <button onClick={onOpenNote} style={{
             display: 'flex', alignItems: 'center', gap: 6,
             background: 'none', border: '1px solid var(--border)',
-            borderRadius: 7, padding: '6px 12px', cursor: 'pointer',
+            borderRadius: 6, padding: '6px 12px', cursor: 'pointer',
             color: 'var(--text-muted)', fontSize: 12,
           }}>
             <BookOpen size={13} /> Open note
@@ -252,7 +314,7 @@ function StartSessionModal({ initialDomain, domains, onClose, onStart, isTutoria
 
   const inp = {
     background: 'var(--bg-surface)', border: '1px solid var(--border)',
-    borderRadius: 7, padding: '8px 11px', fontSize: 13,
+    borderRadius: 6, padding: '8px 11px', fontSize: 13,
     color: 'var(--text-primary)', outline: 'none', width: '100%', boxSizing: 'border-box',
   }
   const numInp = { ...inp, width: 68, textAlign: 'center' }
@@ -296,30 +358,25 @@ function StartSessionModal({ initialDomain, domains, onClose, onStart, isTutoria
           </AppSelect>
         </div>
 
-        {/* Topic */}
+        {/* Topic + week */}
         <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
           <label style={sectionLabel}>What are you studying? *</label>
-          <input
-            value={topic} onChange={e => setTopic(e.target.value)}
-            placeholder="e.g. Graph algorithms, Week 3 lecture notes…"
-            style={inp}
-            onKeyDown={e => e.key === 'Enter' && handleStart()}
-            autoFocus
-          />
-        </div>
-
-        {/* Content week */}
-        <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
-          <label style={sectionLabel}>
-            Content week{' '}
-            <span style={{ fontWeight: 400, textTransform: 'none', letterSpacing: 0 }}>(optional, which week's material)</span>
-          </label>
-          <input
-            type="number" min={1} max={20} value={week}
-            onChange={e => setWeek(e.target.value)}
-            placeholder="e.g. 2"
-            style={{ ...inp, width: 90 }}
-          />
+          <div style={{ display: 'flex', gap: 8 }}>
+            <input
+              value={topic} onChange={e => setTopic(e.target.value)}
+              placeholder="e.g. Graph algorithms, Week 3 lecture notes…"
+              style={{ ...inp, flex: 1 }}
+              onKeyDown={e => e.key === 'Enter' && handleStart()}
+              autoFocus
+            />
+            <input
+              type="number" min={1} max={20} value={week}
+              onChange={e => setWeek(e.target.value)}
+              placeholder="Wk"
+              title="Content week (optional)"
+              style={{ ...inp, width: 52, textAlign: 'center', flexShrink: 0, padding: '8px 4px' }}
+            />
+          </div>
         </div>
 
         {/* Pomodoro */}
@@ -330,7 +387,7 @@ function StartSessionModal({ initialDomain, domains, onClose, onStart, isTutoria
               const active = !custom && presetIdx === i
               return (
                 <button key={i} onClick={() => { setPresetIdx(i); setCustom(false) }} style={{
-                  padding: '5px 11px', borderRadius: 7, cursor: 'pointer', fontSize: 12,
+                  padding: '5px 11px', borderRadius: 6, cursor: 'pointer', fontSize: 12,
                   border: '1px solid transparent',
                   background: active ? 'var(--accent-blue)22' : 'var(--bg-surface)',
                   color: active ? 'var(--accent-blue)' : 'var(--text-muted)',
@@ -341,7 +398,7 @@ function StartSessionModal({ initialDomain, domains, onClose, onStart, isTutoria
               )
             })}
             <button onClick={() => setCustom(true)} style={{
-              padding: '5px 11px', borderRadius: 7, cursor: 'pointer', fontSize: 12,
+              padding: '5px 11px', borderRadius: 6, cursor: 'pointer', fontSize: 12,
               border: '1px solid transparent',
               background: custom ? 'var(--accent-blue)22' : 'var(--bg-surface)',
               color: custom ? 'var(--accent-blue)' : 'var(--text-muted)',
@@ -366,34 +423,6 @@ function StartSessionModal({ initialDomain, domains, onClose, onStart, isTutoria
           </div>
         </div>
 
-        {/* Notes toggle */}
-        <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
-          <label style={sectionLabel}>Take handwritten notes?</label>
-          <div style={{ display: 'flex', gap: 8 }}>
-            {[[false, Brain, 'No, study externally'], [true, Pencil, 'Yes, open a note']].map(([val, Icon, text]) => {
-              const active = withNote === val
-              return (
-                <button key={String(val)} onClick={() => setWithNote(val)} style={{
-                  flex: 1, padding: '10px 8px', borderRadius: 8, cursor: 'pointer',
-                  border: '1px solid transparent', display: 'flex', flexDirection: 'column',
-                  alignItems: 'center', gap: 5,
-                  background: active ? 'var(--accent-blue)22' : 'var(--bg-surface)',
-                  color: active ? 'var(--accent-blue)' : 'var(--text-muted)',
-                  borderColor: active ? 'var(--accent-blue)55' : 'var(--border)',
-                }}>
-                  <Icon size={15} />
-                  <span style={{ fontSize: 12 }}>{text}</span>
-                </button>
-              )
-            })}
-          </div>
-          {withNote && (
-            <div style={{ fontSize: 11, color: 'var(--text-muted)', paddingLeft: 2 }}>
-              A linked note will open automatically. The timer floats in the corner.
-            </div>
-          )}
-        </div>
-
         {/* Start button */}
         <button onClick={handleStart} disabled={!topic.trim() || isTutorial} style={{
           background: topic.trim() && !isTutorial ? 'var(--accent-blue)' : 'var(--bg-surface)',
@@ -405,6 +434,16 @@ function StartSessionModal({ initialDomain, domains, onClose, onStart, isTutoria
         }}>
           <Play size={15} /> Start Session
         </button>
+
+        <label style={{ display: 'flex', alignItems: 'center', gap: 8, cursor: 'pointer', userSelect: 'none' }}>
+          <input
+            type="checkbox"
+            checked={withNote}
+            onChange={e => setWithNote(e.target.checked)}
+            style={{ accentColor: 'var(--accent-blue)', width: 14, height: 14, cursor: 'pointer', flexShrink: 0 }}
+          />
+          <span style={{ fontSize: 12, color: 'var(--text-muted)' }}>Open a linked handwritten note</span>
+        </label>
       </div>
     </div>
   )
@@ -417,16 +456,60 @@ export function FloatingTimerWidget({ session, domain, onPauseResume, onSkipPhas
   const isDone     = phase === 'done'
   const phaseColor = phase === 'work' ? color : phase === 'break' ? '#fbbf24' : '#34d399'
 
+  const [collapsed, setCollapsed] = useState(false)
+  const [pos, setPos] = useState(null) // null = use default bottom-right anchor
+  const draggingRef = useRef(false)
+  const startRef    = useRef({ mx: 0, my: 0, wx: 0, wy: 0 })
+  const widgetRef   = useRef(null)
+
+  useEffect(() => {
+    function onMove(e) {
+      if (!draggingRef.current) return
+      const { clientX, clientY } = e.touches ? e.touches[0] : e
+      const dx = clientX - startRef.current.mx
+      const dy = clientY - startRef.current.my
+      setPos({
+        x: Math.max(0, Math.min(window.innerWidth - 240, startRef.current.wx + dx)),
+        y: Math.max(0, Math.min(window.innerHeight - 60, startRef.current.wy + dy)),
+      })
+    }
+    function onUp() { draggingRef.current = false }
+    window.addEventListener('mousemove', onMove)
+    window.addEventListener('mouseup', onUp)
+    window.addEventListener('touchmove', onMove, { passive: true })
+    window.addEventListener('touchend', onUp)
+    return () => {
+      window.removeEventListener('mousemove', onMove)
+      window.removeEventListener('mouseup', onUp)
+      window.removeEventListener('touchmove', onMove)
+      window.removeEventListener('touchend', onUp)
+    }
+  }, [])
+
+  function startDrag(e) {
+    const { clientX, clientY } = e.touches ? e.touches[0] : e
+    const rect = widgetRef.current?.getBoundingClientRect()
+    draggingRef.current = true
+    startRef.current = { mx: clientX, my: clientY, wx: rect?.left ?? 0, wy: rect?.top ?? 0 }
+  }
+
+  const posStyle = pos
+    ? { top: pos.y, left: pos.x }
+    : { bottom: 24, right: 24 }
+
   if (widgetHidden) {
     return (
       <div
+        ref={widgetRef}
         onClick={onToggleHidden}
+        onMouseDown={startDrag}
+        onTouchStart={startDrag}
         title="Show timer"
         style={{
-          position: 'fixed', bottom: 24, right: 24, zIndex: 999,
+          position: 'fixed', ...posStyle, zIndex: 9998,
           display: 'flex', alignItems: 'center', gap: 7,
           background: 'var(--bg-elevated)', border: `1px solid ${color}55`,
-          borderRadius: 20, padding: '6px 12px', cursor: 'pointer',
+          borderRadius: 20, padding: '6px 12px', cursor: 'grab',
           boxShadow: '0 4px 20px rgba(0,0,0,0.5)',
         }}
       >
@@ -439,18 +522,29 @@ export function FloatingTimerWidget({ session, domain, onPauseResume, onSkipPhas
   }
 
   return (
-    <div style={{
-      position: 'fixed', bottom: 24, right: 24, zIndex: 999,
-      background: 'var(--bg-elevated)', border: `1px solid ${color}44`,
-      borderRadius: 12, width: 224, boxShadow: '0 8px 32px rgba(0,0,0,0.55)',
-    }}>
-      {/* Header — never blurred */}
-      <div style={{
-        display: 'flex', alignItems: 'center', justifyContent: 'space-between',
-        padding: '10px 12px 6px',
-      }}>
+    <div
+      ref={widgetRef}
+      style={{
+        position: 'fixed', ...posStyle, zIndex: 9998,
+        background: 'var(--bg-elevated)', border: `1px solid ${color}44`,
+        borderRadius: 12, width: 224, boxShadow: '0 8px 32px rgba(0,0,0,0.55)',
+        userSelect: 'none',
+      }}
+    >
+      {/* Header — drag handle, never blurred */}
+      <div
+        onMouseDown={startDrag}
+        onTouchStart={startDrag}
+        style={{
+          display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+          padding: '10px 12px 6px', cursor: 'grab',
+        }}
+      >
         <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-          <div style={{ width: 8, height: 8, borderRadius: '50%', background: color, flexShrink: 0 }} />
+          <div style={{
+            width: 8, height: 8, borderRadius: '50%', background: color, flexShrink: 0,
+            animation: isRunning && !isDone ? 'dotBreath 2s ease-in-out infinite' : 'none',
+          }} />
           <span style={{ fontSize: 11, fontWeight: 700, color: 'var(--text-muted)', letterSpacing: '0.4px' }}>
             {domain?.code ?? 'Study'}
           </span>
@@ -459,61 +553,165 @@ export function FloatingTimerWidget({ session, domain, onPauseResume, onSkipPhas
           </span>
         </div>
         <div style={{ display: 'flex', gap: 4 }}>
-          <button onClick={onToggleBlurred} title={widgetBlurred ? 'Show time' : 'Blur time'} style={wbtn()}>
+          <button
+            onMouseDown={e => e.stopPropagation()}
+            onClick={() => setCollapsed(c => !c)}
+            title={collapsed ? 'Expand' : 'Collapse'}
+            aria-label={collapsed ? 'Expand timer' : 'Collapse timer'}
+            style={wbtn()}
+          >
+            <ChevronRight size={11} style={{ transform: collapsed ? 'rotate(90deg)' : 'rotate(-90deg)', transition: 'transform 0.2s' }} />
+          </button>
+          <button onMouseDown={e => e.stopPropagation()} onClick={onToggleBlurred} title={widgetBlurred ? 'Show time' : 'Blur time'} aria-label={widgetBlurred ? 'Show time' : 'Blur time'} style={wbtn()}>
             {widgetBlurred ? <Eye size={11} /> : <EyeOff size={11} />}
           </button>
-          <button onClick={onToggleHidden} title="Minimise" style={wbtn()}>
+          <button onMouseDown={e => e.stopPropagation()} onClick={onToggleHidden} title="Minimise" aria-label="Minimise timer" style={wbtn()}>
             <X size={11} />
           </button>
         </div>
       </div>
 
-      {/* Timer content — blurred when widgetBlurred */}
-      <div style={{
-        padding: '0 12px 8px',
-        filter: widgetBlurred ? 'blur(5px)' : 'none',
-        transition: 'filter 0.25s',
-        pointerEvents: widgetBlurred ? 'none' : 'auto',
-      }}>
-        <div
-          onClick={!widgetBlurred ? onGoToStudy : undefined}
-          title="Open full timer"
-          style={{
-            fontSize: 36, fontWeight: 200, fontFamily: 'monospace', letterSpacing: '-1px',
-            color: 'var(--text-primary)', fontVariantNumeric: 'tabular-nums',
-            cursor: 'pointer', lineHeight: 1, marginBottom: 6,
-          }}
-        >
-          {isDone ? '✓' : fmt(secondsLeft)}
-        </div>
-        {!isDone && (
-          <div style={{ marginBottom: 4 }}>
-            <RoundDots total={totalRounds} completed={roundsCompleted} currentRound={currentRound} phase={phase} />
-            <div style={{ fontSize: 10, color: 'var(--text-muted)', marginTop: 4 }}>
-              Round {phase === 'work' ? currentRound : roundsCompleted}/{totalRounds}
-              {phase === 'break' ? ' · Break' : ''}
+      {!collapsed && (
+        <>
+          {/* Timer content — blurred when widgetBlurred */}
+          <div style={{
+            padding: '0 12px 8px',
+            filter: widgetBlurred ? 'blur(16px)' : 'none',
+            transition: 'filter 0.25s',
+            pointerEvents: widgetBlurred ? 'none' : 'auto',
+          }}>
+            <div
+              onClick={!widgetBlurred ? onGoToStudy : undefined}
+              title="Open full timer"
+              style={{
+                fontSize: 36, fontWeight: 200, fontFamily: 'monospace', letterSpacing: '-1px',
+                color: 'var(--text-primary)', fontVariantNumeric: 'tabular-nums',
+                cursor: 'pointer', lineHeight: 1, marginBottom: 6,
+              }}
+            >
+              {isDone ? <Check size={26} strokeWidth={1.5} style={{ display: 'block' }} /> : fmt(secondsLeft)}
+            </div>
+            {!isDone && (
+              <div style={{ marginBottom: 4 }}>
+                <RoundDots total={totalRounds} completed={roundsCompleted} currentRound={currentRound} phase={phase} />
+                <div style={{ fontSize: 10, color: 'var(--text-muted)', marginTop: 4 }}>
+                  Round {phase === 'work' ? currentRound : roundsCompleted}/{totalRounds}
+                  {phase === 'break' ? ' · Break' : ''}
+                </div>
+              </div>
+            )}
+          </div>
+
+          {/* Controls — never blurred */}
+          <div style={{ display: 'flex', gap: 6, padding: '6px 12px 10px' }}>
+            {!isDone && (
+              <>
+                <button onClick={onPauseResume} aria-label={isRunning ? 'Pause session' : 'Resume session'} style={{
+                  ...wbtn({ flex: 1, height: 30, borderRadius: 6, background: color + '22', borderColor: color + '44', color }),
+                }}>
+                  {isRunning ? <Pause size={13} /> : <Play size={13} />}
+                </button>
+                <button onClick={onSkipPhase} title="Skip phase" aria-label="Skip phase" style={wbtn({ height: 30, borderRadius: 6 })}>
+                  <SkipForward size={13} />
+                </button>
+              </>
+            )}
+            <button onClick={onGoToStudy} title="Open full timer" aria-label="Open full timer" style={wbtn({ height: 30, borderRadius: 6 })}>
+              <ChevronRight size={13} />
+            </button>
+          </div>
+        </>
+      )}
+    </div>
+  )
+}
+
+// ─── Activity chart ───────────────────────────────────────────────────────────
+function ActivityChart({ studySessions, domains }) {
+  const [hovered, setHovered] = useState(null)
+  const DAYS = 14
+  const BAR_H = 64
+
+  function localDateStr(d) {
+    return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`
+  }
+
+  const today = new Date()
+  today.setHours(0, 0, 0, 0)
+
+  const days = Array.from({ length: DAYS }, (_, i) => {
+    const d = new Date(today)
+    d.setDate(d.getDate() - (DAYS - 1 - i))
+    return d
+  })
+
+  const buckets = days.map(day => {
+    const ds = localDateStr(day)
+    const sessions = studySessions.filter(s => localDateStr(new Date(s.startedAt)) === ds)
+    const mins = sessions.reduce((a, s) => a + (s.pomodoroWork || 0) * (s.roundsCompleted || 0), 0)
+    const tally = {}
+    sessions.forEach(s => { if (s.domainId) tally[s.domainId] = (tally[s.domainId] || 0) + 1 })
+    const topId = Object.entries(tally).sort((a, b) => b[1] - a[1])[0]?.[0]
+    const domain = domains.find(d => d.id === topId)
+    return { day, mins, color: domain?.color ?? '#5b8cff' }
+  })
+
+  const maxMins = Math.max(...buckets.map(b => b.mins), 45)
+
+  function fmtMins(m) {
+    if (m < 60) return `${m}m`
+    const h = Math.floor(m / 60), r = m % 60
+    return r ? `${h}h ${r}m` : `${h}h`
+  }
+
+  function dayLabel(d) {
+    const diff = Math.round((d - today) / 86400000)
+    if (diff === 0) return 'Today'
+    if (diff === -1) return 'Yest'
+    return d.toLocaleDateString('en-GB', { weekday: 'short' }).slice(0, 2)
+  }
+
+  return (
+    <div>
+      <div style={{ fontSize: 13, fontWeight: 600, color: 'var(--text-secondary)', marginBottom: 14 }}>Activity</div>
+      <div style={{ display: 'flex', alignItems: 'flex-end', gap: 3 }}>
+        {buckets.map((b, i) => (
+          <div
+            key={i}
+            style={{ flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 5 }}
+            onMouseEnter={() => setHovered(i)}
+            onMouseLeave={() => setHovered(null)}
+          >
+            <div style={{ position: 'relative', width: '100%', height: BAR_H, display: 'flex', alignItems: 'flex-end' }}>
+              {hovered === i && b.mins > 0 && (
+                <div style={{
+                  position: 'absolute', bottom: '100%', left: '50%', transform: 'translateX(-50%)',
+                  background: 'var(--bg-elevated)', border: '1px solid var(--border)',
+                  borderRadius: 6, padding: '3px 8px', fontSize: 11, fontWeight: 600,
+                  color: 'var(--text-primary)', whiteSpace: 'nowrap', marginBottom: 6, zIndex: 10,
+                }}>
+                  {fmtMins(b.mins)}
+                </div>
+              )}
+              <div style={{
+                width: '100%',
+                height: b.mins > 0 ? `${Math.max(4, (b.mins / maxMins) * BAR_H)}px` : '2px',
+                background: b.mins > 0 ? (hovered === i ? b.color : b.color + 'bb') : 'var(--border)',
+                borderRadius: b.mins > 0 ? '3px 3px 0 0' : 1,
+                transition: 'height 0.3s ease, background 0.2s ease, box-shadow 0.2s ease',
+                boxShadow: hovered === i && b.mins > 0 ? `0 0 14px ${b.color}66` : 'none',
+              }} />
+            </div>
+            <div style={{
+              fontSize: 9,
+              color: b.day.getTime() === today.getTime() ? 'var(--text-secondary)' : 'var(--text-faint)',
+              fontWeight: b.day.getTime() === today.getTime() ? 700 : 400,
+              textAlign: 'center',
+            }}>
+              {dayLabel(b.day)}
             </div>
           </div>
-        )}
-      </div>
-
-      {/* Controls — never blurred */}
-      <div style={{ display: 'flex', gap: 6, padding: '6px 12px 10px' }}>
-        {!isDone && (
-          <>
-            <button onClick={onPauseResume} style={{
-              ...wbtn({ flex: 1, height: 30, borderRadius: 6, background: color + '22', borderColor: color + '44', color }),
-            }}>
-              {isRunning ? <Pause size={13} /> : <Play size={13} />}
-            </button>
-            <button onClick={onSkipPhase} title="Skip phase" style={wbtn({ height: 30, borderRadius: 6 })}>
-              <SkipForward size={13} />
-            </button>
-          </>
-        )}
-        <button onClick={onGoToStudy} title="Open full timer" style={wbtn({ height: 30, borderRadius: 6 })}>
-          <ChevronRight size={13} />
-        </button>
+        ))}
       </div>
     </div>
   )
@@ -530,31 +728,35 @@ function SessionRow({ session, domain, onOpenNote, onDelete }) {
     <div style={{
       display: 'flex', alignItems: 'center', gap: 12,
       padding: '10px 14px', borderRadius: 9,
-      background: 'var(--bg-surface)', border: '1px solid var(--border)',
+      background: color + '0a', border: `1px solid ${color}1e`,
     }}>
-      <div style={{ width: 3, height: 36, borderRadius: 2, background: color, flexShrink: 0 }} />
+      <div style={{
+        background: color + '22', color,
+        borderRadius: 6, padding: '4px 7px',
+        fontSize: 9, fontWeight: 800, letterSpacing: '0.5px',
+        flexShrink: 0, alignSelf: 'center', textAlign: 'center', minWidth: 36,
+      }}>
+        {domain?.code?.slice(0, 4) ?? '—'}
+      </div>
       <div style={{ flex: 1, minWidth: 0 }}>
         <div style={{ fontSize: 13, fontWeight: 600, color: 'var(--text-primary)', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
           {session.topic}
         </div>
-        <div style={{ fontSize: 11, color: 'var(--text-muted)', marginTop: 2, display: 'flex', gap: 8 }}>
-          <span>{domain?.code ?? 'General'}</span>
-          {session.academicWeek && <span>· Week {session.academicWeek}</span>}
-          <span>· {session.roundsCompleted}/{session.totalRounds} rounds</span>
-          <span>· ~{session.pomodoroWork * session.roundsCompleted}m</span>
+        <div style={{ fontSize: 10, color: 'var(--text-faint)', marginTop: 2 }}>
+          {session.roundsCompleted}/{session.totalRounds} rounds{session.academicWeek ? ` · Wk ${session.academicWeek}` : ''}
         </div>
       </div>
       <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: 3, flexShrink: 0 }}>
         <div style={{ fontSize: 11, color: 'var(--text-muted)' }}>{dateStr}</div>
         <div style={{
-          fontSize: 10, fontWeight: 700,
+          fontSize: 10, fontWeight: 700, display: 'flex', alignItems: 'center', gap: 3,
           color: session.status === 'completed' ? '#34d399' : 'var(--text-muted)',
         }}>
-          {session.status === 'completed' ? '✓ Done' : 'Partial'}
+          {session.status === 'completed' ? <><Check size={9} /> Done</> : 'Partial'}
         </div>
       </div>
       {session.noteId && (
-        <button onClick={() => onOpenNote(session.noteId)} style={{
+        <button onClick={() => onOpenNote(session.noteId)} aria-label="Open linked note" style={{
           display: 'flex', alignItems: 'center', gap: 5, flexShrink: 0,
           background: 'none', border: '1px solid var(--border)',
           borderRadius: 6, padding: '4px 10px', cursor: 'pointer',
@@ -567,21 +769,21 @@ function SessionRow({ session, domain, onOpenNote, onDelete }) {
         <div style={{ display: 'flex', alignItems: 'center', gap: 6, flexShrink: 0 }}>
           <span style={{ fontSize: 11, color: 'var(--text-muted)' }}>Delete?</span>
           <button onClick={() => onDelete(session.id)} style={{
-            padding: '3px 8px', borderRadius: 5, border: '1px solid rgba(251,113,133,0.4)',
+            padding: '3px 8px', borderRadius: 6, border: '1px solid rgba(251,113,133,0.4)',
             background: 'rgba(251,113,133,0.12)', color: '#fb7185',
             fontSize: 11, fontWeight: 600, cursor: 'pointer', fontFamily: 'inherit',
           }}>Yes</button>
           <button onClick={() => setConfirming(false)} style={{
-            padding: '3px 8px', borderRadius: 5, border: '1px solid var(--border)',
+            padding: '3px 8px', borderRadius: 6, border: '1px solid var(--border)',
             background: 'none', color: 'var(--text-muted)',
             fontSize: 11, cursor: 'pointer', fontFamily: 'inherit',
           }}>No</button>
         </div>
       ) : (
-        <button onClick={() => setConfirming(true)} style={{
+        <button onClick={() => setConfirming(true)} aria-label="Delete session" style={{
           display: 'flex', alignItems: 'center', flexShrink: 0,
           background: 'none', border: 'none', padding: '4px',
-          borderRadius: 5, cursor: 'pointer', color: 'var(--text-muted)',
+          borderRadius: 6, cursor: 'pointer', color: 'var(--text-muted)',
           opacity: 0.5,
         }}
           onMouseEnter={e => { e.currentTarget.style.opacity = '1'; e.currentTarget.style.color = '#fb7185' }}
@@ -617,25 +819,41 @@ export default function StudyPage({ domains, studySessions, activeSession, onSta
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', height: '100%', overflow: 'auto' }}>
-      <div style={{ padding: '28px 28px 0', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-        <h1 style={{ margin: 0, fontSize: 22, fontWeight: 700, color: 'var(--text-primary)' }}>Study Sessions</h1>
-        <button data-tutorial-id="study-new-btn" onClick={() => { setModalDomain(null); setShowModal(true) }} style={{
-          display: 'flex', alignItems: 'center', gap: 7,
-          background: 'var(--accent-blue)', color: 'var(--btn-primary-text)', border: 'none',
-          borderRadius: 8, padding: '8px 14px', cursor: 'pointer', fontSize: 13, fontWeight: 600,
-        }}>
-          <Play size={13} /> New Session
-        </button>
+      <div style={{ padding: '32px 28px 0' }}>
+        <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: 16 }}>
+          <div>
+            <h1 style={{ margin: 0, fontSize: 34, fontWeight: 800, color: 'var(--text-primary)', letterSpacing: '-1.5px', lineHeight: 1.0 }}>Study</h1>
+            {studySessions.length > 0 && (
+              <div style={{ fontSize: 12, color: 'var(--text-muted)', marginTop: 8, display: 'flex', alignItems: 'center', gap: 10 }}>
+                <span style={{ color: 'var(--text-secondary)', fontWeight: 600 }}>
+                  {(() => {
+                    const mins = studySessions.reduce((acc, s) => acc + (s.pomodoroWork || 0) * (s.roundsCompleted || 0), 0)
+                    if (mins < 60) return `${mins}m`
+                    const h = Math.floor(mins / 60), m = mins % 60
+                    return m > 0 ? `${h}h ${m}m` : `${h}h`
+                  })()} studied
+                </span>
+                <span>·</span>
+                <span>{studySessions.length} session{studySessions.length !== 1 ? 's' : ''}</span>
+              </div>
+            )}
+          </div>
+          <button data-tutorial-id="study-new-btn" onClick={() => { setModalDomain(null); setShowModal(true) }} style={{
+            display: 'flex', alignItems: 'center', gap: 7,
+            background: 'var(--accent-blue)', color: 'var(--btn-primary-text)', border: 'none',
+            borderRadius: 9, padding: '10px 18px', cursor: 'pointer', fontSize: 13, fontWeight: 600,
+            flexShrink: 0,
+          }}>
+            <Play size={14} /> New Session
+          </button>
+        </div>
       </div>
 
       <div style={{ padding: '20px 28px 32px', display: 'flex', flexDirection: 'column', gap: 28 }}>
         {/* Domain cards */}
         <div>
-          <div style={{ fontSize: 11, fontWeight: 700, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.5px', marginBottom: 12 }}>
-            Start from a domain
-          </div>
           <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(190px, 1fr))', gap: 10 }}>
-            {domains.filter(d => !d.isPast).map(domain => {
+            {domains.filter(d => !d.isPast && d.category === 'academic').map(domain => {
 
               const count = studySessions.filter(s => s.domainId === domain.id).length
               return (
@@ -643,24 +861,26 @@ export default function StudyPage({ domains, studySessions, activeSession, onSta
                   key={domain.id}
                   className="domain-card"
                   onClick={() => { setModalDomain(domain); setShowModal(true) }}
+                  onMouseEnter={e => { e.currentTarget.style.background = domain.color + '28' }}
+                  onMouseLeave={e => { e.currentTarget.style.background = domain.color + '14' }}
                   style={{
-                    display: 'flex', flexDirection: 'column', alignItems: 'flex-start', gap: 7,
-                    padding: '14px', borderRadius: 10, cursor: 'pointer', textAlign: 'left',
-                    fontFamily: 'inherit',
+                    display: 'flex', flexDirection: 'column', alignItems: 'flex-start', gap: 8,
+                    padding: '18px 16px', borderRadius: 10, cursor: 'pointer', textAlign: 'left',
+                    fontFamily: 'inherit', background: domain.color + '14',
                   }}
                 >
                   <div style={{
-                    fontSize: 10, fontWeight: 800, letterSpacing: '0.4px',
-                    background: domain.color + '22', color: domain.color,
-                    padding: '2px 7px', borderRadius: 4,
+                    fontSize: 10, fontWeight: 800, letterSpacing: '0.5px',
+                    background: domain.color + '30', color: domain.color,
+                    padding: '4px 9px', borderRadius: 6,
                   }}>
                     {domain.code || domain.name.slice(0, 4).toUpperCase()}
                   </div>
-                  <div style={{ fontSize: 12, fontWeight: 600, color: 'var(--text-primary)', lineHeight: 1.35 }}>
+                  <div style={{ fontSize: 13, fontWeight: 600, color: 'var(--text-primary)', lineHeight: 1.3 }}>
                     {domain.name}
                   </div>
                   {count > 0 && (
-                    <div style={{ fontSize: 10, color: 'var(--text-muted)' }}>
+                    <div style={{ fontSize: 11, color: 'var(--text-muted)' }}>
                       {count} session{count !== 1 ? 's' : ''}
                     </div>
                   )}
@@ -670,11 +890,24 @@ export default function StudyPage({ domains, studySessions, activeSession, onSta
           </div>
         </div>
 
+        {studySessions.length === 0 && (
+          <div style={{ fontSize: 12, color: 'var(--text-faint)', paddingTop: 4 }}>
+            {domains.filter(d => !d.isPast && d.category === 'academic').length > 0
+              ? 'Select a domain above to start your first session.'
+              : 'Add academic domains first, then start a study session.'}
+          </div>
+        )}
+
+        {/* Activity chart + session list */}
+        {studySessions.length > 0 && (
+          <ActivityChart studySessions={studySessions} domains={domains} />
+        )}
+
         {/* Past sessions */}
         {studySessions.length > 0 && (
           <div>
-            <div style={{ fontSize: 11, fontWeight: 700, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.5px', marginBottom: 12 }}>
-              Recent Sessions
+            <div style={{ fontSize: 13, fontWeight: 600, color: 'var(--text-secondary)', marginBottom: 14 }}>
+              Recent
             </div>
             <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
               {studySessions.filter(s => {

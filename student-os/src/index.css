@@ -663,6 +663,21 @@ html.theme-minimal select option { background: #fff; color: #1a1c2e; }
   inherits: false;
 }
 
+@keyframes checkIn {
+  from { transform: scale(0); opacity: 0; }
+  to   { transform: scale(1); opacity: 1; }
+}
+
+@keyframes ringBreath {
+  0%, 100% { opacity: 1; }
+  50%       { opacity: 0.68; }
+}
+
+@keyframes dotBreath {
+  0%, 100% { transform: scale(1); opacity: 1; }
+  50%       { transform: scale(2); opacity: 0; }
+}
+
 @keyframes border-spin {
   to { --border-angle: 360deg; }
 }

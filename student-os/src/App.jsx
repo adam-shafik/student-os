@@ -619,13 +619,33 @@ export default function App() {
   const [tutorialStep, setTutorialStep] = useState(null)
 
   const [studySessions, setStudySessions] = useState([])
-  const [activeSession, setActiveSession] = useState(null)
+  const [activeSession, setActiveSession] = useState(() => {
+    try {
+      const saved = localStorage.getItem('sos-active-session')
+      if (!saved) return null
+      const s = JSON.parse(saved)
+      if (s.isRunning && s._savedAt) {
+        const elapsed = Math.floor((Date.now() - s._savedAt) / 1000)
+        return { ...s, secondsLeft: Math.max(0, s.secondsLeft - elapsed), _savedAt: undefined }
+      }
+      return { ...s, _savedAt: undefined }
+    } catch { return null }
+  })
   const [soundEnabled,  setSoundEnabled]  = useState(true)
   const soundEnabledRef = useRef(true)
   soundEnabledRef.current = soundEnabled
   // Tracks the strokes array reference per page index from the last successful save, keyed by noteId.
   // Reference equality on strokes arrays lets us skip pages that haven't changed.
   const lastSavedStrokesRef = useRef({})
+
+  // Persist active session to localStorage so it survives refresh/close
+  useEffect(() => {
+    if (activeSession) {
+      try { localStorage.setItem('sos-active-session', JSON.stringify({ ...activeSession, _savedAt: Date.now() })) } catch {}
+    } else {
+      try { localStorage.removeItem('sos-active-session') } catch {}
+    }
+  }, [activeSession])
 
   // Countdown — fires every second while running
   useEffect(() => {
