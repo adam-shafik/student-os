@@ -194,7 +194,7 @@ function snapShapeCoords(type, x1, y1, x2, y2) {
     if (len < 4) return [x2, y2]
     const angleDeg = Math.atan2(dy, dx) * 180 / Math.PI
     const nearest  = Math.round(angleDeg / 45) * 45
-    if (Math.abs(angleDeg - nearest) < 8) {
+    if (Math.abs(angleDeg - nearest) < 5) {
       const rad = nearest * Math.PI / 180
       return [x1 + Math.cos(rad) * len, y1 + Math.sin(rad) * len]
     }
@@ -608,7 +608,16 @@ function PageCanvas({ page, pageH, maxW, pageIdx, totalPages, onStrokesChange, o
             const pts = s.points.length === 1 ? [s.points[0], s.points[0]] : s.points
             const detected = detectShape(pts)
             if (!detected) return
-            penSnapAnchorRef.current = pts[0]
+            if (detected.shape === 'line') {
+              penSnapAnchorRef.current = [detected.x1, detected.y1]
+            } else {
+              // For rect/ellipse: anchor = corner diagonally opposite to hold point
+              const hold = pts[pts.length - 1]
+              const corners = [[detected.x1, detected.y1], [detected.x2, detected.y1], [detected.x1, detected.y2], [detected.x2, detected.y2]]
+              let closest = corners[0], minD = Infinity
+              for (const c of corners) { const d = Math.hypot(c[0] - hold[0], c[1] - hold[1]); if (d < minD) { minD = d; closest = c } }
+              penSnapAnchorRef.current = [detected.x1 + detected.x2 - closest[0], detected.y1 + detected.y2 - closest[1]]
+            }
             penSnapRef.current = detected
             if (livePathRef.current) livePathRef.current.style.display = 'none'
             const tagMap = { rect: 'rect', ellipse: 'ellipse', line: 'line' }
@@ -933,7 +942,15 @@ function PageCanvas({ page, pageH, maxW, pageIdx, totalPages, onStrokesChange, o
           const pts = s.points.length === 1 ? [s.points[0], s.points[0]] : s.points
           const detected = detectShape(pts)
           if (!detected) return
-          penSnapAnchorRef.current = pts[0]
+          if (detected.shape === 'line') {
+            penSnapAnchorRef.current = [detected.x1, detected.y1]
+          } else {
+            const hold = pts[pts.length - 1]
+            const corners = [[detected.x1, detected.y1], [detected.x2, detected.y1], [detected.x1, detected.y2], [detected.x2, detected.y2]]
+            let closest = corners[0], minD = Infinity
+            for (const c of corners) { const d = Math.hypot(c[0] - hold[0], c[1] - hold[1]); if (d < minD) { minD = d; closest = c } }
+            penSnapAnchorRef.current = [detected.x1 + detected.x2 - closest[0], detected.y1 + detected.y2 - closest[1]]
+          }
           penSnapRef.current = detected
           if (livePathRef.current) livePathRef.current.style.display = 'none'
           const tagMap = { rect: 'rect', ellipse: 'ellipse', line: 'line' }
