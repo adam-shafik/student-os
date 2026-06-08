@@ -430,7 +430,7 @@ function PageCanvas({ page, pageH, maxW, pageIdx, totalPages, onStrokesChange, o
         penLiveShapeRef.current?.remove(); penLiveShapeRef.current = null
         if (s.points.length >= 1) {
           const points = s.points.length === 1 ? [s.points[0], s.points[0]] : s.points
-          if (snap) { onStrokesChange([...strokes, { ...snap, color: s.color, size: s.size, opacity: s.opacity }]); return }
+          if (snap) { onStrokesChange([...strokes, { ...snap, color: s.color, size: s.size * 0.72, opacity: s.opacity }]); return }
           onStrokesChange([...strokes, { ...s, points }])
         }
       }
@@ -623,7 +623,7 @@ function PageCanvas({ page, pageH, maxW, pageIdx, totalPages, onStrokesChange, o
             const tagMap = { rect: 'rect', ellipse: 'ellipse', line: 'line' }
             const tag = tagMap[detected.shape]; if (!tag) return
             const el = document.createElementNS('http://www.w3.org/2000/svg', tag)
-            el.setAttribute('stroke', s.color); el.setAttribute('stroke-width', s.size)
+            el.setAttribute('stroke', s.color); el.setAttribute('stroke-width', s.size * 0.72)
             el.setAttribute('fill', 'none'); el.setAttribute('opacity', s.opacity)
             el.setAttribute('stroke-linecap', 'round'); el.setAttribute('stroke-linejoin', 'round')
             if (detected.shape === 'rect') el.setAttribute('rx', '3')
@@ -958,7 +958,7 @@ function PageCanvas({ page, pageH, maxW, pageIdx, totalPages, onStrokesChange, o
           const el = document.createElementNS('http://www.w3.org/2000/svg', tag)
           const s2 = activeStroke.current
           el.setAttribute('stroke', s2?.color ?? drawColor)
-          el.setAttribute('stroke-width', s2?.size ?? penSize)
+          el.setAttribute('stroke-width', (s2?.size ?? penSize) * 0.72)
           el.setAttribute('fill', 'none'); el.setAttribute('opacity', s2?.opacity ?? opacity)
           el.setAttribute('stroke-linecap', 'round'); el.setAttribute('stroke-linejoin', 'round')
           if (detected.shape === 'rect') el.setAttribute('rx', '3')
@@ -1022,7 +1022,7 @@ function PageCanvas({ page, pageH, maxW, pageIdx, totalPages, onStrokesChange, o
       penLiveShapeRef.current?.remove(); penLiveShapeRef.current = null
       if (s.points.length >= 1) {
         const points = s.points.length === 1 ? [s.points[0], s.points[0]] : s.points
-        if (snap) { onStrokesChange([...strokes, { ...snap, color: s.color, size: s.size, opacity: s.opacity }]); return }
+        if (snap) { onStrokesChange([...strokes, { ...snap, color: s.color, size: s.size * 0.72, opacity: s.opacity }]); return }
         onStrokesChange([...strokes, { ...s, points }])
       }
     }
