@@ -326,10 +326,11 @@ function PageCanvas({ page, pageH, maxW, pageIdx, totalPages, onStrokesChange, o
   const shapeModeRef  = useRef(false)
   const shapeStartRef = useRef(null)
   const shapeRAFRef   = useRef(null)
-  const penHoldTimerRef  = useRef(null)
-  const penSnapRef       = useRef(null)
-  const penStillPtRef    = useRef(null)
-  const penLiveShapeRef  = useRef(null)
+  const penHoldTimerRef   = useRef(null)
+  const penSnapRef        = useRef(null)
+  const penSnapAnchorRef  = useRef(null)
+  const penStillPtRef     = useRef(null)
+  const penLiveShapeRef   = useRef(null)
   const lastPtRef     = useRef(null)
   const isErasingRef  = useRef(false)
   const erasingRef    = useRef(null)
@@ -424,7 +425,7 @@ function PageCanvas({ page, pageH, maxW, pageIdx, totalPages, onStrokesChange, o
         livePathRef.current?.remove(); livePathRef.current = null
         const s = activeStroke.current; activeStroke.current = null
         clearTimeout(penHoldTimerRef.current); penHoldTimerRef.current = null
-        penStillPtRef.current = null
+        penStillPtRef.current = null; penSnapAnchorRef.current = null
         const snap = penSnapRef.current; penSnapRef.current = null
         penLiveShapeRef.current?.remove(); penLiveShapeRef.current = null
         if (s.points.length >= 1) {
@@ -573,6 +574,17 @@ function PageCanvas({ page, pageH, maxW, pageIdx, totalPages, onStrokesChange, o
         else if (sr) setSelRect(prev => ({ ...prev, x2: pt[0], y2: pt[1] }))
       } else {
         if (!activeStroke.current || !livePathRef.current) return
+
+        // Already snapped — update shape live, don't revert
+        if (penSnapRef.current && penLiveShapeRef.current && penSnapAnchorRef.current) {
+          const [ax, ay] = penSnapAnchorRef.current
+          const type = penSnapRef.current.shape
+          const [sx2, sy2] = snapShapeCoords(type, ax, ay, pt[0], pt[1])
+          setLiveShapeAttrs(penLiveShapeRef.current, type, ax, ay, sx2, sy2)
+          penSnapRef.current = { shape: type, x1: ax, y1: ay, x2: sx2, y2: sy2 }
+          return
+        }
+
         activeStroke.current.points.push(pt)
         if (!drawRAFRef.current) {
           drawRAFRef.current = requestAnimationFrame(() => {
@@ -589,11 +601,6 @@ function PageCanvas({ page, pageH, maxW, pageIdx, totalPages, onStrokesChange, o
         if (!still || Math.hypot(pt[0] - still[0], pt[1] - still[1]) > 10) {
           penStillPtRef.current = pt
           clearTimeout(penHoldTimerRef.current); penHoldTimerRef.current = null
-          if (penSnapRef.current) {
-            penSnapRef.current = null
-            penLiveShapeRef.current?.remove(); penLiveShapeRef.current = null
-            if (livePathRef.current) livePathRef.current.style.display = ''
-          }
           penHoldTimerRef.current = setTimeout(() => {
             penHoldTimerRef.current = null
             const s = activeStroke.current
@@ -601,6 +608,7 @@ function PageCanvas({ page, pageH, maxW, pageIdx, totalPages, onStrokesChange, o
             const pts = s.points.length === 1 ? [s.points[0], s.points[0]] : s.points
             const detected = detectShape(pts)
             if (!detected) return
+            penSnapAnchorRef.current = pts[0]
             penSnapRef.current = detected
             if (livePathRef.current) livePathRef.current.style.display = 'none'
             const tagMap = { rect: 'rect', ellipse: 'ellipse', line: 'line' }
@@ -613,7 +621,7 @@ function PageCanvas({ page, pageH, maxW, pageIdx, totalPages, onStrokesChange, o
             setLiveShapeAttrs(el, detected.shape, detected.x1, detected.y1, detected.x2, detected.y2)
             svgRef.current.appendChild(el)
             penLiveShapeRef.current = el
-          }, 1500)
+          }, 900)
         }
       }
     }
@@ -892,6 +900,17 @@ function PageCanvas({ page, pageH, maxW, pageIdx, totalPages, onStrokesChange, o
       updateLiveShape(shapeStartRef.current[0], shapeStartRef.current[1], pt[0], pt[1])
     } else {
       if (!activeStroke.current || !livePathRef.current) return
+
+      // Already snapped — update shape live, don't revert
+      if (penSnapRef.current && penLiveShapeRef.current && penSnapAnchorRef.current) {
+        const [ax, ay] = penSnapAnchorRef.current
+        const type = penSnapRef.current.shape
+        const [sx2, sy2] = snapShapeCoords(type, ax, ay, pt[0], pt[1])
+        setLiveShapeAttrs(penLiveShapeRef.current, type, ax, ay, sx2, sy2)
+        penSnapRef.current = { shape: type, x1: ax, y1: ay, x2: sx2, y2: sy2 }
+        return
+      }
+
       activeStroke.current.points.push(pt)
       if (!drawRAFRef.current) {
         drawRAFRef.current = requestAnimationFrame(() => {
@@ -907,11 +926,6 @@ function PageCanvas({ page, pageH, maxW, pageIdx, totalPages, onStrokesChange, o
       if (!still || Math.hypot(pt[0] - still[0], pt[1] - still[1]) > 10) {
         penStillPtRef.current = pt
         clearTimeout(penHoldTimerRef.current); penHoldTimerRef.current = null
-        if (penSnapRef.current) {
-          penSnapRef.current = null
-          penLiveShapeRef.current?.remove(); penLiveShapeRef.current = null
-          if (livePathRef.current) livePathRef.current.style.display = ''
-        }
         penHoldTimerRef.current = setTimeout(() => {
           penHoldTimerRef.current = null
           const s = activeStroke.current
@@ -919,20 +933,22 @@ function PageCanvas({ page, pageH, maxW, pageIdx, totalPages, onStrokesChange, o
           const pts = s.points.length === 1 ? [s.points[0], s.points[0]] : s.points
           const detected = detectShape(pts)
           if (!detected) return
+          penSnapAnchorRef.current = pts[0]
           penSnapRef.current = detected
           if (livePathRef.current) livePathRef.current.style.display = 'none'
           const tagMap = { rect: 'rect', ellipse: 'ellipse', line: 'line' }
           const tag = tagMap[detected.shape]; if (!tag) return
           const el = document.createElementNS('http://www.w3.org/2000/svg', tag)
-          el.setAttribute('stroke', activeStroke.current?.color ?? drawColor)
-          el.setAttribute('stroke-width', activeStroke.current?.size ?? penSize)
-          el.setAttribute('fill', 'none'); el.setAttribute('opacity', activeStroke.current?.opacity ?? opacity)
+          const s2 = activeStroke.current
+          el.setAttribute('stroke', s2?.color ?? drawColor)
+          el.setAttribute('stroke-width', s2?.size ?? penSize)
+          el.setAttribute('fill', 'none'); el.setAttribute('opacity', s2?.opacity ?? opacity)
           el.setAttribute('stroke-linecap', 'round'); el.setAttribute('stroke-linejoin', 'round')
           if (detected.shape === 'rect') el.setAttribute('rx', '3')
           setLiveShapeAttrs(el, detected.shape, detected.x1, detected.y1, detected.x2, detected.y2)
           svgRef.current.appendChild(el)
           penLiveShapeRef.current = el
-        }, 1500)
+        }, 900)
       }
     }
   }
@@ -984,7 +1000,7 @@ function PageCanvas({ page, pageH, maxW, pageIdx, totalPages, onStrokesChange, o
       livePathRef.current?.remove(); livePathRef.current = null
       const s = activeStroke.current; activeStroke.current = null
       clearTimeout(penHoldTimerRef.current); penHoldTimerRef.current = null
-      penStillPtRef.current = null
+      penStillPtRef.current = null; penSnapAnchorRef.current = null
       const snap = penSnapRef.current; penSnapRef.current = null
       penLiveShapeRef.current?.remove(); penLiveShapeRef.current = null
       if (s.points.length >= 1) {
@@ -1002,7 +1018,7 @@ function PageCanvas({ page, pageH, maxW, pageIdx, totalPages, onStrokesChange, o
     if (drawRAFRef.current) { cancelAnimationFrame(drawRAFRef.current); drawRAFRef.current = null }
     clearTimeout(holdTimer.current)
     clearTimeout(penHoldTimerRef.current); penHoldTimerRef.current = null
-    penStillPtRef.current = null; penSnapRef.current = null
+    penStillPtRef.current = null; penSnapRef.current = null; penSnapAnchorRef.current = null
     penLiveShapeRef.current?.remove(); penLiveShapeRef.current = null
     clearLiveShape()
     shapeModeRef.current = false; shapeStartRef.current = null; setShapeHeld(false)
