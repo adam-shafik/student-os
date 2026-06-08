@@ -1,4 +1,5 @@
 import { useRef, useState, useEffect, useLayoutEffect, forwardRef, useImperativeHandle } from 'react'
+import { motion, MotionConfig } from 'framer-motion'
 import { getStroke } from 'perfect-freehand'
 import {
   Undo2, Trash2, PenLine, Highlighter, Shapes, MousePointer2, Eraser,
@@ -13,11 +14,11 @@ const DEFAULT_PEN_PRESETS    = [3, 5, 8]
 const DEFAULT_HL_PRESETS     = [12, 18, 28]
 const DEFAULT_ERASER_PRESETS = [8, 20, 40]
 const TOOLS           = [
-  ['pen',         PenLine,       'Pen'],
-  ['highlighter', Highlighter,   'Highlighter'],
-  ['shape',       Shapes,        'Shapes'],
-  ['select',      MousePointer2, 'Select · drag to move · Delete to remove'],
-  ['eraser',      Eraser,        'Eraser'],
+  ['pen',         PenLine,       'Pen',                                        '#5b8cff'],
+  ['eraser',      Eraser,        'Eraser',                                     '#e2e8f0'],
+  ['highlighter', Highlighter,   'Highlighter',                                '#fbbf24'],
+  ['shape',       Shapes,        'Shapes',                                     '#34d399'],
+  ['select',      MousePointer2, 'Select · drag to move · Delete to remove',   '#a78bfa'],
 ]
 const SHAPE_TYPES  = [['rect', Square, 'Rectangle'], ['ellipse', Circle, 'Ellipse'], ['line', Minus, 'Line'], ['triangle', Triangle, 'Triangle']]
 const ERASER_MODES = [['standard', 'Standard'], ['stroke', 'Stroke']]
@@ -1091,6 +1092,19 @@ const NoteCanvas = forwardRef(function NoteCanvas({
   const [undoToast,    setUndoToast]    = useState(false)
   const [undoToastKey, setUndoToastKey] = useState(0)
   const [clipboard,    setClipboard]    = useState(null)
+  const toolbarRef          = useRef(null)
+  const toolBtnRefs         = useRef({})
+  const [toolPill, setToolPill] = useState({ left: 0, width: 0, ready: false })
+
+  useLayoutEffect(() => {
+    const btn = toolBtnRefs.current[tool]
+    const bar = toolbarRef.current
+    if (!btn || !bar) return
+    const bRect = btn.getBoundingClientRect()
+    const cRect = bar.getBoundingClientRect()
+    setToolPill(prev => ({ left: bRect.left - cRect.left, width: bRect.width, ready: prev.ready || true }))
+  }, [tool])
+
   const undoToastTimer      = useRef(null)
   const zoomRef             = useRef(zoom)
   const zoomRafRef          = useRef(null)
@@ -1277,15 +1291,15 @@ const NoteCanvas = forwardRef(function NoteCanvas({
   function tbtn(active) {
     return {
       display: 'flex', alignItems: 'center', justifyContent: 'center',
-      width: 30, height: 28, borderRadius: 7, border: '1px solid transparent',
+      width: 32, height: 30, borderRadius: 7, border: '1px solid transparent',
       cursor: 'pointer', pointerEvents: 'auto',
-      background: active ? 'rgba(255,255,255,0.1)' : 'none',
-      color: active ? 'rgba(255,255,255,0.9)' : 'rgba(255,255,255,0.6)',
-      borderColor: active ? 'rgba(255,255,255,0.15)' : 'transparent',
+      background: active ? 'rgba(255,255,255,0.12)' : 'none',
+      color: active ? 'rgba(255,255,255,0.95)' : 'rgba(255,255,255,0.55)',
+      borderColor: active ? 'rgba(255,255,255,0.18)' : 'transparent',
     }
   }
 
-  const sep = <div style={{ width: 1, height: 18, background: 'rgba(255,255,255,0.1)', flexShrink: 0 }} />
+  const sep = <div style={{ width: 1, height: 20, background: 'rgba(255,255,255,0.14)', flexShrink: 0 }} />
 
   useImperativeHandle(ref, () => ({
     async exportAsPdf() {
@@ -1451,29 +1465,59 @@ const NoteCanvas = forwardRef(function NoteCanvas({
 
         {/* ── Tool bar ── */}
         {!readonly && (
-          <div style={{
-            position: 'absolute', top: 12, left: '50%', transform: 'translateX(-50%)',
-            zIndex: 100, display: 'flex', alignItems: 'center', gap: 3,
-            background: 'rgba(13,14,22,0.95)', backdropFilter: 'blur(16px) saturate(1.4)',
-            border: '1px solid rgba(255,255,255,0.08)',
-            borderRadius: 14, padding: '5px 8px',
-            boxShadow: '0 8px 32px rgba(0,0,0,0.6)',
-            pointerEvents: 'none',
-          }}>
-            {TOOLS.map(([t, Icon, label]) => (
-              <button key={t} title={label} onClick={() => handleSetTool(t)} style={{
-                display: 'flex', alignItems: 'center', justifyContent: 'center',
-                width: 42, height: 36, borderRadius: 9, border: '1px solid transparent',
-                cursor: 'pointer', pointerEvents: 'auto',
-                background: tool === t ? 'rgba(91,140,255,0.18)' : 'none',
-                color: tool === t ? '#5b8cff' : 'rgba(255,255,255,0.5)',
-                borderColor: tool === t ? 'rgba(91,140,255,0.28)' : 'transparent',
-                transition: 'background 0.14s, color 0.14s, border-color 0.14s',
-              }}>
-                <Icon size={15} />
-              </button>
-            ))}
-          </div>
+          <MotionConfig reducedMotion="user">
+            <div
+              ref={toolbarRef}
+              style={{
+                position: 'absolute', top: 12, left: '50%', transform: 'translateX(-50%)',
+                zIndex: 100, display: 'flex', alignItems: 'center', gap: 2,
+                background: 'rgba(13,14,22,0.95)', backdropFilter: 'blur(16px) saturate(1.4)',
+                border: '1px solid rgba(255,255,255,0.08)',
+                borderRadius: 14, padding: '5px 6px',
+                boxShadow: '0 8px 32px rgba(0,0,0,0.6)',
+                pointerEvents: 'none',
+              }}
+            >
+              {/* Sliding pill background */}
+              {toolPill.ready && (() => {
+                const accent = TOOLS.find(([t]) => t === tool)?.[3] ?? '#5b8cff'
+                return (
+                  <motion.div
+                    style={{
+                      position: 'absolute', top: 5, height: 38, borderRadius: 10,
+                      background: accent,
+                      boxShadow: `0 0 16px ${accent}77, 0 2px 8px rgba(0,0,0,0.45)`,
+                      pointerEvents: 'none',
+                    }}
+                    animate={{ left: toolPill.left, width: toolPill.width }}
+                    transition={{ type: 'spring', stiffness: 380, damping: 32, mass: 0.8 }}
+                  />
+                )
+              })()}
+              {TOOLS.map(([t, Icon, label]) => {
+                const active = tool === t
+                return (
+                  <button
+                    key={t}
+                    ref={el => { if (el) toolBtnRefs.current[t] = el; else delete toolBtnRefs.current[t] }}
+                    title={label}
+                    onClick={() => handleSetTool(t)}
+                    style={{
+                      display: 'flex', alignItems: 'center', justifyContent: 'center',
+                      width: 44, height: 38, borderRadius: 10, border: 'none',
+                      cursor: 'pointer', pointerEvents: 'auto',
+                      background: 'none',
+                      color: active ? '#0d0e1a' : 'rgba(255,255,255,0.42)',
+                      position: 'relative', zIndex: 1,
+                      transition: 'color 0.18s',
+                    }}
+                  >
+                    <Icon size={16} strokeWidth={active ? 2.5 : 1.8} />
+                  </button>
+                )
+              })}
+            </div>
+          </MotionConfig>
         )}
 
         {/* ── Settings pill (dynamic per tool) ── */}
@@ -1589,20 +1633,21 @@ const NoteCanvas = forwardRef(function NoteCanvas({
                     const active = penColor === c
                     return (
                       <button key={c} onClick={() => setPenColor(c)} style={{
-                        width: 16, height: 16, borderRadius: '50%', background: c, border: 'none',
+                        width: 18, height: 18, borderRadius: '50%', background: c, border: 'none',
                         cursor: 'pointer', padding: 0, flexShrink: 0, pointerEvents: 'auto',
                         outline: active ? `2.5px solid ${c}` : '2px solid transparent',
-                        outlineOffset: 2, transform: active ? 'scale(1.25)' : 'scale(1)',
+                        outlineOffset: 2.5, transform: active ? 'scale(1.2)' : 'scale(1)',
                         transition: 'transform 0.12s',
+                        boxShadow: active ? `0 0 8px ${c}88` : 'none',
                       }} />
                     )
                   })}
-                  <div style={{ position: 'relative', width: 16, height: 16, flexShrink: 0, pointerEvents: 'auto' }}>
+                  <div style={{ position: 'relative', width: 18, height: 18, flexShrink: 0, pointerEvents: 'auto' }}>
                     <div style={{
-                      width: 16, height: 16, borderRadius: '50%',
+                      width: 18, height: 18, borderRadius: '50%',
                       background: 'conic-gradient(red, yellow, lime, cyan, blue, magenta, red)',
                       outline: !PRESETS.includes(penColor) ? '2.5px solid white' : '2px solid transparent',
-                      outlineOffset: 2, transform: !PRESETS.includes(penColor) ? 'scale(1.25)' : 'scale(1)',
+                      outlineOffset: 2.5, transform: !PRESETS.includes(penColor) ? 'scale(1.2)' : 'scale(1)',
                       transition: 'transform 0.12s',
                     }} />
                     <input type="color" value={customColor}

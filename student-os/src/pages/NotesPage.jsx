@@ -346,17 +346,21 @@ function NoteCard({ note, domain, onClick, onDelete }) {
     .trim().slice(0, 120) : null
   const pagesCnt = (note.pages || []).length
 
+  const typeAccent      = isTyped ? '#5b8cff' : isPdf ? '#f97316' : '#a78bfa'
+  const typeTint        = isTyped ? 'rgba(91,140,255,0.07)' : isPdf ? 'rgba(249,115,22,0.07)' : 'rgba(167,139,250,0.07)'
+  const typeIconBg      = isTyped ? 'rgba(91,140,255,0.14)' : isPdf ? 'rgba(249,115,22,0.14)' : 'rgba(167,139,250,0.14)'
+  const typeHoverBorder = isTyped ? 'rgba(91,140,255,0.4)' : isPdf ? 'rgba(249,115,22,0.4)' : 'rgba(167,139,250,0.4)'
+
   return (
     <div
       onClick={onClick}
       onMouseEnter={() => setHovered(true)}
       onMouseLeave={() => setHovered(false)}
       style={{
-        background: 'var(--bg-surface)', border: '1px solid var(--border)',
+        background: hovered ? typeTint : 'var(--bg-surface)',
+        border: `1px solid ${hovered ? typeHoverBorder : 'var(--border)'}`,
         borderRadius: 12, padding: '16px 18px', cursor: 'pointer',
-        transition: 'border-color 0.12s, box-shadow 0.12s',
-        borderColor: hovered ? 'var(--border-strong)' : 'var(--border)',
-        boxShadow: hovered ? 'var(--shadow-card, 0 4px 20px rgba(0,0,0,0.3))' : 'none',
+        transition: 'background 0.15s, border-color 0.15s',
         position: 'relative',
       }}
     >
@@ -380,14 +384,18 @@ function NoteCard({ note, domain, onClick, onDelete }) {
         </button>
       )}
 
-      <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 8 }}>
-        <div style={{ width: 30, height: 30, borderRadius: 8, background: 'var(--bg-overlay)', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
-          {isTyped ? <Type size={14} color="var(--accent-blue)" />
-           : isPdf  ? <FileText size={14} color="#f97316" />
-           : <PenLine size={14} color="var(--accent-purple)" />}
+      <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 10 }}>
+        <div style={{
+          width: 36, height: 36, borderRadius: 9, background: typeIconBg,
+          display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0,
+          transition: 'background 0.15s',
+        }}>
+          {isTyped ? <Type size={16} color={typeAccent} />
+           : isPdf  ? <FileText size={16} color={typeAccent} />
+           : <PenLine size={16} color={typeAccent} />}
         </div>
         <div style={{ flex: 1, minWidth: 0 }}>
-          <div style={{ fontSize: 13, fontWeight: 600, color: 'var(--text-primary)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+          <div style={{ fontSize: 13, fontWeight: 700, color: 'var(--text-primary)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
             {note.title || 'Untitled Note'}
           </div>
         </div>
@@ -451,9 +459,10 @@ function NoteTitle({ value, onChange }) {
           onChange={e => setDraft(e.target.value)}
           onKeyDown={e => { if (e.key === 'Enter') commit(); if (e.key === 'Escape') { setEditing(false); setDraft(value) } }}
           style={{
-            fontSize: 18, fontWeight: 700, color: 'var(--text-primary)',
+            fontSize: 19, fontWeight: 800, color: 'var(--text-primary)',
             background: 'var(--bg-input)', border: '1px solid var(--accent-blue)',
-            borderRadius: 7, padding: '4px 10px', outline: 'none', width: 280,
+            borderRadius: 7, padding: '4px 10px', outline: 'none', width: 300,
+            letterSpacing: '-0.3px',
           }}
         />
         <button onClick={commit} style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--accent-green)', display: 'flex' }}>
@@ -467,9 +476,9 @@ function NoteTitle({ value, onChange }) {
   }
 
   return (
-    <div style={{ display: 'flex', alignItems: 'center', gap: 8, cursor: 'text' }} onClick={() => setEditing(true)}>
-      <span style={{ fontSize: 18, fontWeight: 700, color: 'var(--text-primary)' }}>{value || 'Untitled Note'}</span>
-      <Pencil size={13} color="var(--text-muted)" />
+    <div style={{ display: 'flex', alignItems: 'center', gap: 7, cursor: 'text' }} onClick={() => setEditing(true)}>
+      <span style={{ fontSize: 19, fontWeight: 800, color: 'var(--text-primary)', letterSpacing: '-0.3px' }}>{value || 'Untitled Note'}</span>
+      <Pencil size={12} color="var(--text-muted)" style={{ flexShrink: 0 }} />
     </div>
   )
 }
@@ -1138,14 +1147,14 @@ export default function NotesPage({ notes, domains, noteToOpen, onClearNoteToOpe
           <div style={{ flex: 1, overflowY: 'auto', padding: '24px 28px' }}>
             <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 20 }}>
               <div>
-                <h2 style={{ margin: 0, fontSize: 18, fontWeight: 700, color: 'var(--text-primary)' }}>
+                <h2 style={{ margin: 0, fontSize: 22, fontWeight: 800, color: 'var(--text-primary)', letterSpacing: '-0.4px' }}>
                   {selectedFolder.type === 'all'     ? 'All Notes'
                   : selectedFolder.type === 'general' ? 'General Notes'
-                  : selectedFolder.type === 'week'    ? `${domainMap[selectedFolder.domainId]?.code} Week ${selectedFolder.week}`
+                  : selectedFolder.type === 'week'    ? `${domainMap[selectedFolder.domainId]?.code} · Week ${selectedFolder.week}`
                   : selectedFolder.type === 'domain'  ? domainMap[selectedFolder.domainId]?.name
                   : 'Notes'}
                 </h2>
-                <p style={{ margin: '3px 0 0', fontSize: 12, color: 'var(--text-muted)' }}>
+                <p style={{ margin: '4px 0 0', fontSize: 12, color: 'var(--text-muted)', fontVariantNumeric: 'tabular-nums' }}>
                   {folderNotes.length} note{folderNotes.length !== 1 ? 's' : ''}
                 </p>
               </div>
@@ -1171,13 +1180,17 @@ export default function NotesPage({ notes, domains, noteToOpen, onClearNoteToOpe
             </div>
 
             {folderNotes.length === 0 ? (
-              <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 14, padding: '80px 0', color: 'var(--text-muted)', textAlign: 'center' }}>
-                <div style={{ width: 64, height: 64, borderRadius: 16, background: 'var(--bg-surface)', border: '1px solid var(--border)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-                  <PenLine size={28} color="var(--border-strong)" />
+              <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 16, padding: '100px 0', color: 'var(--text-muted)', textAlign: 'center' }}>
+                <div style={{ width: 72, height: 72, borderRadius: 18, background: 'rgba(167,139,250,0.1)', border: '1px solid rgba(167,139,250,0.2)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                  <PenLine size={32} color="var(--accent-purple)" strokeWidth={1.5} />
                 </div>
                 <div>
-                  <p style={{ margin: 0, fontSize: 15, fontWeight: 600, color: 'var(--text-secondary)' }}>No notes here yet</p>
-                  <p style={{ margin: '6px 0 0', fontSize: 13, color: 'var(--text-muted)' }}>Click New Note to start writing</p>
+                  <p style={{ margin: 0, fontSize: 16, fontWeight: 700, color: 'var(--text-secondary)', letterSpacing: '-0.2px' }}>No notes here yet</p>
+                  <p style={{ margin: '6px 0 0', fontSize: 13, color: 'var(--text-muted)', lineHeight: 1.55 }}>
+                    {selectedFolder.type === 'week'
+                      ? `Nothing filed under this week. Open a note and use the location picker.`
+                      : `Press New Note to start — handwritten, typed, or from a PDF.`}
+                  </p>
                 </div>
               </div>
             ) : (
