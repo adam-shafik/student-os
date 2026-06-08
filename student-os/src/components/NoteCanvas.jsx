@@ -186,6 +186,89 @@ function setLiveShapeAttrs(el, type, x1, y1, x2, y2) {
   if (type === 'triangle') { el.setAttribute('points', `${(x1 + x2) / 2},${minY} ${minX},${minY + h} ${minX + w},${minY + h}`) }
 }
 
+// Snap lines to 45° multiples and rects/ellipses to squares within tolerance
+function snapShapeCoords(type, x1, y1, x2, y2) {
+  const dx = x2 - x1, dy = y2 - y1
+  if (type === 'line') {
+    const len = Math.hypot(dx, dy)
+    if (len < 4) return [x2, y2]
+    const angleDeg = Math.atan2(dy, dx) * 180 / Math.PI
+    const nearest  = Math.round(angleDeg / 45) * 45
+    if (Math.abs(angleDeg - nearest) < 13) {
+      const rad = nearest * Math.PI / 180
+      return [x1 + Math.cos(rad) * len, y1 + Math.sin(rad) * len]
+    }
+  }
+  if (type === 'rect' || type === 'ellipse') {
+    const w = Math.abs(dx), h = Math.abs(dy)
+    if (w > 0 && h > 0) {
+      const ratio = w / h
+      if (ratio > 0.82 && ratio < 1.22) {
+        const size = Math.max(w, h)
+        return [x1 + Math.sign(dx) * size, y1 + Math.sign(dy) * size]
+      }
+    }
+  }
+  return [x2, y2]
+}
+
+function detectShape(points) {
+  if (points.length < 8) return null
+  const first = points[0], last = points[points.length - 1]
+  let minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity
+  for (const [x, y] of points) {
+    if (x < minX) minX = x; if (x > maxX) maxX = x
+    if (y < minY) minY = y; if (y > maxY) maxY = y
+  }
+  const w = maxX - minX, h = maxY - minY
+  const diagonal = Math.hypot(w, h)
+  if (diagonal < 20) return null
+  const gap = Math.hypot(last[0] - first[0], last[1] - first[1])
+  const isClosed = gap / diagonal < 0.35
+
+  if (isClosed && w >= 20 && h >= 20) {
+    // Try ellipse: points should roughly satisfy the ellipse equation
+    const cx = (minX + maxX) / 2, cy = (minY + maxY) / 2
+    const a = w / 2, b = h / 2
+    let ellipseErr = 0
+    for (const [x, y] of points) {
+      const nx = (x - cx) / a, ny = (y - cy) / b
+      ellipseErr += Math.abs(Math.sqrt(nx * nx + ny * ny) - 1)
+    }
+    if (ellipseErr / points.length < 0.25)
+      return { shape: 'ellipse', x1: minX, y1: minY, x2: maxX, y2: maxY }
+
+    // Try rectangle: points should hug the bounding box edges
+    let rectErr = 0
+    for (const [x, y] of points) {
+      const dL = Math.abs(x - minX), dR = Math.abs(x - maxX)
+      const dT = Math.abs(y - minY), dB = Math.abs(y - maxY)
+      rectErr += Math.min(dL, dR, dT, dB)
+    }
+    if (rectErr / points.length / Math.min(w, h) < 0.15)
+      return { shape: 'rect', x1: minX, y1: minY, x2: maxX, y2: maxY }
+  }
+
+  if (!isClosed) {
+    // Try line: points should be roughly collinear with start→end vector
+    const dx = last[0] - first[0], dy = last[1] - first[1]
+    const len = Math.hypot(dx, dy)
+    if (len >= 30) {
+      let lineErr = 0
+      for (const [x, y] of points) {
+        const t = ((x - first[0]) * dx + (y - first[1]) * dy) / (len * len)
+        lineErr += Math.hypot(x - (first[0] + t * dx), y - (first[1] + t * dy))
+      }
+      if (lineErr / points.length / len < 0.08) {
+        const [sx2, sy2] = snapShapeCoords('line', first[0], first[1], last[0], last[1])
+        return { shape: 'line', x1: first[0], y1: first[1], x2: sx2, y2: sy2 }
+      }
+    }
+  }
+
+  return null
+}
+
 // ─── Selection utils ───────────────────────────────────────────────────────────
 function shiftStroke(s, dx, dy) {
   if (s.shape) return { ...s, x1: s.x1 + dx, y1: s.y1 + dy, x2: s.x2 + dx, y2: s.y2 + dy }
@@ -245,6 +328,7 @@ function PageCanvas({ page, pageH, maxW, pageIdx, totalPages, onStrokesChange, o
   const holdTimer     = useRef(null)
   const shapeModeRef  = useRef(false)
   const shapeStartRef = useRef(null)
+  const shapeRAFRef   = useRef(null)
   const lastPtRef     = useRef(null)
   const isErasingRef  = useRef(false)
   const erasingRef    = useRef(null)
@@ -317,10 +401,11 @@ function PageCanvas({ page, pageH, maxW, pageIdx, totalPages, onStrokesChange, o
         }
       } else if (tool === 'shape') {
         if (shapeModeRef.current && shapeStartRef.current && lastPtRef.current) {
-          const [x1, y1] = shapeStartRef.current, [x2, y2] = lastPtRef.current
+          const [x1, y1] = shapeStartRef.current, [rx2, ry2] = lastPtRef.current
           liveShapeRef.current?.el?.remove(); liveShapeRef.current = null
-          const type = classifyShape(x1, y1, x2, y2, shapeType)
-          if (Math.abs(x2 - x1) > 5 || Math.abs(y2 - y1) > 5)
+          const type = classifyShape(x1, y1, rx2, ry2, shapeType)
+          const [x2, y2] = snapShapeCoords(type, x1, y1, rx2, ry2)
+          if (Math.abs(rx2 - x1) > 5 || Math.abs(ry2 - y1) > 5)
             onStrokesChange([...strokes, { shape: type, x1, y1, x2, y2, color: drawColor, size: penSize, opacity }])
         } else { liveShapeRef.current?.el?.remove(); liveShapeRef.current = null }
         shapeModeRef.current = false; shapeStartRef.current = null; setShapeHeld(false)
@@ -339,6 +424,10 @@ function PageCanvas({ page, pageH, maxW, pageIdx, totalPages, onStrokesChange, o
         const s = activeStroke.current; activeStroke.current = null
         if (s.points.length >= 1) {
           const points = s.points.length === 1 ? [s.points[0], s.points[0]] : s.points
+          if (tool === 'pen') {
+            const detected = detectShape(points)
+            if (detected) { onStrokesChange([...strokes, { ...detected, color: s.color, size: s.size, opacity: s.opacity }]); return }
+          }
           onStrokesChange([...strokes, { ...s, points }])
         }
       }
@@ -374,8 +463,7 @@ function PageCanvas({ page, pageH, maxW, pageIdx, totalPages, onStrokesChange, o
           erasingRef.current = fn(strokes, pt[0], pt[1], eraserRadius)
           setErasingStrokes([...erasingRef.current])
         } else if (tool === 'shape') {
-          shapeStartRef.current = pt; shapeModeRef.current = false; setShapeHeld(false)
-          holdTimer.current = setTimeout(() => { shapeModeRef.current = true; setShapeHeld(true) }, 450)
+          shapeStartRef.current = pt; shapeModeRef.current = true; setShapeHeld(true)
         } else if (tool === 'select') {
           const { selectedIndices: si, strokes: st } = stateRef.current
           if (si.size > 0) {
@@ -456,6 +544,7 @@ function PageCanvas({ page, pageH, maxW, pageIdx, totalPages, onStrokesChange, o
         if (!shapeModeRef.current || !shapeStartRef.current) return
         const [x1, y1] = shapeStartRef.current
         const type = classifyShape(x1, y1, pt[0], pt[1], shapeType)
+        const [sx2, sy2] = snapShapeCoords(type, x1, y1, pt[0], pt[1])
         const tagMap = { rect: 'rect', ellipse: 'ellipse', line: 'line', triangle: 'polygon' }
         if (!liveShapeRef.current || liveShapeRef.current.type !== type) {
           liveShapeRef.current?.el?.remove()
@@ -463,11 +552,18 @@ function PageCanvas({ page, pageH, maxW, pageIdx, totalPages, onStrokesChange, o
           el.setAttribute('stroke', drawColor); el.setAttribute('stroke-width', penSize)
           el.setAttribute('fill', 'none'); el.setAttribute('opacity', opacity)
           el.setAttribute('stroke-linecap', 'round'); el.setAttribute('stroke-linejoin', 'round')
-          el.setAttribute('stroke-dasharray', '6 4')
           if (type === 'rect') el.setAttribute('rx', '3')
           svg.appendChild(el); liveShapeRef.current = { el, type }
         }
-        setLiveShapeAttrs(liveShapeRef.current.el, type, x1, y1, pt[0], pt[1])
+        if (!shapeRAFRef.current) {
+          const _el = liveShapeRef.current.el, _type = type, _x1 = x1, _y1 = y1, _x2 = sx2, _y2 = sy2
+          shapeRAFRef.current = requestAnimationFrame(() => {
+            setLiveShapeAttrs(_el, _type, _x1, _y1, _x2, _y2)
+            shapeRAFRef.current = null
+          })
+        } else {
+          setLiveShapeAttrs(liveShapeRef.current.el, type, x1, y1, sx2, sy2)
+        }
       } else if (tool === 'select') {
         clearTimeout(holdTimer.current); holdTimer.current = null
         const { isMoving: im, moveStart: ms, selRect: sr } = stateRef.current
@@ -605,6 +701,7 @@ function PageCanvas({ page, pageH, maxW, pageIdx, totalPages, onStrokesChange, o
 
   function updateLiveShape(x1, y1, x2, y2) {
     const type   = classifyShape(x1, y1, x2, y2, shapeType)
+    const [sx2, sy2] = snapShapeCoords(type, x1, y1, x2, y2)
     const tagMap = { rect: 'rect', ellipse: 'ellipse', line: 'line', triangle: 'polygon' }
     if (!liveShapeRef.current || liveShapeRef.current.type !== type) {
       clearLiveShape()
@@ -615,12 +712,11 @@ function PageCanvas({ page, pageH, maxW, pageIdx, totalPages, onStrokesChange, o
       el.setAttribute('opacity', opacity)
       el.setAttribute('stroke-linecap', 'round')
       el.setAttribute('stroke-linejoin', 'round')
-      el.setAttribute('stroke-dasharray', '6 4')
       if (type === 'rect') el.setAttribute('rx', '3')
       svgRef.current.appendChild(el)
       liveShapeRef.current = { el, type }
     }
-    setLiveShapeAttrs(liveShapeRef.current.el, type, x1, y1, x2, y2)
+    setLiveShapeAttrs(liveShapeRef.current.el, type, x1, y1, sx2, sy2)
   }
 
   function getSelBounds(dx = 0, dy = 0) {
@@ -727,8 +823,7 @@ function PageCanvas({ page, pageH, maxW, pageIdx, totalPages, onStrokesChange, o
     }
 
     if (tool === 'shape') {
-      shapeStartRef.current = pt; shapeModeRef.current = false; setShapeHeld(false)
-      holdTimer.current = setTimeout(() => { shapeModeRef.current = true; setShapeHeld(true) }, 450)
+      shapeStartRef.current = pt; shapeModeRef.current = true; setShapeHeld(true)
     } else {
       activeStroke.current = { points: [pt], color: drawColor, size: penSize, opacity, smoothing }
       const path = document.createElementNS('http://www.w3.org/2000/svg', 'path')
@@ -810,10 +905,11 @@ function PageCanvas({ page, pageH, maxW, pageIdx, totalPages, onStrokesChange, o
 
     if (tool === 'shape') {
       if (shapeModeRef.current && shapeStartRef.current && lastPtRef.current) {
-        const [x1, y1] = shapeStartRef.current, [x2, y2] = lastPtRef.current
+        const [x1, y1] = shapeStartRef.current, [rx2, ry2] = lastPtRef.current
         clearLiveShape()
-        const type = classifyShape(x1, y1, x2, y2, shapeType)
-        if (Math.abs(x2 - x1) > 5 || Math.abs(y2 - y1) > 5)
+        const type = classifyShape(x1, y1, rx2, ry2, shapeType)
+        const [x2, y2] = snapShapeCoords(type, x1, y1, rx2, ry2)
+        if (Math.abs(rx2 - x1) > 5 || Math.abs(ry2 - y1) > 5)
           onStrokesChange([...strokes, { shape: type, x1, y1, x2, y2, color: drawColor, size: penSize, opacity }])
       } else { clearLiveShape() }
       shapeModeRef.current = false; shapeStartRef.current = null; setShapeHeld(false)
@@ -824,6 +920,10 @@ function PageCanvas({ page, pageH, maxW, pageIdx, totalPages, onStrokesChange, o
       const s = activeStroke.current; activeStroke.current = null
       if (s.points.length >= 1) {
         const points = s.points.length === 1 ? [s.points[0], s.points[0]] : s.points
+        if (tool === 'pen') {
+          const detected = detectShape(points)
+          if (detected) { onStrokesChange([...strokes, { ...detected, color: s.color, size: s.size, opacity: s.opacity }]); return }
+        }
         onStrokesChange([...strokes, { ...s, points }])
       }
     }
