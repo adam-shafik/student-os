@@ -753,8 +753,8 @@ export default function NotesPage({ notes, domains, noteToOpen, onClearNoteToOpe
       .then(url => fetch(url))
       .then(r => r.arrayBuffer())
       .then(buf => renderPdfToBackgrounds(buf))
-      .then(bgs => {
-        if (!cancelled) setPdfBackgrounds(prev => ({ ...prev, [openNote.id]: bgs }))
+      .then(result => {
+        if (!cancelled) setPdfBackgrounds(prev => ({ ...prev, [openNote.id]: result }))
       })
       .catch(err => console.error('PDF load failed:', err))
       .finally(() => { if (!cancelled) setIsLoadingPdf(false) })
@@ -843,10 +843,10 @@ export default function NotesPage({ notes, domains, noteToOpen, onClearNoteToOpe
     setIsLoadingPdf(true)
     setPdfError('')
     try {
-      const backgrounds = await renderPdfToBackgrounds(file)
+      const result = await renderPdfToBackgrounds(file)
       const id = noteId()
-      setPdfBackgrounds(prev => ({ ...prev, [id]: backgrounds }))
-      await onAddPdfNote(id, file, meta, backgrounds.length)
+      setPdfBackgrounds(prev => ({ ...prev, [id]: result }))
+      await onAddPdfNote(id, file, meta, result.images.length)
       setOpenNoteId(id)
     } catch (err) {
       const msg = err?.message || err?.error || String(err) || 'Unknown error'
@@ -882,10 +882,10 @@ export default function NotesPage({ notes, domains, noteToOpen, onClearNoteToOpe
     setIsLoadingPdf(true)
     setPdfError('')
     try {
-      const backgrounds = await renderPdfToBackgrounds(file)
+      const result = await renderPdfToBackgrounds(file)
       const id = noteId()
-      setPdfBackgrounds(prev => ({ ...prev, [id]: backgrounds }))
-      await onAddPdfNote(id, file, pendingPdfMeta.current, backgrounds.length)
+      setPdfBackgrounds(prev => ({ ...prev, [id]: result }))
+      await onAddPdfNote(id, file, pendingPdfMeta.current, result.images.length)
       setOpenNoteId(id)
     } catch (err) {
       const msg = err?.message || err?.error || String(err) || 'Unknown error'
@@ -1160,7 +1160,8 @@ export default function NotesPage({ notes, domains, noteToOpen, onClearNoteToOpe
                   lineSpacing={openNote.lineSpacing || 32}
                   orientation={openNote.orientation || 'portrait'}
                   onSettingsChange={s => onUpdateNote(openNote.id, s)}
-                  pageBackgrounds={pdfBackgrounds[openNote.id]}
+                  pageBackgrounds={pdfBackgrounds[openNote.id]?.images}
+                  pageDimensions={pdfBackgrounds[openNote.id]?.dimensions}
                   isPdfNote={openNote.type === 'pdf'}
                 />
               )}

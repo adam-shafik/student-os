@@ -1290,6 +1290,7 @@ const NoteCanvas = forwardRef(function NoteCanvas({
   orientation = 'portrait', onSettingsChange,
   readonly = false,
   pageBackgrounds,
+  pageDimensions,
   isPdfNote = false,
 }, ref) {
   const scrollRef        = useRef()
@@ -1472,8 +1473,13 @@ const NoteCanvas = forwardRef(function NoteCanvas({
     // useEffect on zoom clears the CSS transform and applies pendingScrollTopRef after re-render
   }
 
-  const pageH        = PAGE_HEIGHTS[orientation]    ?? 1200
-  const maxW         = PAGE_MAX_WIDTHS[orientation] ?? 900
+  function getPageDims(idx) {
+    const dim = pageDimensions?.[idx]
+    if (!dim) return { pageH: PAGE_HEIGHTS[orientation] ?? 1200, maxW: PAGE_MAX_WIDTHS[orientation] ?? 900 }
+    const w = Math.min(900, dim.w)
+    return { pageH: Math.round(dim.h * w / dim.w), maxW: w }
+  }
+  const { pageH, maxW } = getPageDims(0)
   const opacity      = tool === 'highlighter' ? 0.35 : 1
   const eraserRadius = tool === 'eraser' ? penSize : penSize * 4
   // pages beyond the PDF backgrounds are user-added blank pages
@@ -2029,16 +2035,18 @@ const NoteCanvas = forwardRef(function NoteCanvas({
         {/* Scroll container */}
         <div ref={scrollRef} onScroll={onScroll} style={{ height: '100%', overflowY: 'auto', overflowX: 'auto', background: 'var(--canvas-outer, #14141e)' }}>
           <div ref={pagesWrapperRef} style={{ padding: readonly ? 24 : '108px 24px 24px', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: Math.round(24 * zoom), width: 'max-content', minWidth: '100%' }}>
-            {pages.map((page, pageIdx) => (
-              // position:relative + explicit height = pageH*zoom so the flex item contributes
-              // exactly pageH*zoom to the column — no fixed-pixel controls in the flow.
+            {pages.map((page, pageIdx) => {
+              const { pageH: pgH, maxW: pgW } = getPageDims(pageIdx)
+              return (
+              // position:relative + explicit height = pgH*zoom so the flex item contributes
+              // exactly pgH*zoom to the column — no fixed-pixel controls in the flow.
               // This makes every element below the top padding scale linearly with zoom,
               // which is required for the CSS-transform pinch-zoom math to be accurate.
-              <div key={page.id} style={{ flexShrink: 0, position: 'relative', width: maxW * zoom, height: pageH * zoom }}>
+              <div key={page.id} style={{ flexShrink: 0, position: 'relative', width: pgW * zoom, height: pgH * zoom }}>
                 <PageCanvas
                   page={page}
-                  pageH={pageH}
-                  maxW={maxW}
+                  pageH={pgH}
+                  maxW={pgW}
                   onStrokesChange={newStrokes => {
                     undoStackRef.current.push({ pageIdx, strokes: pages[pageIdx].strokes })
                     redoStackRef.current = []
@@ -2093,7 +2101,7 @@ const NoteCanvas = forwardRef(function NoteCanvas({
                   </div>
                 </div>
               </div>
-            ))}
+            )})}
 
             {!readonly && (
               <button

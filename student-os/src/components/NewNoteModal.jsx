@@ -1,4 +1,4 @@
-import { useState, useRef } from 'react'
+import { useState, useRef, useEffect } from 'react'
 import { X, PenLine, Type, FileText, Upload } from 'lucide-react'
 import AppSelect, { AppSelectItem } from './AppSelect'
 
@@ -141,8 +141,24 @@ export default function NewNoteModal({ domains = [], defaultDomainId = null, def
     color: 'var(--text-primary)', fontSize: 14, fontFamily: 'inherit', outline: 'none',
   }
 
+  const bodyRef = useRef(null)
+  const [bodyH, setBodyH] = useState(null)
+  useEffect(() => {
+    const el = bodyRef.current
+    if (!el) return
+    const obs = new ResizeObserver(([entry]) => setBodyH(Math.ceil(entry.contentRect.height)))
+    obs.observe(el)
+    return () => obs.disconnect()
+  }, [])
+
+  const activeIdx = NOTE_TYPES.findIndex(t => t.id === noteType)
+  const activeType = NOTE_TYPES[activeIdx]
+
   return (
     <div style={{ position: 'fixed', inset: 0, zIndex: 1000, display: 'flex', alignItems: 'center', justifyContent: 'center', background: 'rgba(0,0,0,0.55)' }}>
+      <style>{`
+        @keyframes _nm-in { from { opacity: 0; transform: translateY(5px); } to { opacity: 1; transform: none; } }
+      `}</style>
       <div style={{
         width: 640, maxWidth: '95vw',
         background: 'var(--bg-surface)', border: '1px solid var(--border)',
@@ -157,35 +173,50 @@ export default function NewNoteModal({ domains = [], defaultDomainId = null, def
           </button>
         </div>
 
-        {/* Type selector */}
-        <div style={{ display: 'flex', gap: 8, padding: '16px 22px 0' }}>
-          {NOTE_TYPES.map(t => {
-            const active = noteType === t.id
-            return (
+        {/* Type selector — segmented control with sliding pill */}
+        <div style={{ padding: '16px 22px 0' }}>
+          <div style={{
+            position: 'relative',
+            display: 'flex',
+            background: 'rgba(255,255,255,0.03)',
+            border: '1px solid var(--border)',
+            borderRadius: 10, padding: 3,
+          }}>
+            {/* Sliding pill */}
+            <div style={{
+              position: 'absolute', top: 3, bottom: 3,
+              left: 3, width: 'calc((100% - 6px) / 3)',
+              background: activeType.activeBg,
+              border: `1.5px solid ${activeType.accent}`,
+              borderRadius: 7,
+              transform: `translateX(${activeIdx * 100}%)`,
+              transition: 'transform 0.22s cubic-bezier(0.32,0.72,0,1), background 0.18s, border-color 0.18s',
+              pointerEvents: 'none',
+            }} />
+            {NOTE_TYPES.map(t => (
               <button
                 key={t.id}
                 onClick={() => setNoteType(t.id)}
                 style={{
-                  flex: 1, padding: '10px 8px', borderRadius: 9, cursor: 'pointer',
-                  border: active ? `1.5px solid ${t.accent}` : '1.5px solid var(--border)',
-                  background: active ? t.activeBg : 'rgba(255,255,255,0.02)',
+                  flex: 1, padding: '9px 8px', borderRadius: 7, cursor: 'pointer',
+                  border: 'none', background: 'none', position: 'relative', zIndex: 1,
                   display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 5,
-                  transition: 'border-color 0.15s, background 0.15s',
                 }}
               >
-                <t.Icon size={16} color={active ? t.accent : 'var(--text-muted)'} />
-                <span style={{ fontSize: 11, fontWeight: 600, letterSpacing: '0.02em', color: active ? t.accent : 'var(--text-muted)' }}>
+                <t.Icon size={16} color={noteType === t.id ? t.accent : 'var(--text-muted)'} style={{ transition: 'color 0.18s' }} />
+                <span style={{ fontSize: 11, fontWeight: 600, letterSpacing: '0.02em', color: noteType === t.id ? t.accent : 'var(--text-muted)', transition: 'color 0.18s' }}>
                   {t.label}
                 </span>
               </button>
-            )
-          })}
+            ))}
+          </div>
         </div>
 
-        {/* Body */}
-        <div style={{ display: 'flex', flex: 1, minHeight: 0 }}>
-          {/* Form column */}
-          <div style={{ flex: 1, padding: '16px 22px 20px', display: 'flex', flexDirection: 'column', gap: 16, overflowY: 'auto' }}>
+        {/* Body — outer div animates height, inner div is naturally sized */}
+        <div style={{ overflow: 'hidden', height: bodyH ?? 'auto', transition: 'height 0.28s cubic-bezier(0.32,0.72,0,1)' }}>
+          <div ref={bodyRef} style={{ display: 'flex' }}>
+          {/* Form column — re-keyed per type so entry animation fires on switch */}
+          <div key={noteType} style={{ flex: 1, padding: '16px 22px 20px', display: 'flex', flexDirection: 'column', gap: 16, overflowY: 'auto', animation: '_nm-in 0.18s ease' }}>
 
             {/* PDF file picker */}
             {isPDF && (
@@ -345,6 +376,7 @@ export default function NewNoteModal({ domains = [], defaultDomainId = null, def
               </div>
             </div>
           )}
+          </div>
         </div>
 
         {/* Footer */}

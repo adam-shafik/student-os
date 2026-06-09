@@ -21,7 +21,8 @@ export async function renderPdfToBackgrounds(source) {
   const lib = await loadPdfJs()
   const data = source instanceof ArrayBuffer || ArrayBuffer.isView(source) ? source : await source.arrayBuffer()
   const pdf = await lib.getDocument({ data }).promise
-  const backgrounds = []
+  const images = []
+  const dimensions = []
   for (let i = 1; i <= pdf.numPages; i++) {
     const page = await pdf.getPage(i)
     const viewport = page.getViewport({ scale: 1.5 })
@@ -29,7 +30,8 @@ export async function renderPdfToBackgrounds(source) {
     canvas.width = viewport.width
     canvas.height = viewport.height
     await page.render({ canvasContext: canvas.getContext('2d'), viewport }).promise
-    backgrounds.push(canvas.toDataURL('image/jpeg', 0.88))
+    images.push(canvas.toDataURL('image/jpeg', 0.88))
+    dimensions.push({ w: Math.round(viewport.width), h: Math.round(viewport.height) })
   }
-  return backgrounds
+  return { images, dimensions }
 }
