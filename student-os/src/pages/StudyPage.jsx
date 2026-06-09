@@ -281,6 +281,33 @@ function ActiveTimerView({ session, domain, onPauseResume, onSkipPhase, onEndSes
   )
 }
 
+const NOTE_BG_PRESETS = ['#ffffff', '#f5f0e8', '#fef9c3', '#e8f0fe', '#1c1c24', '#0b0c13']
+
+function isDarkNote(hex) {
+  const r = parseInt(hex.slice(1, 3), 16)
+  const g = parseInt(hex.slice(3, 5), 16)
+  const b = parseInt(hex.slice(5, 7), 16)
+  return (r * 299 + g * 587 + b * 114) / 1000 < 128
+}
+
+function NoteConfigPreview({ template, bgColor }) {
+  const W = 52, H = 74
+  const lineColor = isDarkNote(bgColor) ? 'rgba(255,255,255,0.11)' : 'rgba(0,0,0,0.09)'
+  const lines = []
+  if (template === 'lined') {
+    for (let y = 13; y < H; y += 9) lines.push(<line key={y} x1={4} y1={y} x2={W - 4} y2={y} stroke={lineColor} strokeWidth={0.7} />)
+  } else if (template === 'grid') {
+    for (let y = 9; y < H; y += 9) lines.push(<line key={`h${y}`} x1={0} y1={y} x2={W} y2={y} stroke={lineColor} strokeWidth={0.5} />)
+    for (let x = 9; x < W; x += 9) lines.push(<line key={`v${x}`} x1={x} y1={0} x2={x} y2={H} stroke={lineColor} strokeWidth={0.5} />)
+  }
+  return (
+    <svg width={W} height={H} style={{ borderRadius: 5, display: 'block', boxShadow: '0 2px 8px rgba(0,0,0,0.22)', flexShrink: 0 }}>
+      <rect width={W} height={H} rx={5} fill={bgColor} />
+      {lines}
+    </svg>
+  )
+}
+
 // ─── Start session modal ──────────────────────────────────────────────────────
 function StartSessionModal({ initialDomain, domains, onClose, onStart, isTutorial }) {
   const [domainId,    setDomainId]    = useState(initialDomain?.id ?? '')
@@ -291,7 +318,9 @@ function StartSessionModal({ initialDomain, domains, onClose, onStart, isTutoria
   const [customWork,  setCustomWork]  = useState(25)
   const [customBreak, setCustomBreak] = useState(5)
   const [customRounds,setCustomRounds]= useState(4)
-  const [withNote,    setWithNote]    = useState(false)
+  const [withNote,     setWithNote]     = useState(false)
+  const [noteTemplate, setNoteTemplate] = useState('lined')
+  const [noteBgColor,  setNoteBgColor]  = useState('#f5f0e8')
 
   const cfg = custom
     ? { work: Math.max(1, customWork), break: Math.max(1, customBreak), rounds: Math.max(1, customRounds) }
@@ -309,6 +338,8 @@ function StartSessionModal({ initialDomain, domains, onClose, onStart, isTutoria
       pomodoroBreak: cfg.break,
       totalRounds:   cfg.rounds,
       withNote,
+      noteTemplate,
+      noteBgColor,
     })
   }
 
@@ -435,15 +466,60 @@ function StartSessionModal({ initialDomain, domains, onClose, onStart, isTutoria
           <Play size={15} /> Start Session
         </button>
 
-        <label style={{ display: 'flex', alignItems: 'center', gap: 8, cursor: 'pointer', userSelect: 'none' }}>
-          <input
-            type="checkbox"
-            checked={withNote}
-            onChange={e => setWithNote(e.target.checked)}
-            style={{ accentColor: 'var(--accent-blue)', width: 14, height: 14, cursor: 'pointer', flexShrink: 0 }}
-          />
-          <span style={{ fontSize: 12, color: 'var(--text-muted)' }}>Open a linked handwritten note</span>
-        </label>
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 0 }}>
+          <label style={{ display: 'flex', alignItems: 'center', gap: 8, cursor: 'pointer', userSelect: 'none' }}>
+            <input
+              type="checkbox"
+              checked={withNote}
+              onChange={e => setWithNote(e.target.checked)}
+              style={{ accentColor: 'var(--accent-blue)', width: 14, height: 14, cursor: 'pointer', flexShrink: 0 }}
+            />
+            <span style={{ fontSize: 12, color: 'var(--text-muted)' }}>Open a linked handwritten note</span>
+          </label>
+
+          {withNote && (
+            <div style={{
+              marginTop: 10, padding: '12px 14px',
+              background: 'var(--bg-surface)', border: '1px solid var(--border)',
+              borderRadius: 10, display: 'flex', gap: 12, alignItems: 'flex-start',
+            }}>
+              <div style={{ flex: 1, display: 'flex', flexDirection: 'column', gap: 10 }}>
+                <div>
+                  <div style={{ fontSize: 10, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.5px', color: 'var(--text-muted)', marginBottom: 5 }}>Template</div>
+                  <div style={{ display: 'flex', gap: 5 }}>
+                    {[{id:'blank',label:'Blank'},{id:'lined',label:'Lined'},{id:'grid',label:'Grid'}].map(t => (
+                      <button key={t.id} onClick={() => setNoteTemplate(t.id)} style={{
+                        flex: 1, padding: '5px 0', borderRadius: 6, cursor: 'pointer', fontSize: 11, fontFamily: 'inherit',
+                        border: '1px solid transparent',
+                        background: noteTemplate === t.id ? 'var(--accent-blue)22' : 'var(--bg-surface)',
+                        color: noteTemplate === t.id ? 'var(--accent-blue)' : 'var(--text-muted)',
+                        borderColor: noteTemplate === t.id ? 'var(--accent-blue)55' : 'var(--border)',
+                      }}>{t.label}</button>
+                    ))}
+                  </div>
+                </div>
+                <div>
+                  <div style={{ fontSize: 10, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.5px', color: 'var(--text-muted)', marginBottom: 5 }}>Color</div>
+                  <div style={{ display: 'flex', gap: 6 }}>
+                    {NOTE_BG_PRESETS.map(hex => (
+                      <button
+                        key={hex} title={hex} onClick={() => setNoteBgColor(hex)}
+                        style={{
+                          width: 22, height: 22, borderRadius: 5, background: hex,
+                          border: noteBgColor === hex ? '2px solid var(--accent-blue)' : '2px solid var(--border)',
+                          cursor: 'pointer', outline: 'none', flexShrink: 0,
+                          transform: noteBgColor === hex ? 'scale(1.18)' : 'scale(1)',
+                          transition: 'transform 0.1s',
+                        }}
+                      />
+                    ))}
+                  </div>
+                </div>
+              </div>
+              <NoteConfigPreview template={noteTemplate} bgColor={noteBgColor} />
+            </div>
+          )}
+        </div>
       </div>
     </div>
   )

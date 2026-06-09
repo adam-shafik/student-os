@@ -23,7 +23,7 @@ const TOOLS           = [
 const SHAPE_TYPES  = [['rect', Square, 'Rectangle'], ['ellipse', Circle, 'Ellipse'], ['line', Minus, 'Line'], ['triangle', Triangle, 'Triangle']]
 const ERASER_MODES = [['standard', 'Standard'], ['stroke', 'Stroke']]
 const TEMPLATES    = ['blank', 'lined', 'dotted', 'grid']
-const BG_COLORS    = ['#f8f7f2', '#0d0d14', '#0a0a0a', '#0a100d', '#100a14', '#0f0d09']
+const BG_COLORS    = ['#ffffff', '#f5f0e8', '#fef9c3', '#e8f0fe', '#1c1c24', '#0b0c13']
 const SPACINGS     = [[20, 'Narrow'], [28, 'Normal'], [36, 'Wide'], [48, 'Extra']]
 
 // ─── Drawing utils ─────────────────────────────────────────────────────────────

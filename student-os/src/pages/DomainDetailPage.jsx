@@ -1155,7 +1155,7 @@ function EditDomainModal({ domain, onClose, onSave }) {
 // ─── Main page ─────────────────────────────────────────────────────────────────
 export default function DomainDetailPage({
   domain, domainEvents = [], linkedEvents = [], onBack, eventNotes, onUpdateNote,
-  onNewNote, onUpdateDomain, studySessions, notes, weekConfidence, onSetWeekConfidence,
+  onNewNote, onUpdateDomain, onDeleteDomain, studySessions, notes, weekConfidence, onSetWeekConfidence,
   onOpenNote, assessments = [], onAddAssessment, onUpdateAssessment, onDeleteAssessment,
 }) {
   const isAcademic = domain.category === 'academic'
@@ -1174,8 +1174,9 @@ export default function DomainDetailPage({
     setShowLinked(next)
     localStorage.setItem(`showLinked:${domain.id}`, String(next))
   }
-  const [showMenu,   setShowMenu]   = useState(false)
-  const [menuPos,    setMenuPos]    = useState({ top: 0, left: 0 })
+  const [showMenu,         setShowMenu]         = useState(false)
+  const [menuPos,          setMenuPos]          = useState({ top: 0, left: 0 })
+  const [showDeleteConfirm, setShowDeleteConfirm] = useState(false)
   const menuBtnRef      = useRef()
   const menuDropdownRef = useRef()
   const tabBarRef       = useRef()
@@ -1306,7 +1307,31 @@ export default function DomainDetailPage({
               <BarChart2 size={13} />
               {domain.excludeFromGrade ? 'Include in grade avg' : 'Exclude from grade avg'}
             </button>
+            <div style={{ height: 1, background: 'var(--border)', margin: '0 10px' }} />
+            <button
+              onClick={() => { setShowMenu(false); setShowDeleteConfirm(true) }}
+              style={{
+                display: 'flex', alignItems: 'center', gap: 9, width: '100%',
+                padding: '10px 14px', background: 'none', border: 'none', cursor: 'pointer',
+                fontSize: 13, color: '#fb7185',
+                textAlign: 'left', fontFamily: 'inherit',
+              }}
+              onMouseEnter={e => e.currentTarget.style.background = 'rgba(251,113,133,0.08)'}
+              onMouseLeave={e => e.currentTarget.style.background = 'none'}
+            >
+              <Trash2 size={13} />
+              Delete domain
+            </button>
           </div>
+        )}
+
+        {showDeleteConfirm && (
+          <ConfirmModal
+            message={`Delete "${domain.name}"? This will permanently remove the domain and all its data. This cannot be undone.`}
+            confirmLabel="Delete domain"
+            onConfirm={() => { setShowDeleteConfirm(false); onDeleteDomain?.(domain.id) }}
+            onCancel={() => setShowDeleteConfirm(false)}
+          />
         )}
         <div style={{ position: 'absolute', left: 0, top: 0, bottom: 0, width: 4, background: domain.color, borderRadius: '16px 0 0 16px' }} />
         <div style={{ position: 'absolute', top: 0, left: 0, right: 0, bottom: 0, background: `radial-gradient(ellipse at 0% 50%, ${domain.color}07 0%, transparent 60%)`, pointerEvents: 'none' }} />

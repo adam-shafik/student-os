@@ -11,6 +11,7 @@ import {
 import NoteCanvas from '../components/NoteCanvas'
 import { totalTeachingWeeks } from '../utils/semester'
 import { renderPdfToBackgrounds } from '../utils/pdf'
+import NewNoteModal from '../components/NewNoteModal'
 
 const TOTAL_WEEKS = totalTeachingWeeks()
 
@@ -610,8 +611,9 @@ export default function NotesPage({ notes, domains, noteToOpen, onClearNoteToOpe
   const [confirmDelNote,  setConfirmDelNote]  = useState(false)
   const [saveState,       setSaveState]       = useState('idle') // 'idle' | 'saving' | 'saved' | 'error'
   const [saveError,       setSaveError]       = useState('')
-  const [sidebarPicker,   setSidebarPicker]   = useState(false)
-  const [mainPicker,      setMainPicker]      = useState(false)
+  const [sidebarPicker,    setSidebarPicker]   = useState(false)
+  const [mainPicker,       setMainPicker]     = useState(false)
+  const [showNewNoteModal, setShowNewNoteModal] = useState(false)
   const [pdfBackgrounds,  setPdfBackgrounds]  = useState({}) // { [noteId]: string[] }
   const [isLoadingPdf,    setIsLoadingPdf]    = useState(false)
   const [pdfError,        setPdfError]        = useState('')
@@ -814,9 +816,14 @@ export default function NotesPage({ notes, domains, noteToOpen, onClearNoteToOpe
   function createNote(meta = {}, type = 'handwritten') {
     const id = noteId()
     onAddNote({
-      id, title: 'Untitled Note', type, content: '',
+      id,
+      title: meta.title || 'Untitled Note',
+      type, content: '',
       pages: type === 'handwritten' ? [{ id: `page-${Date.now()}`, strokes: [] }] : [],
-      template: type === 'handwritten' ? 'lined' : 'blank', bgColor: '#f8f7f2', lineSpacing: type === 'handwritten' ? 48 : 32, orientation: 'portrait',
+      template:    meta.template    || (type === 'handwritten' ? 'lined' : 'blank'),
+      bgColor:     meta.bgColor     || (type === 'handwritten' ? '#f5f0e8' : '#f8f7f2'),
+      lineSpacing: meta.lineSpacing || (type === 'handwritten' ? 48 : 32),
+      orientation: meta.orientation || 'portrait',
       createdAt: new Date().toISOString(),
       updatedAt: new Date().toISOString(),
       domainId: meta.domainId || null,
@@ -824,6 +831,30 @@ export default function NotesPage({ notes, domains, noteToOpen, onClearNoteToOpe
       eventId: null, studySessionId: null,
     })
     setOpenNoteId(id)
+  }
+
+  function handleConfirmNewNote(opts) {
+    setShowNewNoteModal(false)
+    createNote(opts, opts.type || 'handwritten')
+  }
+
+  async function handleConfirmPdfNote(file, meta) {
+    setShowNewNoteModal(false)
+    setIsLoadingPdf(true)
+    setPdfError('')
+    try {
+      const backgrounds = await renderPdfToBackgrounds(file)
+      const id = noteId()
+      setPdfBackgrounds(prev => ({ ...prev, [id]: backgrounds }))
+      await onAddPdfNote(id, file, meta, backgrounds.length)
+      setOpenNoteId(id)
+    } catch (err) {
+      const msg = err?.message || err?.error || String(err) || 'Unknown error'
+      setPdfError(msg)
+      setTimeout(() => setPdfError(''), 15000)
+    } finally {
+      setIsLoadingPdf(false)
+    }
   }
 
   function handleNewNote(type = 'handwritten') {
@@ -919,7 +950,7 @@ export default function NotesPage({ notes, domains, noteToOpen, onClearNoteToOpe
         <div style={{ padding: '16px 10px 10px', position: 'relative' }}>
           <button
             data-tutorial-id="notes-new-btn"
-            onClick={() => setSidebarPicker(v => !v)}
+            onClick={() => setShowNewNoteModal(true)}
             style={{
               width: '100%', display: 'flex', alignItems: 'center', gap: 8,
               padding: '9px 12px', borderRadius: 8, border: 'none',
@@ -932,13 +963,6 @@ export default function NotesPage({ notes, domains, noteToOpen, onClearNoteToOpe
           >
             <Plus size={15} /> New Note
           </button>
-          {sidebarPicker && (
-            <NewNoteTypePicker
-              onSelect={type => { handleNewNote(type); setSidebarPicker(false) }}
-              onSelectPdf={() => { triggerPdfPicker(); setSidebarPicker(false) }}
-              onClose={() => setSidebarPicker(false)}
-            />
-          )}
         </div>
 
         <div style={{ flex: 1, overflowY: 'auto', padding: '4px 8px 16px' }}>
@@ -1160,7 +1184,7 @@ export default function NotesPage({ notes, domains, noteToOpen, onClearNoteToOpe
               </div>
               <div style={{ position: 'relative' }}>
                 <button
-                  onClick={() => setMainPicker(v => !v)}
+                  onClick={() => setShowNewNoteModal(true)}
                   style={{
                     display: 'flex', alignItems: 'center', gap: 6, padding: '8px 14px',
                     borderRadius: 8, border: 'none', background: 'var(--accent-blue)',
@@ -1169,13 +1193,6 @@ export default function NotesPage({ notes, domains, noteToOpen, onClearNoteToOpe
                 >
                   <Plus size={14} /> New Note
                 </button>
-                {mainPicker && (
-                  <NewNoteTypePicker
-                    onSelect={type => { handleNewNote(type); setMainPicker(false) }}
-                    onSelectPdf={() => { triggerPdfPicker(); setMainPicker(false) }}
-                    onClose={() => setMainPicker(false)}
-                  />
-                )}
               </div>
             </div>
 
@@ -1209,6 +1226,21 @@ export default function NotesPage({ notes, domains, noteToOpen, onClearNoteToOpe
           </div>
         )}
       </div>
+
+      {showNewNoteModal && (
+        <NewNoteModal
+          domains={domains || []}
+          defaultDomainId={
+            selectedFolder.type === 'domain' || selectedFolder.type === 'week'
+              ? selectedFolder.domainId
+              : null
+          }
+          defaultWeek={selectedFolder.type === 'week' ? selectedFolder.week : null}
+          onConfirm={handleConfirmNewNote}
+          onConfirmPdf={handleConfirmPdfNote}
+          onCancel={() => setShowNewNoteModal(false)}
+        />
+      )}
     </div>
   )
 }

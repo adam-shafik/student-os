@@ -3,18 +3,9 @@ import { ArrowRight } from 'lucide-react'
 
 const PAD = 8
 
-function buildSteps(name) {
+function buildSteps(name, hasDomains) {
   const n = name || 'there'
-  return [
-    {
-      id: 'welcome',
-      type: 'center',
-      page: null,
-      targetId: null,
-      title: `Hey ${n}, welcome to StudentOS`,
-      body: `Let's do a quick walkthrough so you know what's where and how everything connects. Takes about 90 seconds. You can skip anytime.`,
-      nextLabel: 'Start tour',
-    },
+  const domainSteps = hasDomains ? [
     {
       id: 'domains',
       type: 'page-change',
@@ -54,6 +45,30 @@ function buildSteps(name) {
       nextLabel: 'Got it',
       tooltipSide: 'bottom-corner',
     },
+  ] : [
+    {
+      id: 'domains-empty',
+      type: 'next',
+      page: 'domains',
+      targetId: 'domains-grid',
+      title: 'Your domains live here',
+      body: `Each subject, project, or commitment gets its own domain. Add one and everything connects: schedule slots, grade tracking, notes, and study sessions all in one place. Hit the + button whenever you're ready.`,
+      nextLabel: 'Got it',
+      tooltipSide: 'bottom-corner',
+    },
+  ]
+
+  return [
+    {
+      id: 'welcome',
+      type: 'center',
+      page: null,
+      targetId: null,
+      title: `Hey ${n}, welcome to StudentOS`,
+      body: `Let's do a quick walkthrough so you know what's where and how everything connects. Takes about 90 seconds. You can skip anytime.`,
+      nextLabel: 'Start tour',
+    },
+    ...domainSteps,
     {
       id: 'calendar',
       type: 'next',
@@ -137,8 +152,8 @@ function buildSteps(name) {
   ]
 }
 
-export default function TutorialOverlay({ userName, stepIndex, currentPage, onNavigate, onAdvance, onClose }) {
-  const steps = useMemo(() => buildSteps(userName), [userName])
+export default function TutorialOverlay({ userName, hasDomains, stepIndex, currentPage, onNavigate, onAdvance, onClose }) {
+  const steps = useMemo(() => buildSteps(userName, hasDomains), [userName, hasDomains])
   const step = steps[Math.min(stepIndex, steps.length - 1)]
   const [rect, setRect] = useState(null)
   const wh = window.innerHeight

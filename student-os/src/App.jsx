@@ -445,6 +445,16 @@ export default function App() {
     })
   }
 
+  const handleDeleteDomain = async (id) => {
+    setDomains(prev => prev.filter(d => d.id !== id))
+    if (selectedDomain?.id === id) {
+      setCurrentPage('domains')
+      setSelectedDomain(null)
+    }
+    const { error } = await supabase.from('domains').delete().eq('id', id).eq('user_id', userId)
+    if (error) console.error('Domain delete failed:', error)
+  }
+
   const handleAddAssessment = async (assessment) => {
     const id  = crypto.randomUUID()
     const now = new Date().toISOString()
@@ -673,7 +683,7 @@ export default function App() {
     })
   }, [activeSession?.secondsLeft])
 
-  const handleStartSession = ({ domainId, topic, academicWeek, pomodoroWork, pomodoroBreak, totalRounds, withNote }) => {
+  const handleStartSession = ({ domainId, topic, academicWeek, pomodoroWork, pomodoroBreak, totalRounds, withNote, noteTemplate, noteBgColor }) => {
     unlockAudio()
     const sessionId = crypto.randomUUID()
     let noteId      = null
@@ -684,7 +694,7 @@ export default function App() {
       const newNote = {
         id: noteId, title: topic || 'Study Session',
         pages: [{ id: pageId, strokes: [] }],
-        template: 'lined', bgColor: '#f8f7f2', lineSpacing: 32, orientation: 'portrait',
+        template: noteTemplate || 'lined', bgColor: noteBgColor || '#f5f0e8', lineSpacing: 48, orientation: 'portrait',
         createdAt: now, updatedAt: now,
         domainId: domainId || null, academicWeek: academicWeek || null,
         eventId: null, studySessionId: sessionId,
@@ -1117,6 +1127,7 @@ export default function App() {
           onUpdateNote={handleUpdateNote}
           onNewNote={handleNewNoteForContext}
           onUpdateDomain={handleUpdateDomain}
+          onDeleteDomain={handleDeleteDomain}
           studySessions={studySessions}
           notes={notes}
           weekConfidence={weekConfidence}
@@ -1236,6 +1247,7 @@ export default function App() {
     {tutorialStep !== null && (
       <TutorialOverlay
         userName={userProfile?.first_name || ''}
+        hasDomains={domains.length > 0}
         stepIndex={tutorialStep}
         currentPage={currentPage}
         onNavigate={handleNavigate}
