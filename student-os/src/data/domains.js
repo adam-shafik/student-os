@@ -51,6 +51,16 @@ export const DOMAIN_CATEGORIES = {
   other:        { label: 'Other',           color: '#9ca3af' },
 }
 
+export function readableTextOn(hex) {
+  if (!hex || hex.length < 7) return '#fff'
+  const h = hex.replace('#', '')
+  const r = parseInt(h.slice(0, 2), 16)
+  const g = parseInt(h.slice(2, 4), 16)
+  const b = parseInt(h.slice(4, 6), 16)
+  const lum = (0.299 * r + 0.587 * g + 0.114 * b) / 255
+  return lum > 0.6 ? '#1a1a1a' : '#fff'
+}
+
 // Colour swatches shown in the create-domain modal
 export const DOMAIN_COLORS = [
   '#5b8cff', '#34d399', '#a78bfa', '#fbbf24', '#fb7185',

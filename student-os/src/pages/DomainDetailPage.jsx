@@ -7,7 +7,7 @@ import {
   Plus, Trash2, Edit2, Check, BarChart2, MoreVertical, Archive, RotateCcw,
   Eye, EyeOff,
 } from 'lucide-react'
-import { DOMAIN_CATEGORIES, DOMAIN_COLORS, DOMAIN_ICON_GROUPS, getDomainIcon } from '../data/domains'
+import { DOMAIN_CATEGORIES, DOMAIN_COLORS, DOMAIN_ICON_GROUPS, getDomainIcon, readableTextOn } from '../data/domains'
 import NewNoteModal from '../components/NewNoteModal'
 import { EVENT_TYPES, resolveTypeLabel, resolveTypeColor } from '../utils/calendarEvents'
 import { totalTeachingWeeks } from '../utils/semester'
@@ -571,9 +571,9 @@ function AssessmentsTab({ domain, assessments, onAddAssessment, onUpdateAssessme
   const coveredSum     = gradedSum + predictedSum
   const projectedAvg   = coveredWeight > 0 ? (coveredSum / coveredWeight).toFixed(1) : null
 
-  const ungradedWeight = assessments.filter(a => a.grade == null && a.predictedGrade == null).reduce((s, a) => s + (a.weight || 0), 0)
-  const neededRaw      = ungradedWeight > 0 && totalWeight > 0
-    ? (targetGrade * totalWeight - coveredSum) / ungradedWeight
+  const needWeight     = totalWeight - gradedWeight
+  const neededRaw      = needWeight > 0 && totalWeight > 0
+    ? (targetGrade * totalWeight - gradedSum) / needWeight
     : null
   const neededAvg      = neededRaw != null ? neededRaw.toFixed(1) : null
   const neededColor    = neededRaw == null ? 'var(--text-muted)'
@@ -630,11 +630,22 @@ function AssessmentsTab({ domain, assessments, onAddAssessment, onUpdateAssessme
                 + Grade
               </button>
               {item.predictedGrade != null ? (
-                <button onClick={() => { setPredictingId(item.id); setGradingId(null) }} title="Edit prediction"
-                  style={{ padding: '5px 10px', borderRadius: 7, border: '1px solid rgba(167,139,250,0.35)',
-                    background: 'rgba(167,139,250,0.1)', color: 'var(--accent-purple)', fontSize: 12, fontWeight: 600, cursor: 'pointer' }}>
-                  ~{item.predictedGrade}%
-                </button>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 3 }}>
+                  <button onClick={() => { setPredictingId(item.id); setGradingId(null) }} title="Edit prediction"
+                    style={{ padding: '5px 10px', borderRadius: 7, border: '1px solid rgba(167,139,250,0.35)',
+                      background: 'rgba(167,139,250,0.1)', color: 'var(--accent-purple)', fontSize: 12, fontWeight: 600, cursor: 'pointer' }}>
+                    ~{item.predictedGrade}%
+                  </button>
+                  <button onClick={async () => {
+                    const { error } = await onUpdateAssessment(item.id, { ...item, predictedGrade: null })
+                    if (error) setSaveError(error.message || 'Unknown error')
+                  }} title="Clear prediction"
+                    style={{ width: 18, height: 18, borderRadius: 4, border: 'none', background: 'none',
+                      color: 'rgba(167,139,250,0.5)', cursor: 'pointer', display: 'flex', alignItems: 'center',
+                      justifyContent: 'center', padding: 0 }}>
+                    <X size={10} />
+                  </button>
+                </div>
               ) : (
                 <button onClick={() => { setPredictingId(item.id); setGradingId(null) }}
                   style={{ padding: '5px 10px', borderRadius: 7, border: '1px dashed rgba(167,139,250,0.4)', background: 'none',
@@ -706,8 +717,10 @@ function AssessmentsTab({ domain, assessments, onAddAssessment, onUpdateAssessme
                 <span style={{ fontSize: 12, color: 'var(--text-secondary)' }}>%</span>
                 <span style={{ fontSize: 12, color: 'var(--text-muted)' }}>→ Need</span>
                 <span style={{ fontSize: 20, fontWeight: 700, color: neededColor }}>{neededAvg}%</span>
-                <span style={{ fontSize: 11, color: 'var(--text-muted)' }}>avg on {ungradedWeight}% left</span>
+                <span style={{ fontSize: 11, color: 'var(--text-muted)' }}>avg on remaining {needWeight}%</span>
               </div>
+            ) : totalWeight > 0 ? (
+              <div style={{ fontSize: 12, color: 'var(--accent-green)' }}>All assessments graded</div>
             ) : (
               <div style={{ fontSize: 12, color: 'var(--text-muted)' }}>Add assessments to use this</div>
             )}
@@ -720,7 +733,7 @@ function AssessmentsTab({ domain, assessments, onAddAssessment, onUpdateAssessme
         <button
           onClick={() => setShowAdd(true)}
           style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '8px 14px', borderRadius: 8,
-            border: 'none', background: domain.color, color: '#fff', cursor: 'pointer', fontSize: 13, fontWeight: 600, flexShrink: 0 }}>
+            border: 'none', background: domain.color, color: readableTextOn(domain.color), cursor: 'pointer', fontSize: 13, fontWeight: 600, flexShrink: 0 }}>
           <Plus size={14} /> Add Assessment
         </button>
       </div>
