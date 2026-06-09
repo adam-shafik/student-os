@@ -8,6 +8,7 @@ import {
 } from '../utils/calendarEvents'
 import { getDomainIcon } from '../data/domains'
 import { getWeekRowInfo, getAcademicWeek, getBreakForDate } from '../utils/semester'
+import { useIsMobile } from '../utils/useIsMobile'
 import EventDetailModal from '../components/EventDetailModal'
 
 const COLOR_SWATCHES = [
@@ -679,6 +680,7 @@ function WeekView({ weekDate, allEvents, onEventClick, onAddClick, customColors 
 
 // ─── Calendar page ────────────────────────────────────────────────────────────
 export default function CalendarPage({ domains = [], domainEvents = [], customEvents = [], onViewDomain, onAddCalendarEvent, onDeleteCalendarEvent, onCancelScheduleEvent, onUpdateEventReminder, onUpdateAssessmentReminder, eventNotes = {}, onUpdateNote, eventTypeColors = {}, onUpdateEventTypeColor, isTutorial = false, weekStartSunday = false }) {
+  const isMobile = useIsMobile()
   const today = new Date()
   const [view,             setView]             = useState('month')
   const [viewDate,         setViewDate]         = useState(new Date(today.getFullYear(), today.getMonth(), 1))
@@ -738,16 +740,27 @@ export default function CalendarPage({ domains = [], domainEvents = [], customEv
     : `${weekDate.getDate()} ${MONTHS[weekDate.getMonth()]} – ${weekEnd.getDate()} ${MONTHS[weekEnd.getMonth()]} ${weekEnd.getFullYear()}`
 
   return (
-    <div style={{ padding: '28px 32px 32px', display: 'flex', flexDirection: 'column' }}>
+    <div style={{ padding: isMobile ? '20px 14px 24px' : '28px 32px 32px', display: 'flex', flexDirection: 'column' }}>
 
-      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 16, flexShrink: 0 }}>
-        <div>
-          <h1 style={{ margin: 0, fontSize: 30, fontWeight: 800, color: 'var(--text-primary)', letterSpacing: '-0.8px' }}>Calendar</h1>
-          <p style={{ margin: '4px 0 0', fontSize: 13, color: 'var(--text-secondary)' }}>Lectures, labs, deadlines and exams</p>
+      <div style={{ display: 'flex', alignItems: isMobile ? 'stretch' : 'center', justifyContent: 'space-between', marginBottom: 16, flexShrink: 0, flexDirection: isMobile ? 'column' : 'row', gap: isMobile ? 12 : 0 }}>
+        <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: 10 }}>
+          <div>
+            <h1 style={{ margin: 0, fontSize: isMobile ? 26 : 30, fontWeight: 800, color: 'var(--text-primary)', letterSpacing: '-0.8px' }}>Calendar</h1>
+            {!isMobile && <p style={{ margin: '4px 0 0', fontSize: 13, color: 'var(--text-secondary)' }}>Lectures, labs, deadlines and exams</p>}
+          </div>
+          {isMobile && (
+            <motion.button
+              whileTap={{ scale: 0.95 }}
+              onClick={() => setAddModalDate(new Date())}
+              style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '8px 14px', borderRadius: 8, border: 'none', background: 'var(--accent-green)', color: 'var(--bg-page)', fontSize: 13, fontWeight: 600, cursor: 'pointer', whiteSpace: 'nowrap', fontFamily: 'inherit', flexShrink: 0 }}
+            >
+              <Plus size={14} /> Add
+            </motion.button>
+          )}
         </div>
-        <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: isMobile ? 'wrap' : 'nowrap', justifyContent: isMobile ? 'space-between' : 'flex-end' }}>
           {/* View toggle */}
-          <div style={{ display: 'flex', background: 'var(--bg-surface)', border: '1px solid var(--border-strong)', borderRadius: 8, overflow: 'hidden', marginRight: 4 }}>
+          <div style={{ display: 'flex', background: 'var(--bg-surface)', border: '1px solid var(--border-strong)', borderRadius: 8, overflow: 'hidden', marginRight: isMobile ? 0 : 4 }}>
             {['month', 'week'].map(v => (
               <motion.button key={v} onClick={() => switchView(v)}
                 whileTap={{ scale: 0.96 }}
@@ -761,19 +774,23 @@ export default function CalendarPage({ domains = [], domainEvents = [], customEv
               </motion.button>
             ))}
           </div>
-          <motion.button whileTap={{ scale: 0.9 }} onClick={view === 'month' ? prevMonth : prevWeek} style={navBtn}><ChevronLeft size={16} /></motion.button>
-          <span style={{ fontSize: 15, fontWeight: 600, color: 'var(--text-primary)', width: 220, textAlign: 'center', display: 'inline-block', flexShrink: 0 }}>
-            {view === 'month' ? `${MONTHS[month]} ${year}` : weekLabel}
-          </span>
-          <motion.button whileTap={{ scale: 0.9 }} onClick={view === 'month' ? nextMonth : nextWeek} style={navBtn}><ChevronRight size={16} /></motion.button>
-          <motion.button whileTap={{ scale: 0.96 }} onClick={goToday} style={{ ...navBtn, padding: '6px 14px', width: 'auto', marginLeft: 6, fontSize: 13, fontFamily: 'inherit' }}>Today</motion.button>
-          <motion.button
-            whileTap={{ scale: 0.95 }}
-            onClick={() => setAddModalDate(new Date())}
-            style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '7px 14px', borderRadius: 8, border: 'none', background: 'var(--accent-green)', color: 'var(--bg-page)', fontSize: 13, fontWeight: 600, cursor: 'pointer', marginLeft: 4, whiteSpace: 'nowrap', fontFamily: 'inherit' }}
-          >
-            <Plus size={14} /> Add Event
-          </motion.button>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 8, flex: isMobile ? 1 : 'none', justifyContent: 'center' }}>
+            <motion.button whileTap={{ scale: 0.9 }} onClick={view === 'month' ? prevMonth : prevWeek} style={navBtn}><ChevronLeft size={16} /></motion.button>
+            <span style={{ fontSize: isMobile ? 14 : 15, fontWeight: 600, color: 'var(--text-primary)', width: isMobile ? 'auto' : 220, flex: isMobile ? 1 : 'none', textAlign: 'center', display: 'inline-block', flexShrink: isMobile ? 1 : 0 }}>
+              {view === 'month' ? `${MONTHS[month]} ${year}` : weekLabel}
+            </span>
+            <motion.button whileTap={{ scale: 0.9 }} onClick={view === 'month' ? nextMonth : nextWeek} style={navBtn}><ChevronRight size={16} /></motion.button>
+          </div>
+          <motion.button whileTap={{ scale: 0.96 }} onClick={goToday} style={{ ...navBtn, padding: '6px 14px', width: 'auto', marginLeft: isMobile ? 0 : 6, fontSize: 13, fontFamily: 'inherit' }}>Today</motion.button>
+          {!isMobile && (
+            <motion.button
+              whileTap={{ scale: 0.95 }}
+              onClick={() => setAddModalDate(new Date())}
+              style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '7px 14px', borderRadius: 8, border: 'none', background: 'var(--accent-green)', color: 'var(--bg-page)', fontSize: 13, fontWeight: 600, cursor: 'pointer', marginLeft: 4, whiteSpace: 'nowrap', fontFamily: 'inherit' }}
+            >
+              <Plus size={14} /> Add Event
+            </motion.button>
+          )}
         </div>
       </div>
 
@@ -842,8 +859,8 @@ export default function CalendarPage({ domains = [], domainEvents = [], customEv
         transition={{ duration: 0.1 }}
         style={{
         display: 'grid',
-        gridTemplateColumns: '28px repeat(7, 1fr)',
-        gridTemplateRows: `auto repeat(6, minmax(110px, auto))`,
+        gridTemplateColumns: isMobile ? '18px repeat(7, 1fr)' : '28px repeat(7, 1fr)',
+        gridTemplateRows: isMobile ? `auto repeat(6, minmax(72px, auto))` : `auto repeat(6, minmax(110px, auto))`,
         gap: '1px',
         background: 'var(--border)',
         border: '1px solid var(--border)',

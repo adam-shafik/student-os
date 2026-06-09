@@ -4,6 +4,7 @@ import {
   Plus, X, BookOpen, User, Award, ChevronRight, FileCheck, FlaskConical, ChevronDown, CheckSquare, FolderOpen, Archive,
 } from 'lucide-react'
 import { DOMAIN_CATEGORIES, DOMAIN_COLORS, DOMAIN_ICON_GROUPS, getDomainIcon } from '../data/domains'
+import { useIsMobile } from '../utils/useIsMobile'
 
 const EASE = [0.32, 0.72, 0, 1]
 
@@ -187,7 +188,7 @@ function CardGrid({ children, style }) {
       variants={{ visible: { transition: { staggerChildren: 0.05, delayChildren: 0 } } }}
       initial="hidden"
       animate="visible"
-      style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(300px, 1fr))', gap: 14, ...style }}
+      style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(min(280px, 100%), 1fr))', gap: 14, ...style }}
     >
       {children}
     </motion.div>
@@ -430,6 +431,7 @@ function FieldLabel({ children }) {
 
 // ─── Main page ─────────────────────────────────────────────────────────────────
 export default function DomainsPage({ domains, customCalendarEvents, todos, assessments = [], domainEvents = [], onOpenDomain, onCreateDomain }) {
+  const isMobile = useIsMobile()
   const [showCreate,   setShowCreate]   = useState(false)
   const [academicOpen, setAcademicOpen] = useState(true)
   const [otherOpen,    setOtherOpen]    = useState(true)
@@ -472,10 +474,10 @@ export default function DomainsPage({ domains, customCalendarEvents, todos, asse
   ] : []
 
   return (
-    <div data-tutorial-id="domains-grid" style={{ padding: '36px 40px', maxWidth: 1100 }}>
+    <div data-tutorial-id="domains-grid" style={{ padding: isMobile ? '22px 16px 28px' : '36px 40px', maxWidth: 1100 }}>
 
       {/* Page header */}
-      <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', marginBottom: 32 }}>
+      <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', marginBottom: isMobile ? 22 : 32, gap: 12 }}>
         <div>
           <h1 style={{ margin: 0, fontSize: 30, fontWeight: 800, color: 'var(--text-primary)', letterSpacing: '-0.8px', lineHeight: 1.1 }}>
             Domains

@@ -6,11 +6,12 @@ import rehypeKatex from 'rehype-katex'
 import AppSelect, { AppSelectItem } from '../components/AppSelect'
 import {
   PenLine, Plus, Trash2, ChevronRight, ChevronDown,
-  Pencil, Check, X, MapPin, Type, FileText, Share2, Eye, Maximize2, Minimize2,
+  Pencil, Check, X, MapPin, Type, FileText, Share2, Eye, Maximize2, Minimize2, FolderOpen,
 } from 'lucide-react'
 import NoteCanvas from '../components/NoteCanvas'
 import { totalTeachingWeeks } from '../utils/semester'
 import { renderPdfToBackgrounds } from '../utils/pdf'
+import { useIsMobile } from '../utils/useIsMobile'
 import NewNoteModal from '../components/NewNoteModal'
 
 const TOTAL_WEEKS = totalTeachingWeeks()
@@ -606,6 +607,8 @@ function NoteLocationPicker({ note, domains, onSave }) {
 
 // ─── Main page ─────────────────────────────────────────────────────────────────
 export default function NotesPage({ notes, domains, noteToOpen, onClearNoteToOpen, onAddNote, onUpdateNote, onDeleteNote, onSaveNote, onAddPdfNote, onGetSignedPdfUrl }) {
+  const isMobile = useIsMobile()
+  const [mobileFoldersOpen, setMobileFoldersOpen] = useState(false)
   const [selectedFolder,  setSelectedFolder]  = useState({ type: 'all' })
   const [openNoteId,      setOpenNoteId]      = useState(null)
   const [confirmDelNote,  setConfirmDelNote]  = useState(false)
@@ -811,6 +814,7 @@ export default function NotesPage({ notes, domains, noteToOpen, onClearNoteToOpe
   function selectFolder(f) {
     setSelectedFolder(f)
     closeNote()
+    setMobileFoldersOpen(false)
   }
 
   function createNote(meta = {}, type = 'handwritten') {
@@ -941,15 +945,30 @@ export default function NotesPage({ notes, domains, noteToOpen, onClearNoteToOpe
         </div>
       )}
 
+      {/* Mobile drawer backdrop */}
+      {isMobile && mobileFoldersOpen && (
+        <div
+          onClick={() => setMobileFoldersOpen(false)}
+          style={{ position: 'fixed', inset: 0, zIndex: 40, background: 'rgba(0,0,0,0.5)', backdropFilter: 'blur(2px)' }}
+        />
+      )}
+
       {/* Sidebar */}
       <aside style={{
         width: 220, flexShrink: 0, borderRight: '1px solid var(--border)',
         background: 'linear-gradient(to right, var(--bg-elevated) 0%, var(--bg-overlay) 60%, var(--bg-hover) 100%)', display: 'flex', flexDirection: 'column',
         overflow: 'hidden',
+        ...(isMobile ? {
+          position: 'fixed', top: 0, bottom: 0, left: 0, zIndex: 41, width: 248,
+          transform: mobileFoldersOpen ? 'translateX(0)' : 'translateX(-100%)',
+          transition: 'transform 0.26s cubic-bezier(0.32,0.72,0,1)',
+          boxShadow: mobileFoldersOpen ? '0 0 40px rgba(0,0,0,0.5)' : 'none',
+          paddingTop: 'env(safe-area-inset-top)',
+        } : {}),
       }}>
         <div style={{ padding: '16px 10px 10px', position: 'relative' }}>
           <button
-            data-tutorial-id="notes-new-btn"
+            {...(isMobile ? {} : { 'data-tutorial-id': 'notes-new-btn' })}
             onClick={() => setShowNewNoteModal(true)}
             style={{
               width: '100%', display: 'flex', alignItems: 'center', gap: 8,
@@ -1032,7 +1051,7 @@ export default function NotesPage({ notes, domains, noteToOpen, onClearNoteToOpe
             : { display: 'flex', flexDirection: 'column', height: '100%' }
           }>
             <div style={{
-              display: 'flex', alignItems: 'center', gap: 12, padding: '14px 24px',
+              display: 'flex', alignItems: 'center', gap: isMobile ? 8 : 12, padding: isMobile ? '12px 14px' : '14px 24px',
               borderBottom: '1px solid var(--border)', flexShrink: 0,
               background: 'var(--bg-surface)',
             }}>
@@ -1169,10 +1188,19 @@ export default function NotesPage({ notes, domains, noteToOpen, onClearNoteToOpe
           </div>
         ) : (
           // ── Note grid ──
-          <div style={{ flex: 1, overflowY: 'auto', padding: '24px 28px' }}>
-            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 20 }}>
-              <div>
-                <h2 style={{ margin: 0, fontSize: 22, fontWeight: 800, color: 'var(--text-primary)', letterSpacing: '-0.4px' }}>
+          <div style={{ flex: 1, overflowY: 'auto', padding: isMobile ? '18px 16px 24px' : '24px 28px' }}>
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 20, gap: 10 }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 10, minWidth: 0 }}>
+                {isMobile && (
+                  <button
+                    onClick={() => setMobileFoldersOpen(true)}
+                    style={{ flexShrink: 0, width: 38, height: 38, borderRadius: 9, border: '1px solid var(--border-strong)', background: 'var(--bg-surface)', color: 'var(--text-secondary)', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center' }}
+                  >
+                    <FolderOpen size={17} />
+                  </button>
+                )}
+                <div style={{ minWidth: 0 }}>
+                <h2 style={{ margin: 0, fontSize: isMobile ? 19 : 22, fontWeight: 800, color: 'var(--text-primary)', letterSpacing: '-0.4px', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
                   {selectedFolder.type === 'all'     ? 'All Notes'
                   : selectedFolder.type === 'general' ? 'General Notes'
                   : selectedFolder.type === 'week'    ? `${domainMap[selectedFolder.domainId]?.code} · Week ${selectedFolder.week}`
@@ -1182,9 +1210,11 @@ export default function NotesPage({ notes, domains, noteToOpen, onClearNoteToOpe
                 <p style={{ margin: '4px 0 0', fontSize: 12, color: 'var(--text-muted)', fontVariantNumeric: 'tabular-nums' }}>
                   {folderNotes.length} note{folderNotes.length !== 1 ? 's' : ''}
                 </p>
+                </div>
               </div>
-              <div style={{ position: 'relative' }}>
+              <div style={{ position: 'relative', flexShrink: 0 }}>
                 <button
+                  {...(isMobile ? { 'data-tutorial-id': 'notes-new-btn' } : {})}
                   onClick={() => setShowNewNoteModal(true)}
                   style={{
                     display: 'flex', alignItems: 'center', gap: 6, padding: '8px 14px',
@@ -1212,7 +1242,7 @@ export default function NotesPage({ notes, domains, noteToOpen, onClearNoteToOpe
                 </div>
               </div>
             ) : (
-              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(220px, 1fr))', gap: 14 }}>
+              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(min(160px, 100%), 1fr))', gap: isMobile ? 10 : 14 }}>
                 {folderNotes.map(note => (
                   <NoteCard
                     key={note.id}

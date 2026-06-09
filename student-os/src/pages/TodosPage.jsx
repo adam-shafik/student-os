@@ -2,6 +2,7 @@ import { useState, useMemo } from 'react'
 import AppSelect, { AppSelectItem } from '../components/AppSelect'
 import { Plus, X, CheckSquare, Square, Trash2, ChevronDown, AlertTriangle, CheckCircle2, FileText, CalendarDays } from 'lucide-react'
 import { getAcademicWeek, getBreakForDate, totalTeachingWeeks } from '../utils/semester'
+import { useIsMobile } from '../utils/useIsMobile'
 
 const PRIORITIES = {
   high:   { label: 'High',   color: 'var(--accent-red)'   },
@@ -627,6 +628,7 @@ function DomainSection({ domain, tasks, domainMap, onToggle, onDelete, onOpenNot
 
 // ─── Main page ─────────────────────────────────────────────────────────────────
 export default function TodosPage({ todos, domains, onAddTodo, onToggleTodo, onDeleteTodo, onUpdateTodo, notes, studySessions, onOpenNote, isTutorial }) {
+  const isMobile = useIsMobile()
   const [view,         setView]         = useState('plan')
   const [showAdd,      setShowAdd]      = useState(false)
   const [addForDomain, setAddForDomain] = useState(null)
@@ -714,12 +716,12 @@ export default function TodosPage({ todos, domains, onAddTodo, onToggleTodo, onD
   const viewIdx = VIEW_OPTS.findIndex(([v]) => v === view)
 
   return (
-    <div style={{ padding: '36px 40px', maxWidth: 860 }}>
+    <div style={{ padding: isMobile ? '22px 16px 28px' : '36px 40px', maxWidth: 860 }}>
 
       {/* ── Header ── */}
-      <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', marginBottom: 24 }}>
+      <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', marginBottom: isMobile ? 18 : 24, gap: 12 }}>
         <div>
-          <h1 style={{ margin: 0, fontSize: 40, fontWeight: 800, color: 'var(--text-primary)', letterSpacing: '-1px' }}>To Do</h1>
+          <h1 style={{ margin: 0, fontSize: isMobile ? 30 : 40, fontWeight: 800, color: 'var(--text-primary)', letterSpacing: '-1px' }}>To Do</h1>
           <p style={{ margin: '4px 0 0', fontSize: 14, color: 'var(--text-secondary)' }}>
             {totalPending === 0 ? 'All caught up' : `${totalPending} task${totalPending !== 1 ? 's' : ''} remaining`}
           </p>
@@ -734,7 +736,7 @@ export default function TodosPage({ todos, domains, onAddTodo, onToggleTodo, onD
       </div>
 
       {/* ── View toggle ── */}
-      <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: 20 }}>
+      <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: 20, flexWrap: 'wrap', rowGap: 10 }}>
         <div style={{ position: 'relative', display: 'flex', background: 'var(--bg-surface)', border: '1px solid var(--border)', borderRadius: 9, padding: 3, gap: 0 }}>
           <div style={{
             position: 'absolute', top: 3, bottom: 3, left: 3,

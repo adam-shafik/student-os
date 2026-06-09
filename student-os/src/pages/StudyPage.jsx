@@ -1,5 +1,6 @@
 import { useState, useEffect, useRef } from 'react'
 import AppSelect, { AppSelectItem } from '../components/AppSelect'
+import { useIsMobile } from '../utils/useIsMobile'
 import {
   Play, Pause, SkipForward, Square, Volume2, VolumeX,
   Eye, EyeOff, BookOpen, Timer, X, ChevronRight, Check, Trash2,
@@ -530,6 +531,7 @@ function StartSessionModal({ initialDomain, domains, onClose, onStart, isTutoria
 
 // ─── Floating timer widget ────────────────────────────────────────────────────
 export function FloatingTimerWidget({ session, domain, onPauseResume, onSkipPhase, onGoToStudy, onToggleHidden, onToggleBlurred }) {
+  const isMobile = useIsMobile()
   const { phase, secondsLeft, currentRound, totalRounds, roundsCompleted, isRunning, widgetHidden, widgetBlurred } = session
   const color      = domain?.color ?? '#5b8cff'
   const isDone     = phase === 'done'
@@ -574,7 +576,9 @@ export function FloatingTimerWidget({ session, domain, onPauseResume, onSkipPhas
 
   const posStyle = pos
     ? { top: pos.y, left: pos.x }
-    : { bottom: 24, right: 24 }
+    : isMobile
+      ? { bottom: 'calc(env(safe-area-inset-bottom) + 70px)', right: 16 }
+      : { bottom: 24, right: 24 }
 
   if (widgetHidden) {
     return (
@@ -877,6 +881,7 @@ function SessionRow({ session, domain, onOpenNote, onDelete }) {
 
 // ─── Main page ────────────────────────────────────────────────────────────────
 export default function StudyPage({ domains, studySessions, activeSession, onStartSession, onEndSession, onPauseResume, onSkipPhase, soundEnabled, onToggleSound, onOpenNote, onDeleteSession, isTutorial }) {
+  const isMobile = useIsMobile()
   const [modalDomain, setModalDomain] = useState(null)
   const [showModal,   setShowModal]   = useState(false)
 
@@ -898,8 +903,8 @@ export default function StudyPage({ domains, studySessions, activeSession, onSta
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', height: '100%', overflow: 'auto' }}>
-      <div style={{ padding: '32px 28px 0' }}>
-        <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: 16 }}>
+      <div style={{ padding: isMobile ? '22px 16px 0' : '32px 28px 0' }}>
+        <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: 12 }}>
           <div>
             <h1 style={{ margin: 0, fontSize: 34, fontWeight: 800, color: 'var(--text-primary)', letterSpacing: '-1.5px', lineHeight: 1.0 }}>Study</h1>
             {studySessions.length > 0 && (
@@ -928,10 +933,10 @@ export default function StudyPage({ domains, studySessions, activeSession, onSta
         </div>
       </div>
 
-      <div style={{ padding: '20px 28px 32px', display: 'flex', flexDirection: 'column', gap: 28 }}>
+      <div style={{ padding: isMobile ? '18px 16px 28px' : '20px 28px 32px', display: 'flex', flexDirection: 'column', gap: 28 }}>
         {/* Domain cards */}
         <div>
-          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(190px, 1fr))', gap: 10 }}>
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(min(150px, 100%), 1fr))', gap: 10 }}>
             {domains.filter(d => !d.isPast && d.category === 'academic').map(domain => {
 
               const count = studySessions.filter(s => s.domainId === domain.id).length

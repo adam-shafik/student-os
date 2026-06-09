@@ -11,6 +11,7 @@ import { DOMAIN_CATEGORIES, DOMAIN_COLORS, DOMAIN_ICON_GROUPS, getDomainIcon, re
 import NewNoteModal from '../components/NewNoteModal'
 import { EVENT_TYPES, resolveTypeLabel, resolveTypeColor } from '../utils/calendarEvents'
 import { totalTeachingWeeks } from '../utils/semester'
+import { useIsMobile } from '../utils/useIsMobile'
 import EventDetailModal from '../components/EventDetailModal'
 import ConfirmModal from '../components/ConfirmModal'
 
@@ -132,7 +133,7 @@ function OverviewTab({ domain, domainEvents, assessments, calculatedProgress }) 
         </div>
       </div>
 
-      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 16 }}>
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(min(260px, 100%), 1fr))', gap: 16 }}>
         <SectionCard>
           <div style={{ padding: '14px 20px', borderBottom: '1px solid var(--border)' }}>
             <span style={{ fontSize: 13, fontWeight: 600, color: 'var(--text-primary)' }}>Upcoming Assessments</span>
@@ -1146,6 +1147,7 @@ export default function DomainDetailPage({
   onOpenNote, assessments = [], onAddAssessment, onUpdateAssessment, onDeleteAssessment,
   domains = [],
 }) {
+  const isMobile = useIsMobile()
   const isAcademic = domain.category === 'academic'
   const TABS = isAcademic
     ? ['Overview', 'Schedule', 'Assessments', 'Study']
@@ -1208,13 +1210,13 @@ export default function DomainDetailPage({
   const catCfg = DOMAIN_CATEGORIES[domain.category] || DOMAIN_CATEGORIES.other
 
   return (
-    <div style={{ padding: '32px 40px', maxWidth: 1000 }}>
-      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 24 }}>
+    <div style={{ padding: isMobile ? '20px 16px 28px' : '32px 40px', maxWidth: 1000 }}>
+      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: isMobile ? 16 : 24, gap: 10, flexWrap: 'wrap' }}>
         <button onClick={onBack}
           style={{ display: 'flex', alignItems: 'center', gap: 6, background: 'none', border: 'none', cursor: 'pointer', color: 'var(--text-secondary)', fontSize: 13, padding: 0, transition: 'color 0.15s' }}
           onMouseEnter={e => e.currentTarget.style.color = 'var(--text-primary)'}
           onMouseLeave={e => e.currentTarget.style.color = 'var(--text-secondary)'}>
-          <ArrowLeft size={15} /> Back to Domains
+          <ArrowLeft size={15} /> {isMobile ? 'Back' : 'Back to Domains'}
         </button>
         <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
           <button
@@ -1224,13 +1226,13 @@ export default function DomainDetailPage({
             onMouseLeave={e => { e.currentTarget.style.borderColor = 'var(--border-strong)'; e.currentTarget.style.color = showLinked ? 'var(--text-secondary)' : 'var(--text-muted)' }}
           >
             {showLinked ? <EyeOff size={13} /> : <Eye size={13} />}
-            {showLinked ? 'Hide sessions & notes' : 'Show sessions & notes'}
+            {isMobile ? (showLinked ? 'Hide linked' : 'Show linked') : (showLinked ? 'Hide sessions & notes' : 'Show sessions & notes')}
           </button>
           <button onClick={() => setShowEdit(true)}
             style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '7px 14px', borderRadius: 8, border: '1px solid var(--border-strong)', background: 'none', color: 'var(--text-secondary)', fontSize: 13, cursor: 'pointer', transition: 'all 0.15s' }}
             onMouseEnter={e => { e.currentTarget.style.borderColor = domain.color; e.currentTarget.style.color = domain.color }}
             onMouseLeave={e => { e.currentTarget.style.borderColor = 'var(--border-strong)'; e.currentTarget.style.color = 'var(--text-secondary)' }}>
-            <Pencil size={13} /> Edit Domain
+            <Pencil size={13} /> {isMobile ? 'Edit' : 'Edit Domain'}
           </button>
         </div>
       </div>
@@ -1241,7 +1243,7 @@ export default function DomainDetailPage({
       )}
 
       {/* Domain header */}
-      <div style={{ background: 'var(--bg-surface)', border: '1px solid var(--border)', borderTop: `2px solid ${domain.color}`, borderRadius: 16, padding: '26px 30px', marginBottom: 22, position: 'relative', overflow: 'hidden' }}>
+      <div style={{ background: 'var(--bg-surface)', border: '1px solid var(--border)', borderTop: `2px solid ${domain.color}`, borderRadius: 16, padding: isMobile ? '20px 18px' : '26px 30px', marginBottom: 22, position: 'relative', overflow: 'hidden' }}>
         {/* 3-dot menu */}
         <button
           ref={menuBtnRef}

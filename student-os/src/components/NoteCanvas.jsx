@@ -1,6 +1,7 @@
 import { useRef, useState, useEffect, useLayoutEffect, forwardRef, useImperativeHandle } from 'react'
 import { motion, MotionConfig } from 'framer-motion'
 import { getStroke } from 'perfect-freehand'
+import { useIsMobile } from '../utils/useIsMobile'
 import {
   Undo2, Redo2, Trash2, PenLine, Highlighter, Shapes, MousePointer2, Eraser,
   Square, Circle, Minus, Triangle, SlidersHorizontal, Plus, Maximize2, Minimize2,
@@ -1296,6 +1297,7 @@ const NoteCanvas = forwardRef(function NoteCanvas({
   pageDimensions,
   isPdfNote = false,
 }, ref) {
+  const isMobile         = useIsMobile()
   const scrollRef        = useRef()
   const addingPageRef    = useRef(false)
   const undoStackRef     = useRef([])
@@ -1746,7 +1748,8 @@ const NoteCanvas = forwardRef(function NoteCanvas({
                 border: '1px solid rgba(255,255,255,0.08)',
                 borderRadius: 14, padding: '5px 6px',
                 boxShadow: '0 8px 32px rgba(0,0,0,0.6)',
-                pointerEvents: 'none',
+                pointerEvents: isMobile ? 'auto' : 'none',
+                ...(isMobile ? { maxWidth: 'calc(100vw - 16px)', overflowX: 'auto', overflowY: 'hidden', flexWrap: 'nowrap' } : {}),
               }}
             >
               {/* Sliding pill background */}
