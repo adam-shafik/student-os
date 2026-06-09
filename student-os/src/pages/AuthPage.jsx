@@ -49,9 +49,6 @@ function friendlyError(raw) {
   return raw
 }
 
-// ─── Left panel feature chips ────────────────────────────────────────────────
-const FEATURE_CHIPS = ['Modules', 'Calendar', 'Notes', 'Study sessions', 'Grade tracker']
-
 // ─── Week preview — sample semester snapshot shown in left panel ───────────────
 const PREVIEW_DAYS = [
   { label: 'Mon', events: [
@@ -81,7 +78,7 @@ const WeekPreview = memo(function WeekPreview() {
         {PREVIEW_DAYS.map((day) => (
           <div key={day.label} style={{ minWidth: 0 }}>
             <div style={{
-              fontSize: 9, fontWeight: 600, color: C.dim, letterSpacing: '0.5px',
+              fontSize: 9, fontWeight: 600, color: C.muted, letterSpacing: '0.5px',
               marginBottom: 6, textAlign: 'center', fontFamily: FONT,
               textTransform: 'uppercase',
             }}>
@@ -222,8 +219,8 @@ const LeftPanel = memo(function LeftPanel() {
       <div style={{
         position: 'absolute', inset: 0,
         background: `
-          radial-gradient(ellipse 90% 60% at 15% 75%, rgba(91,140,255,0.10) 0%, transparent 60%),
-          radial-gradient(ellipse 60% 40% at 70% 20%, rgba(167,139,250,0.06) 0%, transparent 55%)
+          radial-gradient(ellipse 90% 60% at 15% 75%, rgba(91,140,255,0.16) 0%, transparent 60%),
+          radial-gradient(ellipse 60% 40% at 70% 20%, rgba(167,139,250,0.10) 0%, transparent 55%)
         `,
       }} />
       {/* Blend into form panel */}
@@ -245,7 +242,7 @@ const LeftPanel = memo(function LeftPanel() {
           style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 0 }}
         >
           <img src="/icons/icon-192.png" alt="" style={{ width: 32, height: 32, borderRadius: 9, objectFit: 'cover' }} />
-          <span style={{ fontSize: 15, fontWeight: 700, color: 'rgba(232,233,240,0.9)', letterSpacing: '-0.2px', fontFamily: FONT }}>
+          <span style={{ fontSize: 17, fontWeight: 700, color: 'rgba(232,233,240,0.9)', letterSpacing: '-0.2px', fontFamily: FONT }}>
             StudentOS
           </span>
         </motion.div>
@@ -260,35 +257,26 @@ const LeftPanel = memo(function LeftPanel() {
           {/* Big week number */}
           <div style={{ marginBottom: 20 }}>
             <div style={{ display: 'flex', alignItems: 'baseline', gap: 10, marginBottom: 4 }}>
-              <span style={{ fontSize: 56, fontWeight: 800, color: C.text, lineHeight: 1, letterSpacing: '-2px', fontFamily: FONT }}>
+              <span style={{ fontSize: 88, fontWeight: 800, color: C.text, lineHeight: 1, letterSpacing: '-3px', fontFamily: FONT }}>
                 8
               </span>
-              <span style={{ fontSize: 20, fontWeight: 600, color: C.muted, fontFamily: FONT, letterSpacing: '-0.4px' }}>
+              <span style={{ fontSize: 24, fontWeight: 600, color: C.muted, fontFamily: FONT, letterSpacing: '-0.4px' }}>
                 of 12
               </span>
             </div>
-            <span style={{ fontSize: 12, color: C.dim, fontFamily: FONT, letterSpacing: '0.2px' }}>
+            <span style={{ fontSize: 13, color: C.muted, fontFamily: FONT, letterSpacing: '0.2px' }}>
               teaching weeks
             </span>
           </div>
 
           {/* Semester progress bar */}
-          <div style={{ height: 3, background: 'rgba(255,255,255,0.06)', borderRadius: 2, marginBottom: 22 }}>
-            <div style={{ height: '100%', width: '66.7%', background: 'rgba(91,140,255,0.45)', borderRadius: 2 }} />
+          <div style={{ height: 5, background: 'rgba(255,255,255,0.06)', borderRadius: 3, marginBottom: 12 }}>
+            <div style={{ height: '100%', width: '66.7%', background: 'rgba(91,140,255,0.65)', borderRadius: 3 }} />
           </div>
 
-          {/* Feature chips */}
-          <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}>
-            {FEATURE_CHIPS.map(label => (
-              <span key={label} style={{
-                fontSize: 11, color: C.muted, fontFamily: FONT,
-                padding: '4px 10px', borderRadius: 100,
-                border: '1px solid rgba(255,255,255,0.08)',
-                background: 'rgba(255,255,255,0.03)',
-              }}>
-                {label}
-              </span>
-            ))}
+          <div style={{ display: 'flex', gap: 16, marginTop: 8 }}>
+            <span style={{ fontSize: 12, color: C.dim, fontFamily: FONT }}>66% complete</span>
+            <span style={{ fontSize: 12, color: C.dim, fontFamily: FONT }}>4 weeks left</span>
           </div>
         </motion.div>
 
@@ -300,7 +288,7 @@ const LeftPanel = memo(function LeftPanel() {
           style={{ paddingBottom: 44 }}
         >
           <div style={{ marginBottom: 14 }}>
-            <span style={{ fontSize: 12, color: C.muted, fontFamily: FONT, letterSpacing: '0.1px' }}>
+            <span style={{ fontSize: 13, color: 'rgba(232,233,240,0.55)', fontFamily: FONT, letterSpacing: '0.1px' }}>
               This week
             </span>
           </div>
@@ -540,7 +528,7 @@ export default function AuthPage() {
                   style={{
                     flex: 1, padding: '10px 0', background: 'none', border: 'none',
                     cursor: 'pointer', fontFamily: FONT,
-                    fontSize: 14, fontWeight: mode === id ? 600 : 400,
+                    fontSize: 14, fontWeight: mode === id ? 700 : 300,
                     color: mode === id ? C.text : C.muted,
                     position: 'relative', zIndex: 1,
                     transition: 'color 0.2s',
@@ -571,12 +559,12 @@ export default function AuthPage() {
                 style={{ marginBottom: 28 }}
               >
                 <h1 style={{
-                  fontSize: 24, fontWeight: 700, color: C.text,
-                  margin: '0 0 5px', letterSpacing: '-0.5px',
+                  fontSize: 32, fontWeight: 800, color: C.text,
+                  margin: '0 0 5px', letterSpacing: '-0.8px',
                 }}>
                   {mode === 'signin' ? 'Welcome back' : 'Create your account'}
                 </h1>
-                <p style={{ fontSize: 13, color: C.muted, margin: 0 }}>
+                <p style={{ fontSize: 14, color: C.muted, margin: 0 }}>
                   {mode === 'signin'
                     ? 'Pick up where you left off'
                     : 'Set up your semester in under 3 minutes'}
@@ -610,7 +598,7 @@ export default function AuthPage() {
             {/* Divider */}
             <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: 18 }}>
               <div style={{ flex: 1, height: 1, background: C.border }} />
-              <span style={{ fontSize: 11, color: C.muted, textTransform: 'uppercase', letterSpacing: '0.6px' }}>or</span>
+              <span style={{ fontSize: 11, color: C.muted }}>or</span>
               <div style={{ flex: 1, height: 1, background: C.border }} />
             </div>
 
