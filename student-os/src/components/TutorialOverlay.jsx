@@ -190,6 +190,8 @@ export default function TutorialOverlay({ userName, hasDomains, stepIndex, curre
   const steps  = useMemo(() => buildSteps(userName, hasDomains), [userName, hasDomains])
   const step   = steps[Math.min(stepIndex, steps.length - 1)]
   const [rect, setRect] = useState(null)
+  const [cardH, setCardH] = useState(TOOLTIP_H)
+  const cardRef = useRef(null)
   const wh = window.innerHeight
   const ww = window.innerWidth
   const isMobile   = ww < 600
@@ -221,6 +223,16 @@ export default function TutorialOverlay({ userName, hasDomains, stepIndex, curre
     return () => { cancelAnimationFrame(raf); clearTimeout(t1) }
   }, [step.id, step.targetId, currentPage])
 
+  useEffect(() => {
+    const el = cardRef.current
+    if (!el) { setCardH(TOOLTIP_H); return }
+    const update = () => setCardH(el.getBoundingClientRect().height || TOOLTIP_H)
+    update()
+    const ro = new ResizeObserver(update)
+    ro.observe(el)
+    return () => ro.disconnect()
+  }, [step.id, step.type, cardW, currentPage])
+
   const handleAdvance = useCallback(() => {
     if (stepIndex >= steps.length - 1) onClose()
     else onAdvance(stepIndex + 1)
@@ -248,12 +260,12 @@ export default function TutorialOverlay({ userName, hasDomains, stepIndex, curre
   // All positions as top+left so framer-motion springs consistently between them
   // Mobile: always center horizontally and pin near bottom, above home indicator
   const safeBottom = isMobile ? 88 : 48
-  let tooltipTop  = wh - safeBottom - TOOLTIP_H
+  let tooltipTop  = wh - safeBottom - cardH
   let tooltipLeft = isMobile ? (ww - cardW) / 2 : ww - 48 - CARD_W
 
   if (rect && !isMobile) {
     if (step.tooltipSide === 'right') {
-      tooltipTop  = Math.max(16, Math.min(rect.top + rect.height / 2 - TOOLTIP_H / 2, wh - TOOLTIP_H - 16))
+      tooltipTop  = Math.max(16, Math.min(rect.top + rect.height / 2 - cardH / 2, wh - cardH - 16))
       tooltipLeft = rect.right + PAD + 20
     } else if (step.tooltipSide !== 'bottom-corner') {
       tooltipTop  = rect.bottom + PAD + 16
@@ -262,11 +274,11 @@ export default function TutorialOverlay({ userName, hasDomains, stepIndex, curre
   } else if (rect && isMobile && step.tooltipSide !== 'bottom-corner') {
     // On mobile, place below target if room; otherwise above
     const below = rect.bottom + PAD + 8
-    const above = rect.top - PAD - 8 - TOOLTIP_H
-    tooltipTop = below + TOOLTIP_H < wh - safeBottom ? below : Math.max(8, above)
+    const above = rect.top - PAD - 8 - cardH
+    tooltipTop = below + cardH < wh - safeBottom ? below : Math.max(8, above)
     tooltipLeft = (ww - cardW) / 2
   }
-  tooltipTop = Math.max(8, Math.min(tooltipTop, wh - safeBottom - TOOLTIP_H))
+  tooltipTop = Math.max(8, Math.min(tooltipTop, wh - safeBottom - cardH))
 
   const showTooltip = isCenter || rect || step.tooltipSide === 'bottom-corner'
 
@@ -454,6 +466,7 @@ export default function TutorialOverlay({ userName, hasDomains, stepIndex, curre
       <AnimatePresence>
         {!isCenter && showTooltip && (
           <motion.div
+            ref={cardRef}
             key="tooltip-card"
             initial={{ opacity: 0, top: tooltipTop, left: tooltipLeft, width: cardW }}
             animate={{ opacity: 1, top: tooltipTop, left: tooltipLeft, width: cardW }}
