@@ -26,7 +26,7 @@ function parseDue(dateStr) {
 }
 
 function PriorityDot({ priority }) {
-  return <span style={{ width: 7, height: 7, borderRadius: '50%', background: PRIORITY_DOTS[priority] || PRIORITY_DOTS.low, display: 'inline-block', flexShrink: 0 }} />
+  return <span style={{ width: 9, height: 9, borderRadius: '50%', background: PRIORITY_DOTS[priority] || PRIORITY_DOTS.low, display: 'inline-block', flexShrink: 0 }} />
 }
 
 function DueDateWeekBadge({ date }) {
@@ -334,7 +334,8 @@ function TaskRow({ task, domainMap, onToggle, onDelete, onOpenNote, onOpenDetail
   return (
     <div onMouseEnter={() => setHovered(true)} onMouseLeave={() => setHovered(false)} style={{
       display: 'flex', alignItems: 'center', gap: 10, padding: '10px 14px', borderRadius: 9,
-      background: hovered ? 'var(--nav-hover)' : 'transparent', transition: 'background 0.12s',
+      background: hovered ? 'var(--nav-hover)' : (task.priority === 'high' && !task.done ? 'rgba(251,113,133,0.04)' : 'transparent'),
+      transition: 'background 0.12s',
     }}>
       <button onClick={() => onToggle(task.id)} style={{ background: 'none', border: 'none', cursor: 'pointer', padding: 0, color: task.done ? 'var(--accent-green)' : 'var(--text-muted)', flexShrink: 0, display: 'flex' }}>
         {task.done ? <CheckSquare size={16} /> : <Square size={16} />}
@@ -392,9 +393,8 @@ function StudyPlanTaskRow({ task, domainMap, noteMap, onToggle, onDelete, onOpen
   return (
     <div onMouseEnter={() => setHovered(true)} onMouseLeave={() => setHovered(false)} style={{
       display: 'flex', alignItems: 'center', gap: 10,
-      padding: '11px 14px 11px 12px',
+      padding: '11px 14px',
       borderBottom: isLast ? 'none' : '1px solid var(--border)',
-      borderLeft: `3px solid ${domain?.color ?? 'transparent'}`,
       background: hovered ? 'var(--nav-hover)' : 'transparent',
       transition: 'background 0.12s',
     }}>
@@ -404,9 +404,12 @@ function StudyPlanTaskRow({ task, domainMap, noteMap, onToggle, onDelete, onOpen
 
       <div onClick={() => onOpenDetail?.(task)} style={{ flex: 1, minWidth: 0, cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 7 }}>
         {domain && (
-          <span style={{ fontSize: 10, fontWeight: 800, color: domain.color, flexShrink: 0, letterSpacing: '0.3px' }}>
-            {domain.code || domain.name.slice(0, 6).toUpperCase()}
-          </span>
+          <>
+            <span style={{ width: 6, height: 6, borderRadius: '50%', background: domain.color, display: 'inline-block', flexShrink: 0 }} />
+            <span style={{ fontSize: 10, fontWeight: 800, color: domain.color, flexShrink: 0, letterSpacing: '0.3px' }}>
+              {domain.code || domain.name.slice(0, 6).toUpperCase()}
+            </span>
+          </>
         )}
         <span style={{
           fontSize: 13,
@@ -494,21 +497,24 @@ function StudyPlanView({ todos, domainMap, noteMap, onToggle, onDelete, onAdd, o
             {/* Day header */}
             <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 8 }}>
               <span style={{
-                fontSize: 13, fontWeight: 700,
+                fontSize: isToday ? 15 : 13,
+                fontWeight: isToday ? 800 : 700,
+                letterSpacing: isToday ? '-0.3px' : 0,
                 color: isToday ? 'var(--accent-blue)' : isPast ? 'var(--text-muted)' : 'var(--text-secondary)',
+                transition: 'font-size 0.15s',
               }}>
                 {dateLabel}
               </span>
 
               {isToday && (
                 <span style={{
-                  fontSize: 9, fontWeight: 800, padding: '2px 7px', borderRadius: 10,
+                  fontSize: 10, fontWeight: 800, padding: '3px 10px', borderRadius: 10,
                   background: 'var(--accent-blue)', color: '#fff', letterSpacing: '0.5px',
                 }}>TODAY</span>
               )}
               {isTomorrow && (
                 <span style={{
-                  fontSize: 9, fontWeight: 700, padding: '2px 7px', borderRadius: 10,
+                  fontSize: 9, fontWeight: 700, padding: '2px 9px', borderRadius: 10,
                   background: 'rgba(91,140,255,0.15)', color: 'var(--accent-blue)', letterSpacing: '0.4px',
                 }}>TOMORROW</span>
               )}
@@ -516,8 +522,8 @@ function StudyPlanView({ todos, domainMap, noteMap, onToggle, onDelete, onAdd, o
               <div style={{ flex: 1, height: 1, background: 'var(--border)' }} />
 
               <span style={{
-                fontSize: 11, fontWeight: 600,
-                color: allDone ? 'var(--accent-green)' : 'var(--text-muted)',
+                fontSize: 12, fontWeight: 700,
+                color: allDone ? 'var(--accent-green)' : isPast && !allDone ? 'var(--accent-amber)' : 'var(--text-muted)',
               }}>
                 {allDone ? '✓ all done' : `${tasks.length - pending}/${tasks.length}`}
               </span>
@@ -534,10 +540,10 @@ function StudyPlanView({ todos, domainMap, noteMap, onToggle, onDelete, onAdd, o
 
             {/* Task cards */}
             <div style={{
-              background: 'var(--bg-surface)',
-              border: `1px solid ${isToday ? 'rgba(91,140,255,0.35)' : 'var(--border)'}`,
+              background: isToday ? 'rgba(91,140,255,0.03)' : 'var(--bg-surface)',
+              border: `1px solid ${isToday ? 'rgba(91,140,255,0.3)' : 'var(--border)'}`,
+              borderTop: isToday ? '2px solid var(--accent-blue)' : undefined,
               borderRadius: 12, overflow: 'hidden',
-              boxShadow: isToday ? '0 0 0 1px rgba(91,140,255,0.1)' : 'none',
             }}>
               {tasks.map((task, i) => (
                 <StudyPlanTaskRow
@@ -704,13 +710,16 @@ export default function TodosPage({ todos, domains, onAddTodo, onToggleTodo, onD
     { key: 'dueDate',  label: 'Due Date' },
   ]
 
+  const VIEW_OPTS = [['plan', CalendarDays, 'Study Plan'], ['tasks', CheckSquare, 'Tasks']]
+  const viewIdx = VIEW_OPTS.findIndex(([v]) => v === view)
+
   return (
     <div style={{ padding: '36px 40px', maxWidth: 860 }}>
 
       {/* ── Header ── */}
-      <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', marginBottom: 20 }}>
+      <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', marginBottom: 24 }}>
         <div>
-          <h1 style={{ margin: 0, fontSize: 26, fontWeight: 700, color: 'var(--text-primary)', letterSpacing: '-0.5px' }}>To Do</h1>
+          <h1 style={{ margin: 0, fontSize: 40, fontWeight: 800, color: 'var(--text-primary)', letterSpacing: '-1px' }}>To Do</h1>
           <p style={{ margin: '4px 0 0', fontSize: 14, color: 'var(--text-secondary)' }}>
             {totalPending === 0 ? 'All caught up' : `${totalPending} task${totalPending !== 1 ? 's' : ''} remaining`}
           </p>
@@ -726,15 +735,24 @@ export default function TodosPage({ todos, domains, onAddTodo, onToggleTodo, onD
 
       {/* ── View toggle ── */}
       <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: 20 }}>
-        <div style={{ display: 'flex', background: 'var(--bg-surface)', border: '1px solid var(--border)', borderRadius: 9, padding: 3, gap: 2 }}>
-          {[['plan', CalendarDays, 'Study Plan'], ['tasks', CheckSquare, 'Tasks']].map(([v, Icon, label]) => (
+        <div style={{ position: 'relative', display: 'flex', background: 'var(--bg-surface)', border: '1px solid var(--border)', borderRadius: 9, padding: 3, gap: 0 }}>
+          <div style={{
+            position: 'absolute', top: 3, bottom: 3, left: 3,
+            width: 'calc((100% - 6px) / 2)',
+            background: 'rgba(91,140,255,0.14)',
+            border: '1px solid rgba(91,140,255,0.28)',
+            borderRadius: 7,
+            transform: `translateX(${viewIdx * 100}%)`,
+            transition: 'transform 0.22s cubic-bezier(0.32,0.72,0,1)',
+            pointerEvents: 'none',
+          }} />
+          {VIEW_OPTS.map(([v, Icon, label]) => (
             <button key={v} onClick={() => setView(v)} style={{
               display: 'flex', alignItems: 'center', gap: 5,
-              padding: '6px 14px', borderRadius: 7, border: 'none', cursor: 'pointer',
-              fontSize: 12, fontWeight: 600,
-              background: view === v ? 'rgba(91,140,255,0.15)' : 'transparent',
+              padding: '6px 16px', borderRadius: 7, border: 'none', cursor: 'pointer',
+              fontSize: 12, fontWeight: 600, position: 'relative', zIndex: 1, background: 'none',
               color: view === v ? 'var(--accent-blue)' : 'var(--text-muted)',
-              transition: 'all 0.15s',
+              transition: 'color 0.18s',
             }}>
               <Icon size={13} />{label}
             </button>
@@ -759,13 +777,20 @@ export default function TodosPage({ todos, domains, onAddTodo, onToggleTodo, onD
 
       {/* ── Summary stats (tasks view only) ── */}
       {view === 'tasks' && todos.length > 0 && (
-        <div style={{ display: 'flex', gap: 10, marginBottom: 24 }}>
-          {summaryStats.map(s => (
-            <div key={s.label} style={{ flex: 1, background: 'var(--bg-surface)', border: '1px solid var(--border)', borderRadius: 10, padding: '12px 16px' }}>
-              <div style={{ fontSize: 20, fontWeight: 700, color: s.color, marginBottom: 2 }}>{s.value}</div>
-              <div style={{ fontSize: 11, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.4px' }}>{s.label}</div>
-            </div>
-          ))}
+        <div style={{ display: 'flex', alignItems: 'center', marginBottom: 24, padding: '16px 22px', background: 'var(--bg-surface)', border: '1px solid var(--border)', borderRadius: 12 }}>
+          <div style={{ marginRight: 24, lineHeight: 1 }}>
+            <span style={{ fontSize: 48, fontWeight: 800, color: 'var(--text-primary)', letterSpacing: '-2px', lineHeight: 1 }}>{pending.length}</span>
+            <span style={{ fontSize: 12, color: 'var(--text-muted)', marginLeft: 8, fontWeight: 500 }}>pending</span>
+          </div>
+          <div style={{ width: 1, height: 36, background: 'var(--border)', marginRight: 24, flexShrink: 0 }} />
+          <div style={{ display: 'flex', gap: 22, flexWrap: 'wrap' }}>
+            {summaryStats.slice(1).map(s => (
+              <div key={s.label}>
+                <span style={{ fontSize: 20, fontWeight: 700, color: s.color, letterSpacing: '-0.5px' }}>{s.value}</span>
+                <span style={{ fontSize: 11, color: 'var(--text-muted)', marginLeft: 5 }}>{s.label.toLowerCase()}</span>
+              </div>
+            ))}
+          </div>
         </div>
       )}
 
