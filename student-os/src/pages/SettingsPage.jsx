@@ -94,6 +94,9 @@ export default function SettingsPage({ userProfile, userEmail, theme, onThemeCha
 
   const [semStart,  setSemStart]  = useState(userProfile?.semester_start || '')
   const [semEnd,    setSemEnd]    = useState(userProfile?.semester_end   || '')
+  const [numSemesters, setNumSemesters] = useState(userProfile?.semester2_start && userProfile?.semester2_end ? 2 : 1)
+  const [sem2Start, setSem2Start] = useState(userProfile?.semester2_start || '')
+  const [sem2End,   setSem2End]   = useState(userProfile?.semester2_end   || '')
   const [breaks,    setBreaks]    = useState(() => semBreaks.map(b => ({ ...b, id: b.id || crypto.randomUUID() })))
   const [semSaving, setSemSaving] = useState(false)
   const [semSaved,  setSemSaved]  = useState(false)
@@ -120,12 +123,24 @@ export default function SettingsPage({ userProfile, userEmail, theme, onThemeCha
     if (!startValid) { setSemError(`Semester start must be a ${DOW_NAMES[startDay]}`); return }
     if (!endValid)   { setSemError(`Semester end must be a ${DOW_NAMES[endDay]}`); return }
     if (semStart >= semEnd) { setSemError('End date must be after start date'); return }
+    if (numSemesters === 2) {
+      if (!sem2Start || !sem2End) { setSemError('Semester 2 start and end dates are required'); return }
+      if (getDow(sem2Start) !== startDay) { setSemError(`Semester 2 start must be a ${DOW_NAMES[startDay]}`); return }
+      if (getDow(sem2End)   !== endDay)   { setSemError(`Semester 2 end must be a ${DOW_NAMES[endDay]}`); return }
+      if (sem2Start >= sem2End) { setSemError('Semester 2 end must be after its start'); return }
+      if (sem2Start <= semEnd)  { setSemError('Semester 2 must start after Semester 1 ends'); return }
+    }
     const incomplete = breaks.find(b => !b.name.trim() || !b.startMonday || !b.returnMonday)
     if (incomplete) { setSemError('All break fields are required'); return }
     const badBreak = breaks.find(b => getDow(b.startMonday) !== breakDay || getDow(b.returnMonday) !== breakDay)
     if (badBreak) { setSemError(`Break dates must be ${DOW_NAMES[breakDay]}s`); return }
     setSemSaving(true); setSemError(null)
-    const { error } = await onUpdateSemester?.({ start: semStart, end: semEnd, breaks })
+    const { error } = await onUpdateSemester?.({
+      start: semStart, end: semEnd,
+      sem2Start: numSemesters === 2 ? sem2Start : null,
+      sem2End:   numSemesters === 2 ? sem2End   : null,
+      breaks,
+    })
     setSemSaving(false)
     if (error) { setSemError(error.message || 'Save failed'); return }
     setSemSaved(true)
@@ -339,8 +354,24 @@ export default function SettingsPage({ userProfile, userEmail, theme, onThemeCha
       {/* Semester */}
       <SectionCard title="Semester" Icon={Calendar} accentColor="var(--accent-amber)">
         <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
+          {/* Semester count toggle */}
+          <Field label="Number of semesters">
+            <div style={{ display: 'flex', gap: 8 }}>
+              {[{ v: 1, label: 'One semester' }, { v: 2, label: 'Two semesters' }].map(o => (
+                <button key={o.v} onClick={() => setNumSemesters(o.v)} style={{
+                  flex: 1, padding: '9px 0', borderRadius: 8, cursor: 'pointer', fontFamily: 'inherit', fontSize: 13,
+                  fontWeight: numSemesters === o.v ? 600 : 400,
+                  border: `1px solid ${numSemesters === o.v ? 'var(--accent-amber)' : 'var(--border-strong)'}`,
+                  background: numSemesters === o.v ? 'rgba(251,191,36,0.12)' : 'transparent',
+                  color: numSemesters === o.v ? 'var(--accent-amber)' : 'var(--text-secondary)',
+                  transition: 'all 0.15s',
+                }}>{o.label}</button>
+              ))}
+            </div>
+          </Field>
+
           <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 14 }}>
-            <Field label={`Semester Start (${DOW_NAMES[startDay]})`}>
+            <Field label={`${numSemesters === 2 ? 'Sem 1 ' : 'Semester '}Start (${DOW_NAMES[startDay]})`}>
               <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
                 <TextInput type="date" value={semStart} onChange={e => setSemStart(e.target.value)} style={{ colorScheme: 'dark' }} />
                 {semStart && (
@@ -348,7 +379,7 @@ export default function SettingsPage({ userProfile, userEmail, theme, onThemeCha
                 )}
               </div>
             </Field>
-            <Field label={`Semester End (${DOW_NAMES[endDay]})`}>
+            <Field label={`${numSemesters === 2 ? 'Sem 1 ' : 'Semester '}End (${DOW_NAMES[endDay]})`}>
               <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
                 <TextInput type="date" value={semEnd} onChange={e => setSemEnd(e.target.value)} style={{ colorScheme: 'dark' }} />
                 {semEnd && (
@@ -357,6 +388,32 @@ export default function SettingsPage({ userProfile, userEmail, theme, onThemeCha
               </div>
             </Field>
           </div>
+
+          {numSemesters === 2 && (
+            <>
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 14 }}>
+                <Field label={`Sem 2 Start (${DOW_NAMES[startDay]})`}>
+                  <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
+                    <TextInput type="date" value={sem2Start} onChange={e => setSem2Start(e.target.value)} style={{ colorScheme: 'dark' }} />
+                    {sem2Start && (
+                      <span style={{ fontSize: 12, fontWeight: 600, padding: '4px 9px', borderRadius: 6, flexShrink: 0, background: getDow(sem2Start) === startDay ? 'rgba(52,211,153,0.12)' : 'rgba(251,113,133,0.12)', color: getDow(sem2Start) === startDay ? '#34d399' : '#fb7185', border: `1px solid ${getDow(sem2Start) === startDay ? 'rgba(52,211,153,0.25)' : 'rgba(251,113,133,0.25)'}` }}>{dowName(sem2Start)}</span>
+                    )}
+                  </div>
+                </Field>
+                <Field label={`Sem 2 End (${DOW_NAMES[endDay]})`}>
+                  <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
+                    <TextInput type="date" value={sem2End} onChange={e => setSem2End(e.target.value)} style={{ colorScheme: 'dark' }} />
+                    {sem2End && (
+                      <span style={{ fontSize: 12, fontWeight: 600, padding: '4px 9px', borderRadius: 6, flexShrink: 0, background: getDow(sem2End) === endDay ? 'rgba(52,211,153,0.12)' : 'rgba(251,113,133,0.12)', color: getDow(sem2End) === endDay ? '#34d399' : '#fb7185', border: `1px solid ${getDow(sem2End) === endDay ? 'rgba(52,211,153,0.25)' : 'rgba(251,113,133,0.25)'}` }}>{dowName(sem2End)}</span>
+                    )}
+                  </div>
+                </Field>
+              </div>
+              <p style={{ margin: 0, fontSize: 12, color: 'var(--text-muted)', lineHeight: 1.5 }}>
+                The gap between Semester 1 and Semester 2 is the inter-semester break. Week numbers restart at 1 in Semester 2. Set each domain's semester from its card.
+              </p>
+            </>
+          )}
 
           <div>
             <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 10 }}>

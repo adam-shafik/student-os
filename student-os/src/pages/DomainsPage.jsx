@@ -5,6 +5,7 @@ import {
 } from 'lucide-react'
 import { DOMAIN_CATEGORIES, DOMAIN_COLORS, DOMAIN_ICON_GROUPS, getDomainIcon } from '../data/domains'
 import { useIsMobile } from '../utils/useIsMobile'
+import { getSemesterCount } from '../utils/semester'
 
 const EASE = [0.32, 0.72, 0, 1]
 
@@ -68,6 +69,11 @@ function AcademicCard({ domain, pendingTasks, domainEvents = [], assessments = [
           <div style={{ display: 'flex', alignItems: 'center', gap: 7, marginBottom: 8 }}>
             <span style={{ fontSize: 11, fontWeight: 700, color: domain.color, background: domain.colorMuted, padding: '3px 8px', borderRadius: 5 }}>{domain.code}</span>
             <DomainIcon name={domain.icon} size={14} color={domain.color} />
+            {getSemesterCount() > 1 && domain.semesterNumber != null && (
+              <span style={{ fontSize: 9.5, fontWeight: 700, color: 'var(--text-muted)', background: 'var(--bg-overlay)', padding: '2px 6px', borderRadius: 4, letterSpacing: '0.3px' }}>
+                {domain.semesterNumber === 0 ? 'YEAR' : `S${domain.semesterNumber}`}
+              </span>
+            )}
           </div>
           <h3 style={{ margin: 0, fontSize: 15, fontWeight: 600, color: 'var(--text-primary)', lineHeight: 1.35, letterSpacing: '-0.2px' }}>{domain.name}</h3>
         </div>
@@ -220,9 +226,10 @@ function CreateDomainModal({ onClose, onSave }) {
   const [form, setForm] = useState({
     name: '', category: 'society', code: '',
     color: DOMAIN_COLORS[5], icon: 'BookOpen', description: '',
-    professor: '', credits: '', semester: '', role: '',
+    professor: '', credits: '', semester: '', role: '', semesterNumber: 1,
   })
   const set = (k, v) => setForm(prev => ({ ...prev, [k]: v }))
+  const twoSemesters = getSemesterCount() > 1
 
   const handleNameChange = (v) => {
     set('name', v)
@@ -248,6 +255,7 @@ function CreateDomainModal({ onClose, onSave }) {
         professor: form.professor.trim(),
         credits: parseInt(form.credits) || 0,
         semester: form.semester.trim(),
+        semesterNumber: twoSemesters ? form.semesterNumber : null,
         progress: 0,
         lectures: [], assignments: [], labs: [], exams: [],
       } : {
@@ -389,6 +397,23 @@ function CreateDomainModal({ onClose, onSave }) {
                 <div><FieldLabel>Credits</FieldLabel><input style={inputStyle} type="number" placeholder="20" value={form.credits} onChange={e => set('credits', e.target.value)} onFocus={e => e.target.style.borderColor = 'var(--border-focus)'} onBlur={e => e.target.style.borderColor = 'var(--border-strong)'} /></div>
               </div>
               <div><FieldLabel>Semester</FieldLabel><input style={inputStyle} placeholder="Semester 2 · Year 2" value={form.semester} onChange={e => set('semester', e.target.value)} onFocus={e => e.target.style.borderColor = 'var(--border-focus)'} onBlur={e => e.target.style.borderColor = 'var(--border-strong)'} /></div>
+              {twoSemesters && (
+                <div>
+                  <FieldLabel>Teaching semester</FieldLabel>
+                  <div style={{ display: 'flex', gap: 6 }}>
+                    {[{ v: 1, label: 'Sem 1' }, { v: 2, label: 'Sem 2' }, { v: 0, label: 'Full year' }].map(o => (
+                      <button key={o.v} onClick={() => set('semesterNumber', o.v)} style={{
+                        flex: 1, padding: '7px 0', borderRadius: 7, cursor: 'pointer', fontFamily: 'inherit', fontSize: 12,
+                        fontWeight: form.semesterNumber === o.v ? 600 : 400,
+                        border: `1px solid ${form.semesterNumber === o.v ? 'var(--accent-blue)' : 'var(--border-strong)'}`,
+                        background: form.semesterNumber === o.v ? 'rgba(91,140,255,0.12)' : 'transparent',
+                        color: form.semesterNumber === o.v ? 'var(--accent-blue)' : 'var(--text-secondary)',
+                        transition: 'all 0.15s',
+                      }}>{o.label}</button>
+                    ))}
+                  </div>
+                </div>
+              )}
             </div>
           )}
 

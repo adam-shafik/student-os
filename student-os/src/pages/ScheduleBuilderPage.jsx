@@ -274,7 +274,10 @@ export default function ScheduleBuilderPage({ domains, scheduleSlots: initialSlo
               <div>
                 {label('Module')}
                 <AppSelect value={pickDomainId} onChange={v => setPickDomainId(v)}>
-                  {domains.map(d => <AppSelectItem key={d.id} value={d.id}>{d.name}{d.code ? ` (${d.code})` : ''}</AppSelectItem>)}
+                  {domains.map(d => {
+                    const semTag = d.semesterNumber === 1 ? ' · Sem 1' : d.semesterNumber === 2 ? ' · Sem 2' : (d.semesterNumber === 0 ? ' · Full year' : '')
+                    return <AppSelectItem key={d.id} value={d.id}>{d.name}{d.code ? ` (${d.code})` : ''}{semTag}</AppSelectItem>
+                  })}
                 </AppSelect>
               </div>
 

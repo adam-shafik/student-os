@@ -10,7 +10,7 @@ import {
 import { DOMAIN_CATEGORIES, DOMAIN_COLORS, DOMAIN_ICON_GROUPS, getDomainIcon, readableTextOn } from '../data/domains'
 import NewNoteModal from '../components/NewNoteModal'
 import { EVENT_TYPES, resolveTypeLabel, resolveTypeColor } from '../utils/calendarEvents'
-import { totalTeachingWeeks } from '../utils/semester'
+import { totalTeachingWeeks, getSemesterCount } from '../utils/semester'
 import { useIsMobile } from '../utils/useIsMobile'
 import EventDetailModal from '../components/EventDetailModal'
 import ConfirmModal from '../components/ConfirmModal'
@@ -1016,9 +1016,11 @@ function EditDomainModal({ domain, onClose, onSave }) {
     description: domain.description || '',
     professor: domain.professor || '', credits: domain.credits ? String(domain.credits) : '',
     semester: domain.semester || '', role: domain.role || '',
+    semesterNumber: domain.semesterNumber ?? 0,
   })
   const set = (k, v) => setForm(prev => ({ ...prev, [k]: v }))
   const canSave = form.name.trim() && form.code.trim()
+  const twoSemesters = getSemesterCount() > 1
 
   const inputStyle = {
     width: '100%', padding: '9px 12px', borderRadius: 8,
@@ -1111,11 +1113,23 @@ function EditDomainModal({ domain, onClose, onSave }) {
                     onFocus={e => e.target.style.borderColor = 'var(--border-focus)'} onBlur={e => e.target.style.borderColor = 'var(--border-strong)'} />
                 </div>
               </div>
-              <div>
-                <div style={{ fontSize: 11, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.5px', marginBottom: 7 }}>Semester</div>
-                <input style={inputStyle} placeholder="Semester 2 · Year 2" value={form.semester} onChange={e => set('semester', e.target.value)}
-                  onFocus={e => e.target.style.borderColor = 'var(--border-focus)'} onBlur={e => e.target.style.borderColor = 'var(--border-strong)'} />
-              </div>
+              {twoSemesters && (
+                <div>
+                  <div style={{ fontSize: 11, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.5px', marginBottom: 7 }}>Teaching semester</div>
+                  <div style={{ display: 'flex', gap: 6 }}>
+                    {[{ v: 1, label: 'Sem 1' }, { v: 2, label: 'Sem 2' }, { v: 0, label: 'Full year' }].map(o => (
+                      <button key={o.v} onClick={() => set('semesterNumber', o.v)} style={{
+                        flex: 1, padding: '8px 0', borderRadius: 7, cursor: 'pointer', fontFamily: 'inherit', fontSize: 12,
+                        fontWeight: form.semesterNumber === o.v ? 600 : 400,
+                        border: `1px solid ${form.semesterNumber === o.v ? 'var(--accent-blue)' : 'var(--border-strong)'}`,
+                        background: form.semesterNumber === o.v ? 'rgba(91,140,255,0.12)' : 'transparent',
+                        color: form.semesterNumber === o.v ? 'var(--accent-blue)' : 'var(--text-secondary)',
+                        transition: 'all 0.15s',
+                      }}>{o.label}</button>
+                    ))}
+                  </div>
+                </div>
+              )}
             </div>
           )}
 
@@ -1130,7 +1144,7 @@ function EditDomainModal({ domain, onClose, onSave }) {
 
         <div style={{ padding: '14px 22px', borderTop: '1px solid var(--border)', display: 'flex', justifyContent: 'flex-end', gap: 8, flexShrink: 0 }}>
           <button onClick={onClose} style={{ padding: '8px 16px', borderRadius: 8, border: '1px solid var(--border-strong)', background: 'none', color: 'var(--text-secondary)', cursor: 'pointer', fontSize: 13 }}>Cancel</button>
-          <button onClick={() => { if (!canSave) return; onSave({ name: form.name.trim(), code: form.code.trim().toUpperCase(), icon: form.icon, color: form.color, colorMuted: `${form.color}18`, description: form.description.trim(), ...(isAcademic ? { professor: form.professor.trim(), credits: parseInt(form.credits) || 0, semester: form.semester.trim() } : { role: form.role.trim() }) }); onClose() }}
+          <button onClick={() => { if (!canSave) return; onSave({ name: form.name.trim(), code: form.code.trim().toUpperCase(), icon: form.icon, color: form.color, colorMuted: `${form.color}18`, description: form.description.trim(), ...(isAcademic ? { professor: form.professor.trim(), credits: parseInt(form.credits) || 0, semester: form.semester.trim(), ...(twoSemesters ? { semesterNumber: form.semesterNumber } : {}) } : { role: form.role.trim() }) }); onClose() }}
             disabled={!canSave} style={{ padding: '8px 18px', borderRadius: 8, border: 'none', fontSize: 13, fontWeight: 600, background: canSave ? form.color : 'var(--border)', color: canSave ? '#fff' : 'var(--text-muted)', cursor: canSave ? 'pointer' : 'default', transition: 'all 0.15s' }}>
             Save Changes
           </button>

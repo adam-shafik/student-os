@@ -131,9 +131,22 @@ export default function App() {
 
   // Build semesterConfig shape from user_profiles + semester_breaks DB rows
   function buildSemesterConfig(profile, dbBreaks) {
-    return {
+    const semesters = [{
+      index: 1,
       start: new Date(profile.semester_start + 'T00:00:00'),
       end:   new Date(profile.semester_end   + 'T00:00:00'),
+    }]
+    if (profile.semester2_start && profile.semester2_end) {
+      semesters.push({
+        index: 2,
+        start: new Date(profile.semester2_start + 'T00:00:00'),
+        end:   new Date(profile.semester2_end   + 'T00:00:00'),
+      })
+    }
+    return {
+      start: semesters[0].start,
+      end:   semesters[semesters.length - 1].end,
+      semesters,
       breaks: (dbBreaks || []).map(b => {
         const returnMon = new Date(b.return_monday + 'T00:00:00')
         const breakEnd  = new Date(returnMon)
@@ -156,6 +169,7 @@ export default function App() {
       color, colorMuted: `${color}18`, icon: r.icon || 'BookOpen',
       professor: r.professor, credits: r.credits,
       semester: r.semester_label, description: r.description,
+      semesterNumber: r.semester_number ?? null,
       role: r.role || null,
       progress: r.progress || 0,
       isPast: r.is_past || false,
@@ -377,6 +391,7 @@ export default function App() {
           id: d.id, user_id: userId, name: d.name, code: d.code || null,
           category: d.category, color: d.color, icon: d.icon || 'BookOpen',
           professor: d.professor || null, credits: d.credits || null,
+          semester_number: d.semesterNumber ?? null,
           progress: 0, created_at: now, updated_at: now,
         }))
       )
@@ -417,6 +432,7 @@ export default function App() {
       id: domain.id, user_id: userId, name: domain.name, code: domain.code || null,
       category: domain.category, color: domain.color, icon: domain.icon || 'BookOpen',
       professor: domain.professor || null, credits: domain.credits || null,
+      semester_number: domain.semesterNumber ?? null,
       progress: 0, created_at: now, updated_at: now,
     })
     if (error) {
@@ -437,6 +453,7 @@ export default function App() {
     if ('professor'        in updates) patch.professor        = updates.professor ?? null
     if ('credits'          in updates) patch.credits          = updates.credits ?? null
     if ('semester'         in updates) patch.semester_label   = updates.semester ?? null
+    if ('semesterNumber'   in updates) patch.semester_number  = updates.semesterNumber ?? null
     if ('role'             in updates) patch.role             = updates.role ?? null
     if ('isPast'           in updates) patch.is_past          = updates.isPast
     if ('excludeFromGrade' in updates) patch.exclude_from_grade = updates.excludeFromGrade
@@ -1005,9 +1022,11 @@ export default function App() {
     return { error }
   }
 
-  const handleUpdateSemester = async ({ start, end, breaks }) => {
+  const handleUpdateSemester = async ({ start, end, sem2Start = null, sem2End = null, breaks }) => {
     const { error } = await supabase.from('user_profiles').update({
-      semester_start: start, semester_end: end, updated_at: new Date().toISOString(),
+      semester_start: start, semester_end: end,
+      semester2_start: sem2Start || null, semester2_end: sem2End || null,
+      updated_at: new Date().toISOString(),
     }).eq('id', userId)
     if (error) return { error }
     await supabase.from('semester_breaks').delete().eq('user_id', userId)
@@ -1016,7 +1035,7 @@ export default function App() {
         breaks.map(b => ({ id: b.id || crypto.randomUUID(), user_id: userId, name: b.name, start_monday: b.startMonday, return_monday: b.returnMonday }))
       )
     }
-    const updatedProfile = { ...userProfile, semester_start: start, semester_end: end }
+    const updatedProfile = { ...userProfile, semester_start: start, semester_end: end, semester2_start: sem2Start || null, semester2_end: sem2End || null }
     setUserProfile(updatedProfile)
     setSemBreaks(breaks)
     const config = buildSemesterConfig(updatedProfile, breaks.map(b => ({ name: b.name, start_monday: b.startMonday, return_monday: b.returnMonday })))

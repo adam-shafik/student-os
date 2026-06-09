@@ -288,15 +288,18 @@ export default function OnboardingPage({ userId, onComplete }) {
   const [weekStart,   setWeekStart]   = useState('monday')
 
   // Step 2
-  const [semStart, setSemStart] = useState('')
-  const [semEnd,   setSemEnd]   = useState('')
-  const [breaks,   setBreaks]   = useState([])
+  const [numSemesters, setNumSemesters] = useState(1)
+  const [semStart,  setSemStart]  = useState('')
+  const [semEnd,    setSemEnd]    = useState('')
+  const [sem2Start, setSem2Start] = useState('')
+  const [sem2End,   setSem2End]   = useState('')
+  const [breaks,    setBreaks]    = useState([])
 
   // Step 3
   const [modules,      setModules]      = useState([])
   const [showAddMod,   setShowAddMod]   = useState(false)
   const [editingModId, setEditingModId] = useState(null)
-  const [newMod,       setNewMod]       = useState({ name: '', code: '', color: DOMAIN_COLORS[0], category: 'academic' })
+  const [newMod,       setNewMod]       = useState({ name: '', code: '', color: DOMAIN_COLORS[0], category: 'academic', semesterNumber: 1 })
 
   const isSunThu   = weekStart === 'sunday'
   const startDay   = isSunThu ? 0 : 1
@@ -305,9 +308,16 @@ export default function OnboardingPage({ userId, onComplete }) {
   const totalWeeks = countTeachingWeeks(semStart, semEnd, breaks)
 
   const canNext1 = firstName.trim() && yearOfStudy
-  const canNext2 = semStart && semEnd
+  const sem1Valid = semStart && semEnd
     && getDow(semStart) === startDay && getDow(semEnd) === endDay
     && new Date(semEnd + 'T00:00:00') > new Date(semStart + 'T00:00:00')
+  const sem2Valid = numSemesters === 1 || (
+    sem2Start && sem2End
+    && getDow(sem2Start) === startDay && getDow(sem2End) === endDay
+    && new Date(sem2End + 'T00:00:00') > new Date(sem2Start + 'T00:00:00')
+    && new Date(sem2Start + 'T00:00:00') > new Date(semEnd + 'T00:00:00')
+  )
+  const canNext2 = sem1Valid && sem2Valid
     && breaks.every(b => b.name.trim() && b.startMonday && b.returnMonday
       && getDow(b.startMonday) === breakDay && getDow(b.returnMonday) === breakDay
       && new Date(b.returnMonday + 'T00:00:00') > new Date(b.startMonday + 'T00:00:00'))
@@ -325,18 +335,19 @@ export default function OnboardingPage({ userId, onComplete }) {
   // Module helpers
   function confirmAddModule() {
     if (!newMod.name.trim()) return
+    const semNum = numSemesters === 1 ? 1 : newMod.semesterNumber
     if (editingModId) {
-      setModules(p => p.map(m => m.id === editingModId ? { ...m, ...newMod } : m))
+      setModules(p => p.map(m => m.id === editingModId ? { ...m, ...newMod, semesterNumber: semNum } : m))
       setEditingModId(null)
     } else {
-      setModules(p => [...p, { ...newMod, id: crypto.randomUUID(), icon: 'BookOpen', credits: null, progress: 0, professor: '' }])
-      setNewMod({ name: '', code: '', color: DOMAIN_COLORS[(modules.length + 1) % DOMAIN_COLORS.length], category: 'academic' })
+      setModules(p => [...p, { ...newMod, semesterNumber: semNum, id: crypto.randomUUID(), icon: 'BookOpen', credits: null, progress: 0, professor: '' }])
+      setNewMod({ name: '', code: '', color: DOMAIN_COLORS[(modules.length + 1) % DOMAIN_COLORS.length], category: 'academic', semesterNumber: 1 })
     }
     setShowAddMod(false)
   }
   function editModule(m) {
     setEditingModId(m.id)
-    setNewMod({ name: m.name, code: m.code || '', color: m.color, category: m.category })
+    setNewMod({ name: m.name, code: m.code || '', color: m.color, category: m.category, semesterNumber: m.semesterNumber ?? 1 })
     setShowAddMod(true)
   }
   function delModule(id) { setModules(p => p.filter(m => m.id !== id)) }
@@ -346,15 +357,17 @@ export default function OnboardingPage({ userId, onComplete }) {
     try {
       await onComplete({
         profile: {
-          first_name:     firstName.trim(),
-          university:     university.trim() || null,
-          year_of_study:  yearOfStudy,
-          semester_start: semStart,
-          semester_end:   semEnd,
-          week_start:     weekStart,
+          first_name:      firstName.trim(),
+          university:      university.trim() || null,
+          year_of_study:   yearOfStudy,
+          semester_start:  semStart,
+          semester_end:    semEnd,
+          semester2_start: numSemesters === 2 ? sem2Start : null,
+          semester2_end:   numSemesters === 2 ? sem2End   : null,
+          week_start:      weekStart,
         },
         semBreaks: breaks,
-        domains:   modules,
+        domains:   modules.map(m => ({ ...m, semesterNumber: numSemesters === 1 ? null : (m.semesterNumber ?? 1) })),
         slots:     [],
       })
     } catch {
@@ -474,19 +487,71 @@ export default function OnboardingPage({ userId, onComplete }) {
   function renderStep2() {
     return (
       <motion.div variants={fieldVariants} initial="hidden" animate="show" style={{ display: 'flex', flexDirection: 'column', gap: 20 }}>
+        {/* How many semesters */}
+        <div>
+          <label style={labelStyle(false)}>How many semesters are you setting up?</label>
+          <div style={{ display: 'flex', gap: 8, marginTop: 8 }}>
+            {[
+              { v: 1, label: 'One semester', sub: 'Just this term' },
+              { v: 2, label: 'Two semesters', sub: 'Whole academic year' },
+            ].map(opt => (
+              <button key={opt.v} onClick={() => setNumSemesters(opt.v)} style={{
+                flex: 1, textAlign: 'left', padding: '12px 14px', borderRadius: 12, cursor: 'pointer',
+                fontFamily: FONT,
+                border: `1px solid ${numSemesters === opt.v ? C.accent : C.border}`,
+                background: numSemesters === opt.v ? 'rgba(91,140,255,0.10)' : 'transparent',
+                transition: 'all 0.15s',
+              }}>
+                <div style={{ fontSize: 14, fontWeight: 600, color: numSemesters === opt.v ? C.accent : C.text }}>{opt.label}</div>
+                <div style={{ fontSize: 11, color: C.muted, marginTop: 2 }}>{opt.sub}</div>
+              </button>
+            ))}
+          </div>
+        </div>
+
+        {numSemesters === 2 && (
+          <div style={{ fontSize: 12, fontWeight: 700, color: C.muted, textTransform: 'uppercase', letterSpacing: '0.6px', marginBottom: -8 }}>
+            Semester 1
+          </div>
+        )}
         <DateField
-          label="Semester start"
+          label={numSemesters === 2 ? 'Semester 1 start' : 'Semester start'}
           helperText={isSunThu ? 'The first Sunday of term, when teaching begins.' : 'The first Monday of term, when teaching begins.'}
           value={semStart} onChange={setSemStart} required={startDay}
         />
         <DateField
-          label="Semester end"
+          label={numSemesters === 2 ? 'Semester 1 end' : 'Semester end'}
           helperText={isSunThu ? 'The last Thursday of term, the final day of teaching.' : 'The last Friday of term, the final day of teaching.'}
           value={semEnd} onChange={setSemEnd} required={endDay}
         />
 
+        {numSemesters === 2 && (
+          <>
+            <div style={{ fontSize: 12, fontWeight: 700, color: C.muted, textTransform: 'uppercase', letterSpacing: '0.6px', marginBottom: -8 }}>
+              Semester 2
+            </div>
+            <DateField
+              label="Semester 2 start"
+              helperText={isSunThu ? 'The first Sunday Semester 2 teaching begins.' : 'The first Monday Semester 2 teaching begins.'}
+              value={sem2Start} onChange={setSem2Start} required={startDay}
+            />
+            <DateField
+              label="Semester 2 end"
+              helperText={isSunThu ? 'The last Thursday of Semester 2.' : 'The last Friday of Semester 2.'}
+              value={sem2End} onChange={setSem2End} required={endDay}
+            />
+            <div style={{
+              padding: '11px 15px', borderRadius: 10,
+              background: 'rgba(251,191,36,0.07)', border: '1px solid rgba(251,191,36,0.18)',
+              fontSize: 12.5, color: C.amber || '#fbbf24', fontWeight: 500, lineHeight: 1.5,
+            }}>
+              The gap between Semester 1 ending and Semester 2 starting is your inter-semester break — no need to add it below. Week numbers restart at 1 in Semester 2.
+            </div>
+          </>
+        )}
+
         <AnimatePresence>
-          {semStart && semEnd && getDow(semStart) === startDay && getDow(semEnd) === endDay && (
+          {sem1Valid && (numSemesters === 1 || sem2Valid) && (
             <motion.div
               initial={{ opacity: 0, height: 0 }} animate={{ opacity: 1, height: 'auto' }} exit={{ opacity: 0, height: 0 }}
               style={{ overflow: 'hidden' }}
@@ -496,9 +561,11 @@ export default function OnboardingPage({ userId, onComplete }) {
                 background: 'rgba(91,140,255,0.07)', border: '1px solid rgba(91,140,255,0.18)',
                 fontSize: 13, color: C.accent, fontWeight: 500,
               }}>
-                {totalWeeks
-                  ? `${totalWeeks} teaching week${totalWeeks !== 1 ? 's' : ''}${breaks.length ? ` (excluding ${breaks.length} break${breaks.length > 1 ? 's' : ''})` : ''}`
-                  : 'Check your dates, end must be after start.'}
+                {numSemesters === 2
+                  ? `Semester 1: ${countTeachingWeeks(semStart, semEnd, breaks) || '?'} weeks · Semester 2: ${countTeachingWeeks(sem2Start, sem2End, breaks) || '?'} weeks`
+                  : (totalWeeks
+                    ? `${totalWeeks} teaching week${totalWeeks !== 1 ? 's' : ''}${breaks.length ? ` (excluding ${breaks.length} break${breaks.length > 1 ? 's' : ''})` : ''}`
+                    : 'Check your dates, end must be after start.')}
               </div>
             </motion.div>
           )}
@@ -595,7 +662,14 @@ export default function OnboardingPage({ userId, onComplete }) {
                   border: `1px solid ${C.border}`, borderLeft: `3px solid ${m.color}`,
                 }}>
                   <div style={{ flex: 1, minWidth: 0 }}>
-                    <div style={{ fontSize: 14, fontWeight: 600, color: C.text, fontFamily: FONT }}>{m.name}</div>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 7 }}>
+                      <div style={{ fontSize: 14, fontWeight: 600, color: C.text, fontFamily: FONT }}>{m.name}</div>
+                      {numSemesters === 2 && (
+                        <span style={{ fontSize: 10, fontWeight: 700, color: C.accent, background: 'rgba(91,140,255,0.12)', padding: '2px 6px', borderRadius: 5, flexShrink: 0 }}>
+                          {m.semesterNumber === 0 ? 'YEAR' : `S${m.semesterNumber ?? 1}`}
+                        </span>
+                      )}
+                    </div>
                     {m.code && <div style={{ fontSize: 12, color: C.muted, marginTop: 1 }}>{m.code}</div>}
                   </div>
                   <button onClick={() => editModule(m)} style={{ background: 'none', border: 'none', cursor: 'pointer', color: C.muted, display: 'flex', padding: 4 }}><Pencil size={13} /></button>
@@ -636,6 +710,26 @@ export default function OnboardingPage({ userId, onComplete }) {
                   ))}
                 </div>
               </div>
+              {numSemesters === 2 && (
+                <div>
+                  <label style={labelStyle(false)}>Which semester?</label>
+                  <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}>
+                    {[
+                      { v: 1, label: 'Semester 1' },
+                      { v: 2, label: 'Semester 2' },
+                      { v: 0, label: 'Full year' },
+                    ].map(o => (
+                      <button key={o.v} onClick={() => setNewMod(p => ({ ...p, semesterNumber: o.v }))} style={{
+                        padding: '6px 12px', borderRadius: 20, fontFamily: FONT,
+                        border: `1px solid ${newMod.semesterNumber === o.v ? C.accent : C.border}`,
+                        background: newMod.semesterNumber === o.v ? 'rgba(91,140,255,0.12)' : 'transparent',
+                        color: newMod.semesterNumber === o.v ? C.accent : C.muted,
+                        fontSize: 12, fontWeight: newMod.semesterNumber === o.v ? 600 : 400, cursor: 'pointer', transition: 'all 0.15s',
+                      }}>{o.label}</button>
+                    ))}
+                  </div>
+                </div>
+              )}
               <div>
                 <label style={labelStyle(false)}>Colour</label>
                 <div style={{ display: 'flex', flexWrap: 'wrap', gap: 7 }}>

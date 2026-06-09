@@ -12,6 +12,8 @@ create table user_profiles (
   year_of_study   text,
   semester_start  date,
   semester_end    date,
+  semester2_start date,                            -- optional 2nd semester (null = single-semester year)
+  semester2_end   date,
   week_start      text not null default 'monday', -- 'monday'|'sunday'
   created_at      timestamptz not null default now(),
   updated_at      timestamptz not null default now()
@@ -46,6 +48,7 @@ create table domains (
   professor           text,
   credits             integer,
   semester_label      text,
+  semester_number     smallint,      -- 1 or 2 = that semester; null/0 = full-year domain
   role                text,          -- non-academic domains
   description         text,
   progress            integer,
@@ -252,3 +255,10 @@ alter table todos
 alter table todos
   add constraint todos_study_session_fkey
   foreign key (study_session_id) references study_sessions(id) on delete set null;
+
+-- ============================================================
+-- Migration: two-semester support (run on existing installs)
+-- ============================================================
+alter table user_profiles add column if not exists semester2_start date;
+alter table user_profiles add column if not exists semester2_end   date;
+alter table domains       add column if not exists semester_number smallint;

@@ -7,7 +7,7 @@ import {
   resolveTypeLabel, resolveTypeColor, getTypeColor,
 } from '../utils/calendarEvents'
 import { getDomainIcon } from '../data/domains'
-import { getWeekRowInfo, getAcademicWeek, getBreakForDate } from '../utils/semester'
+import { getWeekRowInfo, getAcademicWeek, getBreakForDate, getSemesterIndexForDate, getSemesterCount } from '../utils/semester'
 import { useIsMobile } from '../utils/useIsMobile'
 import EventDetailModal from '../components/EventDetailModal'
 
@@ -232,6 +232,7 @@ function AddEventModal({ initialDate, initialTime, domains, onClose, onSave }) {
   const isAcademicLink = linkedDomain?.category === 'academic'
   const formDateObj    = form.date ? (() => { const [y, m, d] = form.date.split('-').map(Number); return new Date(y, m - 1, d) })() : null
   const eventWeek  = isAcademicLink && formDateObj ? getAcademicWeek(formDateObj) : null
+  const eventSem   = isAcademicLink && formDateObj && getSemesterCount() > 1 ? getSemesterIndexForDate(formDateObj) : null
   const eventBreak = isAcademicLink && formDateObj ? getBreakForDate(formDateObj) : null
 
   const handleSave = () => {
@@ -305,7 +306,7 @@ function AddEventModal({ initialDate, initialTime, domains, onClose, onSave }) {
                   background: eventBreak ? 'rgba(251,191,36,0.12)' : 'rgba(91,140,255,0.12)',
                   color: eventBreak ? 'var(--accent-amber)' : 'var(--accent-blue)',
                 }}>
-                  {eventWeek ? `Academic Week ${eventWeek}` : eventBreak.name}
+                  {eventWeek ? `${eventSem ? `Semester ${eventSem} · ` : ''}Academic Week ${eventWeek}` : eventBreak.name}
                 </span>
               </div>
             )}

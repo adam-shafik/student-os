@@ -52,64 +52,78 @@ export function getTypeColor(type, customColors = {}) {
 export function buildScheduleEvents(domains, scheduleSlots, config, weekStartSunday = false) {
   if (!domains?.length || !scheduleSlots?.length || !config) return []
 
-  const { start, end, breaks } = config
+  const breaks      = config.breaks || []
   const events      = []
   const domainMap   = Object.fromEntries(domains.map(d => [d.id, d]))
   const d0          = date => { const n = new Date(date); n.setHours(0,0,0,0); return n }
-  const semStart    = d0(start)
-  const semEnd      = d0(end)
   // Offset from week start to Wednesday: Mon+2=Wed, Sun+3=Wed
   const probeOffset = weekStartSunday ? 3 : 2
 
-  let weekStart = new Date(semStart)
-  let weekNum   = 1
+  // One or two teaching blocks; week numbers restart at 1 in each.
+  const sems = (config.semesters && config.semesters.length)
+    ? config.semesters
+    : [{ index: 1, start: config.start, end: config.end }]
+  const multi = sems.length > 1
 
-  while (weekStart <= semEnd) {
-    const wednesday = new Date(weekStart)
-    wednesday.setDate(wednesday.getDate() + probeOffset)
+  for (const sem of sems) {
+    const semStart = d0(sem.start)
+    const semEnd   = d0(sem.end)
+    let weekStart  = new Date(semStart)
+    let weekNum    = 1
 
-    const inBreak = breaks.some(b => {
-      const bs = d0(b.start)
-      const be = d0(b.end)
-      return wednesday >= bs && wednesday <= be
-    })
+    while (weekStart <= semEnd) {
+      const wednesday = new Date(weekStart)
+      wednesday.setDate(wednesday.getDate() + probeOffset)
 
-    if (!inBreak) {
-      for (const slot of scheduleSlots) {
-        const domain = domainMap[slot.domainId]
-        if (!domain) continue
-        if (slot.weekFrom != null && weekNum < slot.weekFrom) continue
-        if (slot.weekTo   != null && weekNum > slot.weekTo)   continue
+      const inBreak = breaks.some(b => {
+        const bs = d0(b.start)
+        const be = d0(b.end)
+        return wednesday >= bs && wednesday <= be
+      })
 
-        const eventDate = new Date(weekStart)
-        eventDate.setDate(eventDate.getDate() + slot.dayOfWeek)
+      if (!inBreak) {
+        for (const slot of scheduleSlots) {
+          const domain = domainMap[slot.domainId]
+          if (!domain) continue
+          // Semester scoping: a domain tagged to a specific semester only appears there;
+          // null/0 = full-year domain (appears in every semester). Only enforced for 2-sem years.
+          const dsem = domain.semesterNumber
+          if (multi && dsem != null && dsem !== 0 && dsem !== sem.index) continue
+          if (slot.weekFrom != null && weekNum < slot.weekFrom) continue
+          if (slot.weekTo   != null && weekNum > slot.weekTo)   continue
 
-        if (eventDate > semEnd) continue
+          const eventDate = new Date(weekStart)
+          eventDate.setDate(eventDate.getDate() + slot.dayOfWeek)
 
-        events.push({
-          id: `schedule-${slot.id}-w${weekNum}`,
-          type: slot.slotType,
-          title: domain.name,
-          date: eventDate,
-          domainId: domain.id,
-          domainCode: domain.code,
-          domainName: domain.name,
-          domainColor: domain.color,
-          domainIcon: domain.icon || 'BookOpen',
-          details: {
-            week: weekNum,
-            time: slot.startTime,
-            duration: slot.durationMinutes,
-            status: 'upcoming',
-            location: slot.location || null,
-          },
-        })
+          if (eventDate > semEnd || eventDate < semStart) continue
+
+          events.push({
+            // Keep the legacy id format for single-semester years so existing cancellations survive
+            id: multi ? `schedule-${slot.id}-s${sem.index}-w${weekNum}` : `schedule-${slot.id}-w${weekNum}`,
+            type: slot.slotType,
+            title: domain.name,
+            date: eventDate,
+            domainId: domain.id,
+            domainCode: domain.code,
+            domainName: domain.name,
+            domainColor: domain.color,
+            domainIcon: domain.icon || 'BookOpen',
+            details: {
+              week: weekNum,
+              semester: multi ? sem.index : null,
+              time: slot.startTime,
+              duration: slot.durationMinutes,
+              status: 'upcoming',
+              location: slot.location || null,
+            },
+          })
+        }
+        weekNum++
       }
-      weekNum++
-    }
 
-    weekStart = new Date(weekStart)
-    weekStart.setDate(weekStart.getDate() + 7)
+      weekStart = new Date(weekStart)
+      weekStart.setDate(weekStart.getDate() + 7)
+    }
   }
 
   return events
