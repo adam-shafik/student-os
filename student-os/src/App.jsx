@@ -951,7 +951,7 @@ export default function App() {
 
   // Called from DomainDetailPage — creates note, navigates, signals NotesPage to auto-open it
   const handleNewNoteForContext = (meta = {}) => {
-    const isTyped = meta.noteType === 'typed'
+    const isTyped = (meta.type || meta.noteType) === 'typed'
     const id      = crypto.randomUUID()
     const pageId  = crypto.randomUUID()
     const now     = new Date().toISOString()
@@ -960,7 +960,10 @@ export default function App() {
       id, title, type: isTyped ? 'typed' : 'handwritten',
       content: isTyped ? '' : null,
       pages: isTyped ? [] : [{ id: pageId, strokes: [] }],
-      template: 'blank', bgColor: '#f8f7f2', lineSpacing: 32, orientation: 'portrait',
+      template: meta.template || 'blank',
+      bgColor: meta.bgColor || '#f8f7f2',
+      lineSpacing: meta.lineSpacing || 32,
+      orientation: meta.orientation || 'portrait',
       createdAt: now, updatedAt: now,
       domainId: meta.domainId || null, academicWeek: meta.academicWeek || null,
       eventId: meta.eventId || null, studySessionId: null,
@@ -1125,6 +1128,7 @@ export default function App() {
           onBack={handleBack}
           eventNotes={eventNotes}
           onUpdateNote={handleUpdateNote}
+          domains={domains}
           onNewNote={handleNewNoteForContext}
           onUpdateDomain={handleUpdateDomain}
           onDeleteDomain={handleDeleteDomain}

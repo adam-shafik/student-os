@@ -91,7 +91,7 @@ function AcademicCard({ domain, pendingTasks, domainEvents = [], assessments = [
           { icon: <BookOpen size={11} />, val: `${completedLectures}/${lectures.length}`, label: 'Lectures' },
           { icon: <FileCheck size={11} />, val: pendingAssignments, label: 'Pending', warn: pendingAssignments > 0 },
           { icon: <CheckSquare size={11} />, val: pendingTasks || 0, label: 'Tasks', warn: pendingTasks > 0 },
-          { icon: <FlaskConical size={11} />, val: `${completedLabs}/${labs.length}`, label: 'Labs' },
+          ...(labs.length > 0 ? [{ icon: <FlaskConical size={11} />, val: `${completedLabs}/${labs.length}`, label: 'Labs' }] : []),
         ].map(s => (
           <div key={s.label} style={{ flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 3 }}>
             <div style={{ display: 'flex', alignItems: 'center', gap: 3, color: s.warn ? 'var(--accent-amber)' : 'var(--text-secondary)' }}>

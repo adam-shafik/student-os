@@ -8,6 +8,7 @@ import {
   Eye, EyeOff,
 } from 'lucide-react'
 import { DOMAIN_CATEGORIES, DOMAIN_COLORS, DOMAIN_ICON_GROUPS, getDomainIcon } from '../data/domains'
+import NewNoteModal from '../components/NewNoteModal'
 import { EVENT_TYPES, resolveTypeLabel, resolveTypeColor } from '../utils/calendarEvents'
 import { totalTeachingWeeks } from '../utils/semester'
 import EventDetailModal from '../components/EventDetailModal'
@@ -65,50 +66,19 @@ function EventRow({ event, isLast, onClick }) {
   )
 }
 
-// ─── Note type picker (inline popover) ────────────────────────────────────────
+// ─── Note button ──────────────────────────────────────────────────────────────
 function NoteButton({ onNewNote, meta, label = 'Note' }) {
-  const [open, setOpen] = useState(false)
-  const ref = useRef()
-  useEffect(() => {
-    if (!open) return
-    const handler = e => { if (!ref.current?.contains(e.target)) setOpen(false) }
-    document.addEventListener('mousedown', handler)
-    return () => document.removeEventListener('mousedown', handler)
-  }, [open])
   return (
-    <div ref={ref} style={{ position: 'relative', flexShrink: 0 }}>
-      <button
-        onClick={e => { e.stopPropagation(); setOpen(v => !v) }}
-        style={{ display: 'flex', alignItems: 'center', gap: 4, padding: '4px 9px', borderRadius: 6,
-          border: '1px solid var(--border)', background: 'none', color: 'var(--text-muted)',
-          cursor: 'pointer', fontSize: 11, whiteSpace: 'nowrap' }}
-        onMouseEnter={e => { e.currentTarget.style.color = 'var(--accent-purple)'; e.currentTarget.style.borderColor = 'var(--accent-purple)' }}
-        onMouseLeave={e => { e.currentTarget.style.color = 'var(--text-muted)'; e.currentTarget.style.borderColor = 'var(--border)' }}
-      >
-        <PenLine size={11} /> {label}
-      </button>
-      {open && (
-        <div style={{ position: 'absolute', top: '100%', right: 0, marginTop: 4, zIndex: 200,
-          background: 'var(--bg-surface)', border: '1px solid var(--border-strong)', borderRadius: 9,
-          boxShadow: 'var(--shadow-modal)', overflow: 'hidden', minWidth: 140 }}>
-          {[
-            { type: 'handwritten', label: 'Handwritten', Icon: PenLine },
-            { type: 'typed',       label: 'Typed',       Icon: FileText },
-          ].map(opt => (
-            <button key={opt.type}
-              onClick={e => { e.stopPropagation(); setOpen(false); onNewNote({ ...meta, noteType: opt.type }) }}
-              style={{ width: '100%', display: 'flex', alignItems: 'center', gap: 8, padding: '10px 14px',
-                background: 'none', border: 'none', cursor: 'pointer', fontSize: 12,
-                color: 'var(--text-primary)', textAlign: 'left' }}
-              onMouseEnter={e => { e.currentTarget.style.background = 'var(--nav-hover)' }}
-              onMouseLeave={e => { e.currentTarget.style.background = 'none' }}
-            >
-              <opt.Icon size={12} />{opt.label}
-            </button>
-          ))}
-        </div>
-      )}
-    </div>
+    <button
+      onClick={e => { e.stopPropagation(); onNewNote(meta) }}
+      style={{ display: 'flex', alignItems: 'center', gap: 4, padding: '4px 9px', borderRadius: 6,
+        border: '1px solid var(--border)', background: 'none', color: 'var(--text-muted)',
+        cursor: 'pointer', fontSize: 11, whiteSpace: 'nowrap', flexShrink: 0 }}
+      onMouseEnter={e => { e.currentTarget.style.color = 'var(--accent-purple)'; e.currentTarget.style.borderColor = 'var(--accent-purple)' }}
+      onMouseLeave={e => { e.currentTarget.style.color = 'var(--text-muted)'; e.currentTarget.style.borderColor = 'var(--border)' }}
+    >
+      <PenLine size={11} /> {label}
+    </button>
   )
 }
 
@@ -136,26 +106,30 @@ function OverviewTab({ domain, domainEvents, assessments, calculatedProgress }) 
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
-      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 12 }}>
-        {[
-          { label: 'Attended',      value: `${completed}/${total}`, icon: CheckCircle2, color: 'var(--accent-green)'  },
-          { label: 'Upcoming',      value: upcoming,                icon: Clock,         color: 'var(--accent-blue)'   },
-          { label: 'Avg Grade',     value: weightedAvg ? `${weightedAvg}%` : '—', icon: TrendingUp, color: 'var(--accent-green)' },
-          { label: 'Not Marked',    value: ungradedCount,           icon: AlertCircle,   color: 'var(--accent-amber)'  },
-        ].map(s => {
-          const Icon = s.icon
-          return (
-            <div key={s.label} style={{ background: 'var(--bg-surface)', border: '1px solid var(--border)', borderRadius: 12, padding: '18px 20px' }}>
-              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 10 }}>
-                <span style={{ fontSize: 11, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.4px' }}>{s.label}</span>
-                <div style={{ width: 28, height: 28, background: 'var(--bg-overlay)', borderRadius: 7, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-                  <Icon size={14} color={s.color} />
-                </div>
-              </div>
-              <div style={{ fontSize: 22, fontWeight: 700, color: 'var(--text-primary)' }}>{s.value}</div>
+      <div style={{ display: 'flex', alignItems: 'center', padding: '16px 22px', background: 'var(--bg-surface)', border: '1px solid var(--border)', borderRadius: 12 }}>
+        <div style={{ marginRight: 24, lineHeight: 1 }}>
+          <span style={{ fontSize: 48, fontWeight: 800, color: 'var(--text-primary)', letterSpacing: '-2px', lineHeight: 1 }}>{completed}</span>
+          <span style={{ fontSize: 12, color: 'var(--text-muted)', marginLeft: 6, fontWeight: 500 }}>/ {total} attended</span>
+        </div>
+        <div style={{ width: 1, height: 36, background: 'var(--border)', marginRight: 24, flexShrink: 0 }} />
+        <div style={{ display: 'flex', gap: 22, flexWrap: 'wrap' }}>
+          <div>
+            <span style={{ fontSize: 20, fontWeight: 700, color: 'var(--accent-blue)', letterSpacing: '-0.5px' }}>{upcoming}</span>
+            <span style={{ fontSize: 11, color: 'var(--text-muted)', marginLeft: 5 }}>upcoming</span>
+          </div>
+          {weightedAvg != null && (
+            <div>
+              <span style={{ fontSize: 20, fontWeight: 700, color: 'var(--accent-green)', letterSpacing: '-0.5px' }}>{weightedAvg}%</span>
+              <span style={{ fontSize: 11, color: 'var(--text-muted)', marginLeft: 5 }}>avg grade</span>
             </div>
-          )
-        })}
+          )}
+          {ungradedCount > 0 && (
+            <div>
+              <span style={{ fontSize: 20, fontWeight: 700, color: 'var(--accent-amber)', letterSpacing: '-0.5px' }}>{ungradedCount}</span>
+              <span style={{ fontSize: 11, color: 'var(--text-muted)', marginLeft: 5 }}>not marked</span>
+            </div>
+          )}
+        </div>
       </div>
 
       <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 16 }}>
@@ -1157,6 +1131,7 @@ export default function DomainDetailPage({
   domain, domainEvents = [], linkedEvents = [], onBack, eventNotes, onUpdateNote,
   onNewNote, onUpdateDomain, onDeleteDomain, studySessions, notes, weekConfidence, onSetWeekConfidence,
   onOpenNote, assessments = [], onAddAssessment, onUpdateAssessment, onDeleteAssessment,
+  domains = [],
 }) {
   const isAcademic = domain.category === 'academic'
   const TABS = isAcademic
@@ -1199,6 +1174,7 @@ export default function DomainDetailPage({
     setMenuPos({ top: r.bottom + 4, left: r.right })
     setShowMenu(true)
   }
+  const [noteModalMeta, setNoteModalMeta] = useState(null)
   const [pillStyle, setPillStyle] = useState({ width: 0, left: 0, ready: false })
 
   useLayoutEffect(() => {
@@ -1252,7 +1228,7 @@ export default function DomainDetailPage({
       )}
 
       {/* Domain header */}
-      <div style={{ background: 'var(--bg-surface)', border: '1px solid var(--border)', borderRadius: 16, padding: '26px 30px', marginBottom: 22, position: 'relative', overflow: 'hidden' }}>
+      <div style={{ background: 'var(--bg-surface)', border: '1px solid var(--border)', borderTop: `2px solid ${domain.color}`, borderRadius: 16, padding: '26px 30px', marginBottom: 22, position: 'relative', overflow: 'hidden' }}>
         {/* 3-dot menu */}
         <button
           ref={menuBtnRef}
@@ -1333,7 +1309,6 @@ export default function DomainDetailPage({
             onCancel={() => setShowDeleteConfirm(false)}
           />
         )}
-        <div style={{ position: 'absolute', left: 0, top: 0, bottom: 0, width: 4, background: domain.color, borderRadius: '16px 0 0 16px' }} />
         <div style={{ position: 'absolute', top: 0, left: 0, right: 0, bottom: 0, background: `radial-gradient(ellipse at 0% 50%, ${domain.color}07 0%, transparent 60%)`, pointerEvents: 'none' }} />
 
         <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between' }}>
@@ -1343,7 +1318,7 @@ export default function DomainDetailPage({
               <span style={{ fontSize: 12, fontWeight: 600, color: catCfg.color, background: `${catCfg.color}18`, padding: '4px 10px', borderRadius: 6 }}>{catCfg.label}</span>
               {domain.icon && <DomainIcon name={domain.icon} size={16} color={domain.color} />}
             </div>
-            <h1 style={{ margin: '0 0 8px', fontSize: 22, fontWeight: 700, color: 'var(--text-primary)', letterSpacing: '-0.4px' }}>{domain.name}</h1>
+            <h1 style={{ margin: '0 0 8px', fontSize: 28, fontWeight: 800, color: 'var(--text-primary)', letterSpacing: '-0.6px' }}>{domain.name}</h1>
             <p style={{ margin: '0 0 14px', fontSize: 13, color: 'var(--text-secondary)', lineHeight: 1.5, maxWidth: 520 }}>{domain.description}</p>
             <div style={{ display: 'flex', gap: 18, flexWrap: 'wrap' }}>
               {domain.professor && <span style={{ fontSize: 13, color: 'var(--text-secondary)', display: 'flex', alignItems: 'center', gap: 5 }}><User size={13} color="var(--text-muted)" />{domain.professor}</span>}
@@ -1401,9 +1376,9 @@ export default function DomainDetailPage({
       {isAcademic ? (
         <>
           {activeTab === 'Overview'    && <OverviewTab    domain={domain} domainEvents={domainEvents} assessments={assessments} calculatedProgress={calculatedProgress} />}
-          {activeTab === 'Schedule'    && <ScheduleTab    domain={domain} domainEvents={domainEvents} onNewNote={onNewNote} notes={notes} eventNotes={eventNotes} showContent={showLinked} />}
+          {activeTab === 'Schedule'    && <ScheduleTab    domain={domain} domainEvents={domainEvents} onNewNote={setNoteModalMeta} notes={notes} eventNotes={eventNotes} showContent={showLinked} />}
           {activeTab === 'Assessments' && <AssessmentsTab domain={domain} assessments={assessments} onAddAssessment={onAddAssessment} onUpdateAssessment={onUpdateAssessment} onDeleteAssessment={onDeleteAssessment} />}
-          {activeTab === 'Study'       && <StudyTab       domain={domain} studySessions={studySessions} notes={notes} weekConfidence={weekConfidence} onSetWeekConfidence={onSetWeekConfidence} onNewNote={onNewNote} onOpenNote={onOpenNote} showContent={showLinked} />}
+          {activeTab === 'Study'       && <StudyTab       domain={domain} studySessions={studySessions} notes={notes} weekConfidence={weekConfidence} onSetWeekConfidence={onSetWeekConfidence} onNewNote={setNoteModalMeta} onOpenNote={onOpenNote} showContent={showLinked} />}
         </>
       ) : (
         <>
@@ -1415,6 +1390,20 @@ export default function DomainDetailPage({
       {openEvent && (
         <EventDetailModal event={openEvent} onClose={() => setOpenEvent(null)}
           note={eventNotes?.[openEvent.id] || ''} onUpdateNote={onUpdateNote} />
+      )}
+
+      {noteModalMeta && (
+        <NewNoteModal
+          domains={domains}
+          defaultDomainId={noteModalMeta.domainId || null}
+          defaultWeek={noteModalMeta.academicWeek || null}
+          onConfirm={opts => {
+            onNewNote({ ...opts, eventId: noteModalMeta.eventId || null })
+            setNoteModalMeta(null)
+          }}
+          onConfirmPdf={() => setNoteModalMeta(null)}
+          onCancel={() => setNoteModalMeta(null)}
+        />
       )}
     </div>
   )
