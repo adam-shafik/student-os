@@ -18,9 +18,10 @@ const SPACING_OPTIONS = [
 ]
 
 const TEMPLATES = [
-  { id: 'blank', label: 'Blank' },
-  { id: 'lined', label: 'Lined' },
-  { id: 'grid',  label: 'Grid' },
+  { id: 'blank',  label: 'Blank' },
+  { id: 'lined',  label: 'Lined' },
+  { id: 'dotted', label: 'Dotted' },
+  { id: 'grid',   label: 'Grid' },
 ]
 
 const NOTE_TYPES = [
@@ -44,6 +45,9 @@ function TemplateMiniPreview({ type }) {
       {type === 'lined' && [8, 13, 18, 23].map(y => (
         <line key={y} x1={4} y1={y} x2={W - 4} y2={y} stroke="rgba(255,255,255,0.26)" strokeWidth={0.8} />
       ))}
+      {type === 'dotted' && [7, 13, 19].flatMap(y => [8, 16, 24, 32].map(x => (
+        <circle key={`${x}-${y}`} cx={x} cy={y} r={1.1} fill="rgba(255,255,255,0.3)" />
+      )))}
       {type === 'grid' && (
         <>
           {[7, 13, 19].map(y => <line key={`h${y}`} x1={0} y1={y} x2={W} y2={y} stroke="rgba(255,255,255,0.22)" strokeWidth={0.6} />)}
@@ -58,7 +62,7 @@ function NotePreview({ template, bgColor, lineSpacing, orientation }) {
   const isLandscape = orientation === 'landscape'
   const W = isLandscape ? 184 : 130
   const H = isLandscape ? 130 : 184
-  const lineColor = isDark(bgColor) ? 'rgba(255,255,255,0.11)' : 'rgba(0,0,0,0.09)'
+  const lineColor = isDark(bgColor) ? 'rgba(255,255,255,0.15)' : 'rgba(0,0,0,0.16)'
   const sf = W / 220
   const lines = []
   if (template === 'lined') {
@@ -66,15 +70,26 @@ function NotePreview({ template, bgColor, lineSpacing, orientation }) {
     for (let y = sp * 1.5; y < H; y += sp) {
       lines.push(<line key={y} x1={10} y1={y} x2={W - 10} y2={y} stroke={lineColor} strokeWidth={0.8} />)
     }
+  } else if (template === 'dotted') {
+    const sp = lineSpacing * sf
+    for (let y = sp; y < H; y += sp) {
+      for (let x = sp; x < W; x += sp) {
+        lines.push(<circle key={`${x}-${y}`} cx={x} cy={y} r={1.2} fill={lineColor} />)
+      }
+    }
   } else if (template === 'grid') {
     const sp = lineSpacing * sf * 0.6
-    for (let y = sp; y < H; y += sp) lines.push(<line key={`h${y}`} x1={0} y1={y} x2={W} y2={y} stroke={lineColor} strokeWidth={0.6} />)
-    for (let x = sp; x < W; x += sp) lines.push(<line key={`v${x}`} x1={x} y1={0} x2={x} y2={H} stroke={lineColor} strokeWidth={0.6} />)
+    for (let y = sp; y < H; y += sp) lines.push(<line key={`h${y}`} x1={0} y1={y} x2={W} y2={y} stroke={lineColor} strokeWidth={0.7} />)
+    for (let x = sp; x < W; x += sp) lines.push(<line key={`v${x}`} x1={x} y1={0} x2={x} y2={H} stroke={lineColor} strokeWidth={0.7} />)
   }
+  const marginX = Math.round(10 * (W / 130))
   return (
     <svg width={W} height={H} style={{ borderRadius: 8, display: 'block', boxShadow: '0 4px 20px rgba(0,0,0,0.32)', flexShrink: 0 }}>
       <rect width={W} height={H} rx={8} fill={bgColor} />
       {lines}
+      {template === 'lined' && (
+        <line x1={marginX} y1={0} x2={marginX} y2={H} stroke={isDark(bgColor) ? 'rgba(255,110,110,0.45)' : 'rgba(200,50,50,0.35)'} strokeWidth="0.8" />
+      )}
     </svg>
   )
 }
@@ -313,9 +328,9 @@ export default function NewNoteModal({ domains = [], defaultDomainId = null, def
                   </div>
                 </div>
 
-                {(template === 'lined' || template === 'grid') && (
+                {template !== 'blank' && (
                   <div>
-                    <label style={lbl}>Line spacing</label>
+                    <label style={lbl}>{template === 'dotted' ? 'Dot spacing' : 'Line spacing'}</label>
                     <div style={{ display: 'flex', gap: 6 }}>
                       {SPACING_OPTIONS.map(opt => (
                         <button key={opt.value} onClick={() => setLineSpacing(opt.value)} style={segBtn(lineSpacing === opt.value)}>
@@ -370,7 +385,7 @@ export default function NewNoteModal({ domains = [], defaultDomainId = null, def
               <div style={{ fontSize: 11, color: 'var(--text-muted)', textAlign: 'center', lineHeight: 1.65 }}>
                 {template.charAt(0).toUpperCase() + template.slice(1)}
                 {' · '}{orientation}
-                {(template === 'lined' || template === 'grid') && (
+                {template !== 'blank' && (
                   <>{' · '}{lineSpacing === 32 ? 'compact' : lineSpacing === 48 ? 'normal' : 'wide'}</>
                 )}
               </div>

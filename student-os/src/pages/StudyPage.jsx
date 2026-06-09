@@ -292,18 +292,21 @@ function isDarkNote(hex) {
 
 function NoteConfigPreview({ template, bgColor }) {
   const W = 52, H = 74
-  const lineColor = isDarkNote(bgColor) ? 'rgba(255,255,255,0.11)' : 'rgba(0,0,0,0.09)'
+  const lineColor = isDarkNote(bgColor) ? 'rgba(255,255,255,0.15)' : 'rgba(0,0,0,0.16)'
   const lines = []
   if (template === 'lined') {
     for (let y = 13; y < H; y += 9) lines.push(<line key={y} x1={4} y1={y} x2={W - 4} y2={y} stroke={lineColor} strokeWidth={0.7} />)
   } else if (template === 'grid') {
-    for (let y = 9; y < H; y += 9) lines.push(<line key={`h${y}`} x1={0} y1={y} x2={W} y2={y} stroke={lineColor} strokeWidth={0.5} />)
-    for (let x = 9; x < W; x += 9) lines.push(<line key={`v${x}`} x1={x} y1={0} x2={x} y2={H} stroke={lineColor} strokeWidth={0.5} />)
+    for (let y = 9; y < H; y += 9) lines.push(<line key={`h${y}`} x1={0} y1={y} x2={W} y2={y} stroke={lineColor} strokeWidth={0.6} />)
+    for (let x = 9; x < W; x += 9) lines.push(<line key={`v${x}`} x1={x} y1={0} x2={x} y2={H} stroke={lineColor} strokeWidth={0.6} />)
   }
   return (
     <svg width={W} height={H} style={{ borderRadius: 5, display: 'block', boxShadow: '0 2px 8px rgba(0,0,0,0.22)', flexShrink: 0 }}>
       <rect width={W} height={H} rx={5} fill={bgColor} />
       {lines}
+      {template === 'lined' && (
+        <line x1={8} y1={0} x2={8} y2={H} stroke={isDarkNote(bgColor) ? 'rgba(255,110,110,0.45)' : 'rgba(200,50,50,0.35)'} strokeWidth="0.8" />
+      )}
     </svg>
   )
 }

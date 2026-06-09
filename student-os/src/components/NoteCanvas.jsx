@@ -24,7 +24,7 @@ const SHAPE_TYPES  = [['rect', Square, 'Rectangle'], ['ellipse', Circle, 'Ellips
 const ERASER_MODES = [['standard', 'Standard'], ['stroke', 'Stroke']]
 const TEMPLATES    = ['blank', 'lined', 'dotted', 'grid']
 const BG_COLORS    = ['#ffffff', '#f5f0e8', '#fef9c3', '#e8f0fe', '#1c1c24', '#0b0c13']
-const SPACINGS     = [[20, 'Narrow'], [28, 'Normal'], [36, 'Wide'], [48, 'Extra']]
+const SPACINGS     = [[32, 'Compact'], [48, 'Normal'], [64, 'Wide']]
 
 // ─── Drawing utils ─────────────────────────────────────────────────────────────
 function strokeOpts(size, last, smoothing = 0.5) {
@@ -289,29 +289,32 @@ function rectsIntersect(a, b) {
 // ─── Page template ─────────────────────────────────────────────────────────────
 function PageTemplate({ pageId, template, bgColor, lineSpacing }) {
   const bgLum = hexLuminance(bgColor)
-  const lc    = bgLum > 0.5 ? 'rgba(0,0,0,0.12)' : 'rgba(255,255,255,0.07)'
+  const lc    = bgLum > 0.5 ? 'rgba(0,0,0,0.18)' : 'rgba(255,255,255,0.13)'
   const pid   = t => `p-${pageId}-${t}`
   return (
     <>
       <defs>
         {template === 'lined' && (
           <pattern id={pid('lined')} x="0" y="0" width="3000" height={lineSpacing} patternUnits="userSpaceOnUse">
-            <line x1="0" y1={lineSpacing - 0.5} x2="3000" y2={lineSpacing - 0.5} stroke={lc} strokeWidth="0.5" />
+            <line x1="0" y1={lineSpacing - 0.5} x2="3000" y2={lineSpacing - 0.5} stroke={lc} strokeWidth="0.8" />
           </pattern>
         )}
         {template === 'dotted' && (
           <pattern id={pid('dotted')} x={lineSpacing / 2} y={lineSpacing / 2} width={lineSpacing} height={lineSpacing} patternUnits="userSpaceOnUse">
-            <circle cx="0" cy="0" r="1.2" fill={lc} />
+            <circle cx="0" cy="0" r="1.4" fill={lc} />
           </pattern>
         )}
         {template === 'grid' && (
           <pattern id={pid('grid')} x="0" y="0" width={lineSpacing} height={lineSpacing} patternUnits="userSpaceOnUse">
-            <path d={`M ${lineSpacing} 0 L 0 0 0 ${lineSpacing}`} fill="none" stroke={lc} strokeWidth="0.5" />
+            <path d={`M ${lineSpacing} 0 L 0 0 0 ${lineSpacing}`} fill="none" stroke={lc} strokeWidth="0.8" />
           </pattern>
         )}
       </defs>
       <rect width="100%" height="100%" fill={bgColor} />
       {template !== 'blank' && <rect width="100%" height="100%" fill={`url(#${pid(template)})`} />}
+      {template === 'lined' && (
+        <line x1="65" y1="0" x2="65" y2="100%" stroke={bgLum > 0.5 ? 'rgba(200,50,50,0.35)' : 'rgba(255,110,110,0.45)'} strokeWidth="1" />
+      )}
     </>
   )
 }
