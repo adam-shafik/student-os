@@ -32,6 +32,18 @@ function strokeOpts(size, last, smoothing = 0.5) {
   return { size, thinning: 0.55, smoothing, streamline: smoothing, simulatePressure: false, last }
 }
 
+// Capture-time point compaction: integer-round coords and drop points that haven't moved
+// far enough from the last kept one. Applied identically to the live preview and the saved
+// data (activeStroke.points IS what gets persisted), so there is no reflow when the pen lifts.
+const MIN_PT_DIST = 1.5
+function roundPt(pt) { return [Math.round(pt[0]), Math.round(pt[1]), pt[2]] }
+function addStrokePoint(stroke, pt) {
+  const x = Math.round(pt[0]), y = Math.round(pt[1])
+  const last = stroke.points[stroke.points.length - 1]
+  if (last && Math.hypot(x - last[0], y - last[1]) < MIN_PT_DIST) return
+  stroke.points.push([x, y, pt[2]])
+}
+
 function toPath(outline) {
   if (outline.length < 2) return ''
   const d = outline.reduce((acc, [x0, y0], i, arr) => {
@@ -492,7 +504,7 @@ function PageCanvas({ page, pageH, maxW, pageIdx, totalPages, onStrokesChange, o
             }, 1200)
           }
         } else {
-          activeStroke.current = { points: [pt], color: drawColor, size: penSize, opacity, smoothing: stateRef.current.smoothness }
+          activeStroke.current = { points: [roundPt(pt)], color: drawColor, size: penSize, opacity, smoothing: stateRef.current.smoothness }
           const path = document.createElementNS('http://www.w3.org/2000/svg', 'path')
           path.setAttribute('fill', drawColor); path.setAttribute('fill-opacity', opacity); path.setAttribute('stroke', 'none')
           livePathRef.current = path; svg.appendChild(path)
@@ -609,7 +621,7 @@ function PageCanvas({ page, pageH, maxW, pageIdx, totalPages, onStrokesChange, o
           return
         }
 
-        activeStroke.current.points.push(pt)
+        addStrokePoint(activeStroke.current, pt)
         if (!drawRAFRef.current) {
           drawRAFRef.current = requestAnimationFrame(() => {
             if (activeStroke.current && livePathRef.current) {
@@ -910,7 +922,7 @@ function PageCanvas({ page, pageH, maxW, pageIdx, totalPages, onStrokesChange, o
     if (tool === 'shape') {
       shapeStartRef.current = pt; shapeModeRef.current = true; setShapeHeld(true)
     } else {
-      activeStroke.current = { points: [pt], color: drawColor, size: penSize, opacity, smoothing }
+      activeStroke.current = { points: [roundPt(pt)], color: drawColor, size: penSize, opacity, smoothing }
       const path = document.createElementNS('http://www.w3.org/2000/svg', 'path')
       path.setAttribute('fill', drawColor)
       path.setAttribute('fill-opacity', opacity)
@@ -955,7 +967,7 @@ function PageCanvas({ page, pageH, maxW, pageIdx, totalPages, onStrokesChange, o
         return
       }
 
-      activeStroke.current.points.push(pt)
+      addStrokePoint(activeStroke.current, pt)
       if (!drawRAFRef.current) {
         drawRAFRef.current = requestAnimationFrame(() => {
           if (activeStroke.current && livePathRef.current) {
