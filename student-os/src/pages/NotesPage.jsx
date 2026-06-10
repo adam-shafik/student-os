@@ -202,13 +202,21 @@ function TypedEditor({ note, onUpdate, viewMode, zoom = 1, onZoomChange }) {
       }
     }
     function onTouchEnd(e) { if (e.touches.length < 2) lastDist = null }
+    function onWheel(e) {
+      if (!e.ctrlKey && !e.metaKey) return
+      e.preventDefault()
+      const sf = e.deltaY < 0 ? 1.08 : 1 / 1.08
+      onZoomChangeRef.current?.(sf)
+    }
     el.addEventListener('touchstart', onTouchStart, { passive: true })
     el.addEventListener('touchmove', onTouchMove, { passive: false })
     el.addEventListener('touchend', onTouchEnd, { passive: true })
+    el.addEventListener('wheel', onWheel, { passive: false })
     return () => {
       el.removeEventListener('touchstart', onTouchStart)
       el.removeEventListener('touchmove', onTouchMove)
       el.removeEventListener('touchend', onTouchEnd)
+      el.removeEventListener('wheel', onWheel)
     }
   }, [])
 
@@ -253,6 +261,15 @@ function TypedEditor({ note, onUpdate, viewMode, zoom = 1, onZoomChange }) {
   }
 
   function onKeyDown(e) {
+    if ((e.ctrlKey || e.metaKey) && (e.key === '=' || e.key === '+')) {
+      e.preventDefault(); onZoomChangeRef.current?.(1.1); return
+    }
+    if ((e.ctrlKey || e.metaKey) && e.key === '-') {
+      e.preventDefault(); onZoomChangeRef.current?.(1 / 1.1); return
+    }
+    if ((e.ctrlKey || e.metaKey) && e.key === '0') {
+      e.preventDefault(); onZoomChangeRef.current?.(null); return
+    }
     if (!slash.open || !matches.length) return
     if (e.key === 'ArrowDown') { e.preventDefault(); setSlash(s => ({ ...s, selected: Math.min(s.selected + 1, matches.length - 1) })) }
     else if (e.key === 'ArrowUp') { e.preventDefault(); setSlash(s => ({ ...s, selected: Math.max(s.selected - 1, 0) })) }
@@ -260,17 +277,16 @@ function TypedEditor({ note, onUpdate, viewMode, zoom = 1, onZoomChange }) {
     else if (e.key === 'Escape') { e.preventDefault(); setSlash(s => ({ ...s, open: false })) }
   }
 
-  const baseFontSize = 15
-  const scaledFont = Math.round(baseFontSize * zoom * 10) / 10
-
   if (viewMode === 'preview') {
     return (
       <div ref={containerRef} style={{ height: '100%', overflowY: 'auto', background: 'var(--bg-page)' }}>
-        <div style={{ padding: '40px 80px', maxWidth: 860, boxSizing: 'border-box', fontSize: scaledFont, letterSpacing: '0.3px' }}>
-          {note.content
-            ? <ReactMarkdown remarkPlugins={[remarkGfm, remarkMath]} rehypePlugins={[rehypeKatex]} components={MD_COMPONENTS}>{note.content}</ReactMarkdown>
-            : <p style={{ color: 'var(--text-muted)', fontStyle: 'italic', fontSize: scaledFont, margin: 0 }}>Nothing to preview yet.</p>
-          }
+        <div style={{ zoom }}>
+          <div style={{ padding: '40px 80px', maxWidth: 860, boxSizing: 'border-box', fontSize: 15, letterSpacing: '0.3px' }}>
+            {note.content
+              ? <ReactMarkdown remarkPlugins={[remarkGfm, remarkMath]} rehypePlugins={[rehypeKatex]} components={MD_COMPONENTS}>{note.content}</ReactMarkdown>
+              : <p style={{ color: 'var(--text-muted)', fontStyle: 'italic', fontSize: 15, margin: 0 }}>Nothing to preview yet.</p>
+            }
+          </div>
         </div>
       </div>
     )
@@ -278,23 +294,25 @@ function TypedEditor({ note, onUpdate, viewMode, zoom = 1, onZoomChange }) {
 
   return (
     <div ref={containerRef} style={{ height: '100%', overflowY: 'auto', background: 'var(--bg-page)' }}>
-      <textarea
-        ref={taRef}
-        value={note.content || ''}
-        onChange={onChange}
-        onKeyDown={onKeyDown}
-        placeholder="Type your note… use / at the start of a line for commands"
-        autoFocus
-        style={{
-          display: 'block', width: '100%', minHeight: '100%',
-          border: 'none', outline: 'none', resize: 'none',
-          background: 'transparent', color: 'var(--text-primary)',
-          fontSize: scaledFont, lineHeight: 1.85, padding: '40px 80px',
-          letterSpacing: '0.3px',
-          fontFamily: 'system-ui, -apple-system, "Segoe UI", sans-serif',
-          boxSizing: 'border-box',
-        }}
-      />
+      <div style={{ zoom }}>
+        <textarea
+          ref={taRef}
+          value={note.content || ''}
+          onChange={onChange}
+          onKeyDown={onKeyDown}
+          placeholder="Type your note… use / at the start of a line for commands"
+          autoFocus
+          style={{
+            display: 'block', width: '100%',
+            border: 'none', outline: 'none', resize: 'none',
+            background: 'transparent', color: 'var(--text-primary)',
+            fontSize: 15, lineHeight: 1.85, padding: '40px 80px 160px',
+            letterSpacing: '0.3px',
+            fontFamily: 'system-ui, -apple-system, "Segoe UI", sans-serif',
+            boxSizing: 'border-box',
+          }}
+        />
+      </div>
       {slash.open && matches.length > 0 && (
         <div style={{
           position: 'fixed', top: slash.pos.top, left: slash.pos.left,
@@ -1169,11 +1187,18 @@ export default function NotesPage({ notes, domains, noteToOpen, onClearNoteToOpe
                 }}>
                   {saveState === 'saving' ? 'Saving…' : saveState === 'saved' ? <><Check size={11} style={{ verticalAlign: 'middle', marginRight: 3 }} />Saved</> : saveState === 'error' ? 'Save failed' : ''}
                 </span>
-                {openNote?.type === 'typed' && typedZoom !== 1 && (
-                  <button onClick={() => setTypedZoom(1)} title="Reset zoom" style={{
-                    padding: '5px 8px', borderRadius: 7, border: '1px solid var(--border)',
-                    background: 'none', color: 'var(--text-secondary)', cursor: 'pointer', fontSize: 11,
-                  }}>
+                {openNote?.type === 'typed' && (
+                  <button
+                    onClick={() => setTypedZoom(1)}
+                    title={typedZoom !== 1 ? 'Reset zoom (Ctrl+0)' : 'Ctrl+Scroll or pinch to zoom'}
+                    style={{
+                      padding: '5px 8px', borderRadius: 7, border: '1px solid var(--border)',
+                      background: typedZoom !== 1 ? 'var(--nav-active)' : 'none',
+                      color: typedZoom !== 1 ? 'var(--accent-blue)' : 'var(--text-muted)',
+                      cursor: 'pointer', fontSize: 11, fontWeight: typedZoom !== 1 ? 600 : 400,
+                      transition: 'background 0.12s, color 0.12s',
+                    }}
+                  >
                     {Math.round(typedZoom * 100)}%
                   </button>
                 )}
@@ -1249,7 +1274,7 @@ export default function NotesPage({ notes, domains, noteToOpen, onClearNoteToOpe
                   onUpdate={updates => onUpdateNote(openNote.id, updates)}
                   viewMode={typedViewMode}
                   zoom={typedZoom}
-                  onZoomChange={sf => setTypedZoom(z => Math.min(3, Math.max(0.5, z * sf)))}
+                  onZoomChange={sf => sf === null ? setTypedZoom(1) : setTypedZoom(z => Math.min(3, Math.max(0.5, z * sf)))}
                 />
               ) : (
                 <NoteCanvas

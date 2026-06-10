@@ -3,7 +3,7 @@ import AppSelect, { AppSelectItem } from '../components/AppSelect'
 import { useIsMobile } from '../utils/useIsMobile'
 import {
   Play, Pause, SkipForward, Square, Volume2, VolumeX,
-  Eye, EyeOff, BookOpen, Timer, X, ChevronRight, Check, Trash2,
+  Eye, EyeOff, BookOpen, Timer, X, Minus, Maximize2, Check, Trash2,
 } from 'lucide-react'
 
 // ─── Audio ─────────────────────────────────────────────────────────────────────
@@ -55,6 +55,15 @@ const POMODORO_PRESETS = [
 function fmt(s) {
   return `${Math.floor(s / 60).toString().padStart(2, '0')}:${(s % 60).toString().padStart(2, '0')}`
 }
+
+function fmtElapsed(min) {
+  if (min < 1) return '<1m'
+  if (min < 60) return `${min}m`
+  const h = Math.floor(min / 60), r = min % 60
+  return r ? `${h}h ${r}m` : `${h}h`
+}
+
+const PHASE_LABEL = { work: 'Focus', break: 'Break', done: 'Done' }
 
 // ─── Widget button helper ─────────────────────────────────────────────────────
 function wbtn(extra = {}) {
@@ -537,8 +546,10 @@ export function FloatingTimerWidget({ session, domain, onPauseResume, onSkipPhas
   const isDone     = phase === 'done'
   const phaseColor = phase === 'work' ? color : phase === 'break' ? '#fbbf24' : '#34d399'
 
-  const [collapsed, setCollapsed] = useState(false)
   const [pos, setPos] = useState(null) // null = use default bottom-right anchor
+  const elapsedMin = session.startedAt
+    ? Math.max(0, Math.round((Date.now() - new Date(session.startedAt).getTime()) / 60000))
+    : 0
   const draggingRef = useRef(false)
   const startRef    = useRef({ mx: 0, my: 0, wx: 0, wy: 0 })
   const widgetRef   = useRef(null)
@@ -632,79 +643,73 @@ export function FloatingTimerWidget({ session, domain, onPauseResume, onSkipPhas
             {domain?.code ?? 'Study'}
           </span>
           <span style={{ fontSize: 10, color: phaseColor, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '1px' }}>
-            {isDone ? 'Done' : phase}
+            {PHASE_LABEL[phase] || phase}
           </span>
         </div>
         <div style={{ display: 'flex', gap: 4 }}>
-          <button
-            onMouseDown={e => e.stopPropagation()}
-            onClick={() => setCollapsed(c => !c)}
-            title={collapsed ? 'Expand' : 'Collapse'}
-            aria-label={collapsed ? 'Expand timer' : 'Collapse timer'}
-            style={wbtn()}
-          >
-            <ChevronRight size={11} style={{ transform: collapsed ? 'rotate(90deg)' : 'rotate(-90deg)', transition: 'transform 0.2s' }} />
+          <button onMouseDown={e => e.stopPropagation()} onClick={onToggleBlurred} title={widgetBlurred ? 'Show time' : 'Hide time'} aria-label={widgetBlurred ? 'Show time' : 'Hide time'} style={wbtn()}>
+            {widgetBlurred ? <Eye size={12} /> : <EyeOff size={12} />}
           </button>
-          <button onMouseDown={e => e.stopPropagation()} onClick={onToggleBlurred} title={widgetBlurred ? 'Show time' : 'Blur time'} aria-label={widgetBlurred ? 'Show time' : 'Blur time'} style={wbtn()}>
-            {widgetBlurred ? <Eye size={11} /> : <EyeOff size={11} />}
-          </button>
-          <button onMouseDown={e => e.stopPropagation()} onClick={onToggleHidden} title="Minimise" aria-label="Minimise timer" style={wbtn()}>
-            <X size={11} />
+          <button onMouseDown={e => e.stopPropagation()} onClick={onToggleHidden} title="Minimise to a small pill" aria-label="Minimise timer" style={wbtn()}>
+            <Minus size={13} />
           </button>
         </div>
       </div>
 
-      {!collapsed && (
-        <>
-          {/* Timer content — blurred when widgetBlurred */}
-          <div style={{
-            padding: '0 12px 8px',
-            filter: widgetBlurred ? 'blur(16px)' : 'none',
-            transition: 'filter 0.25s',
-            pointerEvents: widgetBlurred ? 'none' : 'auto',
-          }}>
-            <div
-              onClick={!widgetBlurred ? onGoToStudy : undefined}
-              title="Open full timer"
-              style={{
-                fontSize: 36, fontWeight: 200, fontFamily: 'monospace', letterSpacing: '-1px',
-                color: 'var(--text-primary)', fontVariantNumeric: 'tabular-nums',
-                cursor: 'pointer', lineHeight: 1, marginBottom: 6,
-              }}
-            >
-              {isDone ? <Check size={26} strokeWidth={1.5} style={{ display: 'block' }} /> : fmt(secondsLeft)}
+      {/* Timer content — blurred when widgetBlurred */}
+      <div style={{
+        padding: '0 12px 8px',
+        filter: widgetBlurred ? 'blur(16px)' : 'none',
+        transition: 'filter 0.25s',
+        pointerEvents: widgetBlurred ? 'none' : 'auto',
+      }}>
+        <div
+          onClick={!widgetBlurred ? onGoToStudy : undefined}
+          title="Open full timer"
+          style={{
+            fontSize: 36, fontWeight: 200, fontFamily: 'monospace', letterSpacing: '-1px',
+            color: 'var(--text-primary)', fontVariantNumeric: 'tabular-nums',
+            cursor: 'pointer', lineHeight: 1, marginBottom: 6,
+          }}
+        >
+          {isDone ? <Check size={26} strokeWidth={1.5} style={{ display: 'block' }} /> : fmt(secondsLeft)}
+        </div>
+        {!isDone && (
+          <div style={{ marginBottom: 6 }}>
+            <RoundDots total={totalRounds} completed={roundsCompleted} currentRound={currentRound} phase={phase} />
+            <div style={{ fontSize: 10, color: 'var(--text-muted)', marginTop: 4 }}>
+              Round {phase === 'work' ? currentRound : roundsCompleted}/{totalRounds}
+              {phase === 'break' ? ' · on a break' : ''}
             </div>
-            {!isDone && (
-              <div style={{ marginBottom: 4 }}>
-                <RoundDots total={totalRounds} completed={roundsCompleted} currentRound={currentRound} phase={phase} />
-                <div style={{ fontSize: 10, color: 'var(--text-muted)', marginTop: 4 }}>
-                  Round {phase === 'work' ? currentRound : roundsCompleted}/{totalRounds}
-                  {phase === 'break' ? ' · Break' : ''}
-                </div>
-              </div>
-            )}
           </div>
+        )}
+        {/* Elapsed time studying so far */}
+        <div style={{ display: 'flex', alignItems: 'center', gap: 5, fontSize: 10, color: 'var(--text-muted)' }}>
+          <Timer size={11} />
+          <span>{isDone ? 'Studied' : 'Elapsed'} ~{fmtElapsed(elapsedMin)}</span>
+        </div>
+      </div>
 
-          {/* Controls — never blurred */}
-          <div style={{ display: 'flex', gap: 6, padding: '6px 12px 10px' }}>
-            {!isDone && (
-              <>
-                <button onClick={onPauseResume} aria-label={isRunning ? 'Pause session' : 'Resume session'} style={{
-                  ...wbtn({ flex: 1, height: 30, borderRadius: 6, background: color + '22', borderColor: color + '44', color }),
-                }}>
-                  {isRunning ? <Pause size={13} /> : <Play size={13} />}
-                </button>
-                <button onClick={onSkipPhase} title="Skip phase" aria-label="Skip phase" style={wbtn({ height: 30, borderRadius: 6 })}>
-                  <SkipForward size={13} />
-                </button>
-              </>
-            )}
-            <button onClick={onGoToStudy} title="Open full timer" aria-label="Open full timer" style={wbtn({ height: 30, borderRadius: 6 })}>
-              <ChevronRight size={13} />
+      {/* Controls — never blurred */}
+      <div style={{ display: 'flex', gap: 6, padding: '6px 12px 10px' }}>
+        {!isDone && (
+          <>
+            <button onClick={onPauseResume} title={isRunning ? 'Pause' : 'Resume'} aria-label={isRunning ? 'Pause session' : 'Resume session'} style={{
+              ...wbtn({ flex: 1, height: 30, borderRadius: 6, gap: 6, background: color + '22', borderColor: color + '44', color, fontSize: 11, fontWeight: 700 }),
+            }}>
+              {isRunning ? <Pause size={13} /> : <Play size={13} />}
+              {isRunning ? 'Pause' : 'Resume'}
             </button>
-          </div>
-        </>
-      )}
+            <button onClick={onSkipPhase} title={phase === 'work' ? 'Skip to break' : 'Skip to focus'} aria-label="Skip phase" style={wbtn({ height: 30, borderRadius: 6 })}>
+              <SkipForward size={13} />
+            </button>
+          </>
+        )}
+        <button onClick={onGoToStudy} title="Open full timer" aria-label="Open full timer" style={wbtn({ height: 30, borderRadius: 6, ...(isDone ? { flex: 1, gap: 6, fontSize: 11, fontWeight: 700 } : {}) })}>
+          <Maximize2 size={13} />
+          {isDone && 'Open timer'}
+        </button>
+      </div>
     </div>
   )
 }

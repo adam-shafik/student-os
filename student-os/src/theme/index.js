@@ -2,13 +2,13 @@ export const THEMES = [
   {
     id: 'default',
     name: 'Midnight Dark',
-    description: 'Classic dark theme',
+    description: 'Classic dark mode',
     preview: ['#5b8cff', '#a78bfa', '#14151e'],
   },
   {
     id: 'space',
     name: 'Space Observatory',
-    description: 'Black surfaces, white illuminated controls, deep-space research station',
+    description: 'Pure black, star-white accents',
     preview: ['#D8E0FF', '#7890D0', '#0D0D10'],
     wallpaper: 'space.jpg',
     wallpaperOverlay: 'rgba(4,4,8,0.62)',
@@ -18,13 +18,13 @@ export const THEMES = [
   {
     id: 'minimal',
     name: 'Academic Minimal',
-    description: 'Clean light mode, distraction-free',
-    preview: ['#4472f5', '#7c55d4', '#ffffff'],
+    description: 'Warm paper, deep navy ink',
+    preview: ['#2a4ba0', '#5e3fbe', '#f6f5f2'],
   },
   {
     id: 'cyberpunk',
     name: 'Cyberpunk',
-    description: 'High-tech hacker aesthetic, electric neon',
+    description: 'Electric neon, hacker dark',
     preview: ['#00e5ff', '#ff00aa', '#00ff88'],
     wallpaper: 'cyberpunk.jpg',
     wallpaperOverlay: 'rgba(1,3,10,0.30)',
@@ -34,7 +34,7 @@ export const THEMES = [
   {
     id: 'aurora',
     name: 'Aurora Gradient',
-    description: 'Vibrant gradients, animated accents',
+    description: 'Northern lights, vivid gradients',
     preview: ['#64c8ff', '#9b7fff', '#4fffb0'],
     wallpaper: 'aurora.jpg',
     wallpaperOverlay: 'rgba(6,4,18,0.74)',
@@ -44,7 +44,7 @@ export const THEMES = [
   {
     id: 'sakura',
     name: 'Sakura Glass',
-    description: 'Elegant pink glassmorphism, deep plum luxury',
+    description: 'Pink glass, deep plum',
     preview: ['#f472b6', '#c084fc', '#130a18'],
     wallpaper: 'sakura.jpg',
     wallpaperOverlay: 'rgba(19,10,24,0.76)',
@@ -54,7 +54,7 @@ export const THEMES = [
   {
     id: 'frost',
     name: 'Icy Frost',
-    description: 'Frosted glass, crisp arctic blues',
+    description: 'Frosted glass, arctic blues',
     preview: ['#7dd3fc', '#a5b4fc', '#04101e'],
     wallpaper: 'frost.jpg',
     wallpaperOverlay: 'rgba(4,16,30,0.76)',
@@ -64,7 +64,7 @@ export const THEMES = [
   {
     id: 'forest',
     name: 'Forest Nature',
-    description: 'Earthy greens, organic serif, calming study vibes',
+    description: 'Earthy greens, natural focus',
     preview: ['#6aab6a', '#8cb88c', '#080e08'],
     wallpaper: 'forest.jpg',
     wallpaperOverlay: 'rgba(8,14,8,0.76)',
@@ -74,7 +74,7 @@ export const THEMES = [
   {
     id: 'ocean',
     name: 'Deep Ocean',
-    description: 'Bioluminescent teal, underwater research station vibes',
+    description: 'Bioluminescent teal, deep water',
     preview: ['#00C4D4', '#20E8B0', '#0D2035'],
     wallpaper: 'ocean.jpg',
     wallpaperOverlay: 'rgba(7,20,34,0.76)',
@@ -84,7 +84,7 @@ export const THEMES = [
   {
     id: 'akatsuki',
     name: 'Rainy Akatsuki',
-    description: 'Dark slate, crimson accents, rain village atmosphere',
+    description: 'Dark slate, crimson accents',
     preview: ['#DC2626', '#EF4444', '#262B34'],
     wallpaper: 'akatsuki.jpg',
     wallpaperOverlay: 'rgba(14,16,22,0.40)',

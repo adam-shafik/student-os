@@ -138,36 +138,36 @@ html.theme-space {
 
 /* ── Academic Minimal (light) ────────────────────────────────────────────────── */
 html.theme-minimal {
-  --bg-page:           #f4f5fa;
+  --bg-page:           #f6f5f2;
   --bg-surface:        #ffffff;
-  --bg-elevated:       #eef0f6;
-  --bg-hover:          #e8eaf2;
-  --bg-overlay:        #e4e6f0;
-  --bg-overlay-hover:  #d8dae8;
-  --bg-input:          #eef0f6;
+  --bg-elevated:       #eeede9;
+  --bg-hover:          #e8e7e3;
+  --bg-overlay:        #e2e1dd;
+  --bg-overlay-hover:  #d6d5d0;
+  --bg-input:          #eeecea;
   --bg-body-image:     none;
 
-  --nav-hover:         #eaecf4;
-  --nav-active:        #dde0f0;
+  --nav-hover:         #eae9e5;
+  --nav-active:        #dddbd6;
 
-  --border:            #dde0ee;
-  --border-strong:     #c8cce0;
-  --border-focus:      #7c99e8;
+  --border:            #dddbd6;
+  --border-strong:     #c6c4be;
+  --border-focus:      #2a4ba0;
 
-  --text-primary:      #1a1c2e;
-  --text-bright:       #32344a;
-  --text-secondary:    #545670;
-  --text-muted:        #8890aa;
-  --text-disabled:     #c0c4d8;
+  --text-primary:      #0f0f12;
+  --text-bright:       #1e1e24;
+  --text-secondary:    #484852;
+  --text-muted:        #888890;
+  --text-disabled:     #bbbab5;
 
-  --accent-blue:       #4472f5;
-  --accent-purple:     #7c55d4;
-  --accent-amber:      #d08c00;
-  --accent-green:      #14a35e;
-  --accent-red:        #d63055;
+  --accent-blue:       #2a4ba0;
+  --accent-purple:     #5e3fbe;
+  --accent-amber:      #a86a00;
+  --accent-green:      #1a7a47;
+  --accent-red:        #c0243e;
 
-  --shadow-card:       0 4px 16px rgba(0,0,0,0.08), 0 1px 4px rgba(0,0,0,0.05);
-  --shadow-modal:      0 20px 60px rgba(0,0,0,0.15), 0 4px 20px rgba(0,0,0,0.08);
+  --shadow-card:       0 2px 12px rgba(0,0,0,0.07), 0 1px 3px rgba(0,0,0,0.04);
+  --shadow-modal:      0 16px 48px rgba(0,0,0,0.13), 0 4px 16px rgba(0,0,0,0.07);
 
   --glow-blue:         none;
   --glow-purple:       none;
@@ -175,15 +175,15 @@ html.theme-minimal {
   --glow-red:          none;
   --glass-blur:        none;
 
-  --progress-track:    #e4e6f0;
+  --progress-track:    #e2e1dd;
 
-  --scrollbar-thumb:       #c0c4d8;
-  --scrollbar-thumb-hover: #a0a4be;
+  --scrollbar-thumb:       #c4c2bc;
+  --scrollbar-thumb-hover: #a8a69f;
 
   --btn-primary-text:  #fff;
-  --row-hover:         rgba(68,114,245,0.05);
+  --row-hover:         rgba(42,75,160,0.05);
 
-  --chrome-bg:         #dde0ee;
+  --chrome-bg:         #dddbd6;
 }
 
 /* ── Cyberpunk ───────────────────────────────────────────────────────────────── */
@@ -654,7 +654,7 @@ body {
 }
 
 /* Select / option dark overrides (browser-native) */
-html.theme-minimal select option { background: #fff; color: #1a1c2e; }
+html.theme-minimal select option { background: #f6f5f2; color: #0f0f12; }
 
 /* ── Gradient border domain cards ──────────────────────────────────────────── */
 @property --border-angle {
