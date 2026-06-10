@@ -136,8 +136,60 @@ function closedShapeTouched(s, cx, cy, radius) {
   return false
 }
 
-function applyStandardErase(strokes, cx, cy, radius) {
+// Clip a freehand polyline against an eraser circle, returning the runs that survive.
+// Works on segments (not stored points) so erase precision is independent of point density —
+// it removes exactly the span under the eraser and splits at the circle boundary.
+function erasePolyline(points, cx, cy, radius) {
   const r2 = radius * radius
+  const inside = (x, y) => { const dx = x - cx, dy = y - cy; return dx * dx + dy * dy <= r2 }
+  if (points.length === 1) return inside(points[0][0], points[0][1]) ? [] : [points]
+
+  const runs = []
+  let cur = []
+  const flush = () => { if (cur.length >= 2) runs.push(cur); cur = [] }
+
+  for (let i = 0; i < points.length - 1; i++) {
+    const a = points[i], b = points[i + 1]
+    const ax = a[0], ay = a[1], dx = b[0] - ax, dy = b[1] - ay
+    const A = dx * dx + dy * dy
+    const fx = ax - cx, fy = ay - cy
+    const B = 2 * (fx * dx + fy * dy)
+    const C = fx * fx + fy * fy - r2
+    const at = (t) => [Math.round(ax + t * dx), Math.round(ay + t * dy), a[2]]
+
+    let tEnter = null, tExit = null
+    if (A >= 1e-9) {
+      const disc = B * B - 4 * A * C
+      if (disc >= 0) {
+        const sq = Math.sqrt(disc)
+        const lo = Math.max(0, Math.min(1, (-B - sq) / (2 * A)))
+        const hi = Math.max(0, Math.min(1, (-B + sq) / (2 * A)))
+        if (hi > lo) { tEnter = lo; tExit = hi }
+      }
+    }
+
+    if (tEnter === null) {
+      // Whole segment outside the eraser — keep it
+      if (cur.length === 0) cur.push(a)
+      cur.push(b)
+    } else {
+      // Segment crosses the eraser: keep [0, tEnter] and [tExit, 1], drop the middle
+      if (tEnter > 0) {
+        if (cur.length === 0) cur.push(a)
+        cur.push(at(tEnter))
+      }
+      flush()
+      if (tExit < 1) {
+        cur.push(at(tExit))
+        cur.push(b)
+      }
+    }
+  }
+  flush()
+  return runs
+}
+
+function applyStandardErase(strokes, cx, cy, radius) {
   const result = []
   for (const s of strokes) {
     if (s.shape === 'line') {
@@ -147,17 +199,9 @@ function applyStandardErase(strokes, cx, cy, radius) {
       // Closed shapes: erase whole shape only if eraser touches the actual border
       if (!closedShapeTouched(s, cx, cy, radius)) result.push(s)
     } else {
-      let current = []
-      for (const p of s.points) {
-        const dx = p[0] - cx, dy = p[1] - cy
-        if (dx * dx + dy * dy <= r2) {
-          if (current.length > 1) result.push({ ...s, points: current })
-          current = []
-        } else {
-          current.push(p)
-        }
+      for (const run of erasePolyline(s.points, cx, cy, radius)) {
+        result.push({ ...s, points: run })
       }
-      if (current.length > 1) result.push({ ...s, points: current })
     }
   }
   return result
@@ -168,10 +212,13 @@ function applyStrokeErase(strokes, cx, cy, radius) {
   return strokes.filter(s => {
     if (s.shape === 'line') return distToSegment(cx, cy, s.x1, s.y1, s.x2, s.y2) > radius
     if (s.shape) return !closedShapeTouched(s, cx, cy, radius)
-    return !s.points.some(p => {
-      const dx = p[0] - cx, dy = p[1] - cy
-      return dx * dx + dy * dy <= r2
-    })
+    const pts = s.points
+    if (pts.length === 1) { const dx = pts[0][0] - cx, dy = pts[0][1] - cy; return dx * dx + dy * dy > r2 }
+    // Test segments, not just stored points, so the eraser can't slip between sparse points
+    for (let i = 0; i < pts.length - 1; i++) {
+      if (distToSegment(cx, cy, pts[i][0], pts[i][1], pts[i + 1][0], pts[i + 1][1]) <= radius) return false
+    }
+    return true
   })
 }
 
