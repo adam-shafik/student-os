@@ -266,7 +266,7 @@ function TypedEditor({ note, onUpdate, viewMode, zoom = 1, onZoomChange }) {
   if (viewMode === 'preview') {
     return (
       <div ref={containerRef} style={{ height: '100%', overflowY: 'auto', background: 'var(--bg-page)' }}>
-        <div style={{ padding: '40px 80px', maxWidth: 860, boxSizing: 'border-box', fontSize: scaledFont }}>
+        <div style={{ padding: '40px 80px', maxWidth: 860, boxSizing: 'border-box', fontSize: scaledFont, letterSpacing: '0.3px' }}>
           {note.content
             ? <ReactMarkdown remarkPlugins={[remarkGfm, remarkMath]} rehypePlugins={[rehypeKatex]} components={MD_COMPONENTS}>{note.content}</ReactMarkdown>
             : <p style={{ color: 'var(--text-muted)', fontStyle: 'italic', fontSize: scaledFont, margin: 0 }}>Nothing to preview yet.</p>
@@ -290,6 +290,7 @@ function TypedEditor({ note, onUpdate, viewMode, zoom = 1, onZoomChange }) {
           border: 'none', outline: 'none', resize: 'none',
           background: 'transparent', color: 'var(--text-primary)',
           fontSize: scaledFont, lineHeight: 1.85, padding: '40px 80px',
+          letterSpacing: '0.3px',
           fontFamily: 'system-ui, -apple-system, "Segoe UI", sans-serif',
           boxSizing: 'border-box',
         }}
