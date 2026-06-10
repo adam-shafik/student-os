@@ -105,6 +105,8 @@ export default function NewNoteModal({ domains = [], defaultDomainId = null, def
   const [week,        setWeek]        = useState(defaultWeek != null ? String(defaultWeek) : '')
   const [pdfFile,     setPdfFile]     = useState(null)
   const pdfInputRef = useRef()
+  // Don't auto-focus the name field on touch devices — it pops the keyboard the moment the modal opens
+  const isTouch = typeof window !== 'undefined' && (('ontouchstart' in window) || navigator.maxTouchPoints > 0)
 
   const isHW  = noteType === 'handwritten'
   const isPDF = noteType === 'pdf'
@@ -270,7 +272,7 @@ export default function NewNoteModal({ domains = [], defaultDomainId = null, def
             <div>
               <label style={lbl}>Note name</label>
               <input
-                autoFocus={!isPDF}
+                autoFocus={!isPDF && !isTouch}
                 type="text"
                 placeholder={isPDF && pdfFile ? pdfFile.name.replace(/\.pdf$/i, '') : 'Untitled Note'}
                 value={title}
