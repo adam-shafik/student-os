@@ -7,6 +7,7 @@ import AppSelect, { AppSelectItem } from '../components/AppSelect'
 import {
   PenLine, Plus, Trash2, ChevronRight, ChevronDown,
   Pencil, Check, X, MapPin, Type, FileText, Share2, Eye, Maximize2, Minimize2, FolderOpen,
+  ArrowUpDown, ListFilter, ChevronUp,
 } from 'lucide-react'
 import NoteCanvas from '../components/NoteCanvas'
 import { totalTeachingWeeks } from '../utils/semester'
@@ -605,10 +606,80 @@ function NoteLocationPicker({ note, domains, onSave }) {
   )
 }
 
+const SORT_OPTIONS = [
+  ['recent',      'Last edited'],
+  ['leastRecent', 'Oldest edited'],
+  ['name-asc',    'Name (A–Z)'],
+  ['name-desc',   'Name (Z–A)'],
+  ['type',        'Type'],
+]
+const TYPE_FILTERS = [
+  ['all',         'All types'],
+  ['handwritten', 'Handwritten'],
+  ['typed',       'Typed'],
+  ['pdf',         'PDF'],
+]
+
+// Compact header dropdown (button + popover with click-away backdrop)
+function HeaderDropdown({ icon: Icon, options, value, onChange, isMobile }) {
+  const [open, setOpen] = useState(false)
+  const current = options.find(([v]) => v === value)?.[1] || options[0][1]
+  return (
+    <div style={{ position: 'relative', flexShrink: 0 }}>
+      <button
+        onClick={() => setOpen(o => !o)}
+        style={{
+          display: 'flex', alignItems: 'center', gap: 6, padding: '8px 11px',
+          borderRadius: 8, border: '1px solid var(--border-strong)', background: 'var(--bg-surface)',
+          color: 'var(--text-secondary)', cursor: 'pointer', fontSize: 13, fontWeight: 500, fontFamily: 'inherit',
+          whiteSpace: 'nowrap',
+        }}
+      >
+        <Icon size={14} />
+        {!isMobile && <span>{current}</span>}
+        {open ? <ChevronUp size={13} /> : <ChevronDown size={13} />}
+      </button>
+      {open && (
+        <>
+          <div onClick={() => setOpen(false)} style={{ position: 'fixed', inset: 0, zIndex: 60 }} />
+          <div style={{
+            position: 'absolute', top: 'calc(100% + 6px)', right: 0, zIndex: 61,
+            minWidth: 168, background: 'var(--bg-surface)', border: '1px solid var(--border-strong)',
+            borderRadius: 10, boxShadow: 'var(--shadow-modal)', overflow: 'hidden', padding: 4,
+          }}>
+            {options.map(([v, label]) => (
+              <button
+                key={v}
+                onClick={() => { onChange(v); setOpen(false) }}
+                style={{
+                  display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 10, width: '100%',
+                  padding: '8px 10px', borderRadius: 7, border: 'none', cursor: 'pointer',
+                  background: v === value ? 'var(--nav-active)' : 'transparent',
+                  color: v === value ? 'var(--accent-blue)' : 'var(--text-secondary)',
+                  fontSize: 13, fontWeight: v === value ? 600 : 400, textAlign: 'left', fontFamily: 'inherit',
+                }}
+                onMouseEnter={e => { if (v !== value) e.currentTarget.style.background = 'var(--bg-hover)' }}
+                onMouseLeave={e => { if (v !== value) e.currentTarget.style.background = 'transparent' }}
+              >
+                {label}
+                {v === value && <Check size={13} />}
+              </button>
+            ))}
+          </div>
+        </>
+      )}
+    </div>
+  )
+}
+
 // ─── Main page ─────────────────────────────────────────────────────────────────
 export default function NotesPage({ notes, domains, noteToOpen, onClearNoteToOpen, onAddNote, onUpdateNote, onDeleteNote, onSaveNote, onAddPdfNote, onGetSignedPdfUrl }) {
   const isMobile = useIsMobile()
   const [mobileFoldersOpen, setMobileFoldersOpen] = useState(false)
+  const [sortBy,     setSortBy]     = useState(() => localStorage.getItem('notesSortBy') || 'recent')
+  const [typeFilter, setTypeFilter] = useState(() => localStorage.getItem('notesTypeFilter') || 'all')
+  useEffect(() => { localStorage.setItem('notesSortBy', sortBy) }, [sortBy])
+  useEffect(() => { localStorage.setItem('notesTypeFilter', typeFilter) }, [typeFilter])
   const [selectedFolder,  setSelectedFolder]  = useState({ type: 'all' })
   const [openNoteId,      setOpenNoteId]      = useState(null)
   const [confirmDelNote,  setConfirmDelNote]  = useState(false)
@@ -792,15 +863,25 @@ export default function NotesPage({ notes, domains, noteToOpen, onClearNoteToOpe
 
   const folderNotes = useMemo(() => {
     const f = selectedFolder
+    const recency = n => n.updatedAt || n.createdAt || ''
+    const title   = n => (n.title || 'Untitled Note').toLowerCase()
+    const cmp = {
+      recent:      (a, b) => recency(b) > recency(a) ? 1 : recency(b) < recency(a) ? -1 : 0,
+      leastRecent: (a, b) => recency(a) > recency(b) ? 1 : recency(a) < recency(b) ? -1 : 0,
+      'name-asc':  (a, b) => title(a).localeCompare(title(b)),
+      'name-desc': (a, b) => title(b).localeCompare(title(a)),
+      type:        (a, b) => (a.type || '').localeCompare(b.type || '') || title(a).localeCompare(title(b)),
+    }[sortBy] || ((a, b) => 0)
     return visibleNotes.filter(n => {
+      if (typeFilter !== 'all' && (n.type || 'handwritten') !== typeFilter) return false
       if (f.type === 'all')          return true
       if (f.type === 'general')      return !n.domainId
       if (f.type === 'domain')       return n.domainId === f.domainId
       if (f.type === 'domain-unweek') return n.domainId === f.domainId && !n.academicWeek
       if (f.type === 'week')         return n.domainId === f.domainId && n.academicWeek === f.week
       return true
-    }).sort((a, b) => (b.updatedAt > a.updatedAt ? 1 : -1))
-  }, [visibleNotes, selectedFolder])
+    }).sort(cmp)
+  }, [visibleNotes, selectedFolder, sortBy, typeFilter])
 
   function closeNote() {
     clearTimeout(autoSaveTimerRef.current)
@@ -1212,7 +1293,9 @@ export default function NotesPage({ notes, domains, noteToOpen, onClearNoteToOpe
                 </p>
                 </div>
               </div>
-              <div style={{ position: 'relative', flexShrink: 0 }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexShrink: 0 }}>
+                <HeaderDropdown icon={ListFilter} options={TYPE_FILTERS} value={typeFilter} onChange={setTypeFilter} isMobile={isMobile} />
+                <HeaderDropdown icon={ArrowUpDown} options={SORT_OPTIONS} value={sortBy} onChange={setSortBy} isMobile={isMobile} />
                 <button
                   {...(isMobile ? { 'data-tutorial-id': 'notes-new-btn' } : {})}
                   onClick={() => setShowNewNoteModal(true)}
@@ -1220,9 +1303,10 @@ export default function NotesPage({ notes, domains, noteToOpen, onClearNoteToOpe
                     display: 'flex', alignItems: 'center', gap: 6, padding: '8px 14px',
                     borderRadius: 8, border: 'none', background: 'var(--accent-blue)',
                     color: 'var(--btn-primary-text)', cursor: 'pointer', fontSize: 13, fontWeight: 600,
+                    whiteSpace: 'nowrap',
                   }}
                 >
-                  <Plus size={14} /> New Note
+                  <Plus size={14} /> {isMobile ? 'New' : 'New Note'}
                 </button>
               </div>
             </div>
