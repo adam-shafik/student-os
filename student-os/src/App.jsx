@@ -7,6 +7,7 @@ import DomainDetailPage from './pages/DomainDetailPage'
 import CalendarPage from './pages/CalendarPage'
 import NotesPage from './pages/NotesPage'
 import TodosPage from './pages/TodosPage'
+import FlashcardsPage from './pages/FlashcardsPage'
 import StudyPage, { FloatingTimerWidget, playChime, unlockAudio } from './pages/StudyPage'
 import AuthPage from './pages/AuthPage'
 import OnboardingPage from './pages/OnboardingPage'
@@ -120,6 +121,8 @@ export default function App() {
   const [eventNotes,    setEventNotes]    = useState({})
   const [notes,         setNotes]         = useState([])
   const [noteToOpen,    setNoteToOpen]    = useState(null)
+  const [decks,         setDecks]         = useState([])
+  const [flashcardSourceNote, setFlashcardSourceNote] = useState(null)
   const [weekConfidence, setWeekConfidence] = useState({})
   const [todos,              setTodos]              = useState([])
   const [semConfig,          setSemConfig]          = useState(null)
@@ -300,6 +303,22 @@ export default function App() {
               .sort((a, b) => a.page_order - b.page_order)
               .map(p => ({ id: p.id, strokes: p.strokes || [] }))
           })(),
+        })))
+      })
+
+    supabase.from('flashcard_decks').select('*, flashcards(*)').eq('user_id', userId).order('created_at', { ascending: false })
+      .then(({ data }) => {
+        if (data) setDecks(data.map(d => ({
+          id: d.id, title: d.title, domainId: d.domain_id, academicWeek: d.academic_week,
+          noteId: d.note_id, studySessionId: d.study_session_id,
+          createdAt: d.created_at, updatedAt: d.updated_at,
+          cards: (d.flashcards || [])
+            .sort((a, b) => a.position - b.position)
+            .map(c => ({
+              id: c.id, front: c.front, back: c.back, position: c.position,
+              easeFactor: Number(c.ease_factor), intervalDays: c.interval_days,
+              dueDate: c.due_date, repetitions: c.repetitions,
+            })),
         })))
       })
 
@@ -1000,6 +1019,136 @@ export default function App() {
     handleNavigate('notes')
   }
 
+  const handleAddDeck = async (deck) => {
+    const id  = crypto.randomUUID()
+    const now = new Date().toISOString()
+    setDecks(prev => [{ ...deck, id, cards: [], createdAt: now, updatedAt: now }, ...prev])
+    const { error } = await supabase.from('flashcard_decks').insert({
+      id, user_id: userId, title: deck.title,
+      domain_id: deck.domainId || null, academic_week: deck.academicWeek || null,
+      note_id: deck.noteId || null, study_session_id: deck.studySessionId || null,
+      created_at: now, updated_at: now,
+    })
+    if (error) {
+      console.error('add deck failed:', error.message)
+      setDecks(prev => prev.filter(d => d.id !== id))
+      return null
+    }
+    return id
+  }
+
+  const handleUpdateDeck = async (id, updates) => {
+    const now = new Date().toISOString()
+    setDecks(prev => prev.map(d => d.id === id ? { ...d, ...updates, updatedAt: now } : d))
+    const db = { updated_at: now }
+    if ('title'          in updates) db.title            = updates.title
+    if ('domainId'       in updates) db.domain_id        = updates.domainId || null
+    if ('academicWeek'   in updates) db.academic_week    = updates.academicWeek || null
+    if ('noteId'         in updates) db.note_id          = updates.noteId || null
+    if ('studySessionId' in updates) db.study_session_id = updates.studySessionId || null
+    const { error } = await supabase.from('flashcard_decks').update(db).eq('id', id).eq('user_id', userId)
+    if (error) console.error('update deck failed:', error.message)
+  }
+
+  const handleDeleteDeck = async (id) => {
+    const snapshot = decks.find(d => d.id === id)
+    setDecks(prev => prev.filter(d => d.id !== id))
+    const { error } = await supabase.from('flashcard_decks').delete().eq('id', id).eq('user_id', userId)
+    if (error) {
+      console.error('delete deck failed:', error.message)
+      if (snapshot) setDecks(prev => [snapshot, ...prev])
+    }
+  }
+
+  const handleAddCard = async (deckId, { front, back }) => {
+    const id   = crypto.randomUUID()
+    const deck = decks.find(d => d.id === deckId)
+    const position = deck ? deck.cards.length : 0
+    const card = { id, front, back, position, easeFactor: 2.5, intervalDays: 0, dueDate: null, repetitions: 0 }
+    setDecks(prev => prev.map(d => d.id === deckId ? { ...d, cards: [...d.cards, card] } : d))
+    const { error } = await supabase.from('flashcards').insert({ id, deck_id: deckId, front, back, position })
+    if (error) {
+      console.error('add card failed:', error.message)
+      setDecks(prev => prev.map(d => d.id === deckId ? { ...d, cards: d.cards.filter(c => c.id !== id) } : d))
+    }
+  }
+
+  const handleAddCards = async (deckId, newCards) => {
+    const deck = decks.find(d => d.id === deckId)
+    const basePosition = deck ? deck.cards.length : 0
+    const cards = newCards.map((c, i) => ({
+      id: crypto.randomUUID(), front: c.front, back: c.back,
+      position: basePosition + i, easeFactor: 2.5, intervalDays: 0, dueDate: null, repetitions: 0,
+    }))
+    setDecks(prev => prev.map(d => d.id === deckId ? { ...d, cards: [...d.cards, ...cards] } : d))
+    const { error } = await supabase.from('flashcards').insert(
+      cards.map(c => ({ id: c.id, deck_id: deckId, front: c.front, back: c.back, position: c.position }))
+    )
+    if (error) {
+      console.error('add cards failed:', error.message)
+      const ids = new Set(cards.map(c => c.id))
+      setDecks(prev => prev.map(d => d.id === deckId ? { ...d, cards: d.cards.filter(c => !ids.has(c.id)) } : d))
+    }
+    return { error }
+  }
+
+  const handleGenerateCards = async ({ material, deckTitle, domainName, academicWeek }) => {
+    const { data, error } = await supabase.functions.invoke('generate-flashcards', {
+      body: { material, deckTitle, domainName, academicWeek },
+    })
+    if (error) throw error
+    if (data?.error) throw new Error(data.error)
+    return data
+  }
+
+  const handleUpdateCard = async (deckId, cardId, updates) => {
+    setDecks(prev => prev.map(d => d.id === deckId
+      ? { ...d, cards: d.cards.map(c => c.id === cardId ? { ...c, ...updates } : c) }
+      : d))
+    const db = {}
+    if ('front'        in updates) db.front         = updates.front
+    if ('back'         in updates) db.back          = updates.back
+    if ('easeFactor'   in updates) db.ease_factor   = updates.easeFactor
+    if ('intervalDays' in updates) db.interval_days = updates.intervalDays
+    if ('dueDate'      in updates) db.due_date      = updates.dueDate
+    if ('repetitions'  in updates) db.repetitions   = updates.repetitions
+    const { error } = await supabase.from('flashcards').update(db).eq('id', cardId).eq('deck_id', deckId)
+    if (error) console.error('update card failed:', error.message)
+  }
+
+  const handleDeleteCard = async (deckId, cardId) => {
+    const deck = decks.find(d => d.id === deckId)
+    const snapshot = deck?.cards.find(c => c.id === cardId)
+    setDecks(prev => prev.map(d => d.id === deckId ? { ...d, cards: d.cards.filter(c => c.id !== cardId) } : d))
+    const { error } = await supabase.from('flashcards').delete().eq('id', cardId).eq('deck_id', deckId)
+    if (error) {
+      console.error('delete card failed:', error.message)
+      if (snapshot) setDecks(prev => prev.map(d => d.id === deckId ? { ...d, cards: [...d.cards, snapshot] } : d))
+    }
+  }
+
+  // Simplified SM-2: 'again' resets, 'good' follows the standard interval ladder, 'easy' accelerates
+  const handleGradeCard = (deckId, cardId, grade) => {
+    const card = decks.find(d => d.id === deckId)?.cards.find(c => c.id === cardId)
+    if (!card) return
+    let { easeFactor, intervalDays, repetitions } = card
+    if (grade === 'again') {
+      repetitions  = 0
+      intervalDays = 0
+      easeFactor   = Math.max(1.3, easeFactor - 0.2)
+    } else {
+      repetitions += 1
+      if (grade === 'easy') easeFactor += 0.15
+      if (repetitions === 1)      intervalDays = grade === 'easy' ? 2 : 1
+      else if (repetitions === 2) intervalDays = grade === 'easy' ? 5 : 3
+      else                        intervalDays = Math.max(1, Math.round(intervalDays * easeFactor * (grade === 'easy' ? 1.3 : 1)))
+    }
+    const due = new Date()
+    due.setDate(due.getDate() + intervalDays)
+    const dueDate = `${due.getFullYear()}-${String(due.getMonth() + 1).padStart(2, '0')}-${String(due.getDate()).padStart(2, '0')}`
+    handleUpdateCard(deckId, cardId, { easeFactor, intervalDays, repetitions, dueDate })
+  }
+
   // Called from CalendarPage → EventDetailModal "View in Domains"
   const handleViewDomainById = (domainId) => {
     const domain = domains.find(d => d.id === domainId)
@@ -1055,6 +1204,7 @@ export default function App() {
       todos,
       notes: notes.map(n => ({ ...n, pages: undefined })),
       studySessions,
+      flashcardDecks: decks,
     }
     const blob = new Blob([JSON.stringify(payload, null, 2)], { type: 'application/json' })
     const url  = URL.createObjectURL(blob)
@@ -1090,6 +1240,7 @@ export default function App() {
   const handleDevResetOnboarding = async () => {
     if (!userId) return
     await Promise.all([
+      supabase.from('flashcard_decks').delete().eq('user_id', userId),
       supabase.from('notes').delete().eq('user_id', userId),
       supabase.from('todos').delete().eq('user_id', userId),
       supabase.from('custom_calendar_events').delete().eq('user_id', userId),
@@ -1115,6 +1266,7 @@ export default function App() {
     setEventNotes({})
     setWeekConfidence({})
     setNotes([])
+    setDecks([])
     setEventTypeColors({})
     setAssessments([])
     setCurrentPage('domains')
@@ -1209,6 +1361,28 @@ export default function App() {
           onSaveNote={handleSaveNote}
           onAddPdfNote={handleAddPdfNote}
           onGetSignedPdfUrl={handleGetSignedPdfUrl}
+          onGenerateFlashcards={(note) => { setFlashcardSourceNote(note); handleNavigate('flashcards') }}
+        />
+      )}
+      {currentPage === 'flashcards' && (
+        <FlashcardsPage
+          decks={decks}
+          domains={domains}
+          notes={notes}
+          studySessions={studySessions}
+          onAddDeck={handleAddDeck}
+          onUpdateDeck={handleUpdateDeck}
+          onDeleteDeck={handleDeleteDeck}
+          onAddCard={handleAddCard}
+          onAddCards={handleAddCards}
+          onUpdateCard={handleUpdateCard}
+          onDeleteCard={handleDeleteCard}
+          onGradeCard={handleGradeCard}
+          onOpenNote={handleOpenNoteFromSession}
+          onGenerateCards={handleGenerateCards}
+          onGetSignedPdfUrl={handleGetSignedPdfUrl}
+          generateSourceNote={flashcardSourceNote}
+          onClearGenerateSource={() => setFlashcardSourceNote(null)}
         />
       )}
       {currentPage === 'todos' && (

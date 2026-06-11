@@ -1,6 +1,6 @@
 import { useRef, useLayoutEffect, useState } from 'react'
 import { motion, MotionConfig } from 'framer-motion'
-import { BookOpen, Calendar, Timer, FileText, CheckSquare, Settings, LogOut, HelpCircle } from 'lucide-react'
+import { BookOpen, Calendar, Timer, FileText, Layers, CheckSquare, Settings, LogOut, HelpCircle } from 'lucide-react'
 import { useIsMobile } from '../utils/useIsMobile'
 
 const navItems = [
@@ -8,6 +8,7 @@ const navItems = [
   { id: 'calendar', label: 'Calendar', icon: Calendar    },
   { id: 'study',    label: 'Study',    icon: Timer       },
   { id: 'notes',    label: 'Notes',    icon: FileText    },
+  { id: 'flashcards', label: 'Flashcards', icon: Layers  },
   { id: 'todos',    label: 'To Do',    icon: CheckSquare },
 ]
 

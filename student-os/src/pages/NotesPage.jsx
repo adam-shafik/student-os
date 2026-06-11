@@ -7,7 +7,7 @@ import AppSelect, { AppSelectItem } from '../components/AppSelect'
 import {
   PenLine, Plus, Trash2, ChevronRight, ChevronDown,
   Pencil, Check, X, MapPin, Type, FileText, Share2, Eye, Maximize2, Minimize2, FolderOpen,
-  ArrowUpDown, ListFilter, ChevronUp,
+  ArrowUpDown, ListFilter, ChevronUp, Sparkles,
 } from 'lucide-react'
 import NoteCanvas from '../components/NoteCanvas'
 import { totalTeachingWeeks } from '../utils/semester'
@@ -692,7 +692,7 @@ function HeaderDropdown({ icon: Icon, options, value, onChange, isMobile }) {
 }
 
 // ─── Main page ─────────────────────────────────────────────────────────────────
-export default function NotesPage({ notes, domains, noteToOpen, onClearNoteToOpen, onAddNote, onUpdateNote, onDeleteNote, onSaveNote, onAddPdfNote, onGetSignedPdfUrl }) {
+export default function NotesPage({ notes, domains, noteToOpen, onClearNoteToOpen, onAddNote, onUpdateNote, onDeleteNote, onSaveNote, onAddPdfNote, onGetSignedPdfUrl, onGenerateFlashcards }) {
   const isMobile = useIsMobile()
   const [mobileFoldersOpen, setMobileFoldersOpen] = useState(false)
   const [sortBy,     setSortBy]     = useState(() => localStorage.getItem('notesSortBy') || 'recent')
@@ -1187,6 +1187,22 @@ export default function NotesPage({ notes, domains, noteToOpen, onClearNoteToOpe
                 }}>
                   {saveState === 'saving' ? 'Saving…' : saveState === 'saved' ? <><Check size={11} style={{ verticalAlign: 'middle', marginRight: 3 }} />Saved</> : saveState === 'error' ? 'Save failed' : ''}
                 </span>
+                {openNote?.type === 'typed' && onGenerateFlashcards && (openNote.content || '').trim().length >= 200 && (
+                  <button
+                    onClick={() => onGenerateFlashcards(openNote)}
+                    title="Generate flashcards from this note"
+                    style={{
+                      display: 'flex', alignItems: 'center', gap: 5, padding: '5px 10px',
+                      borderRadius: 7, border: '1px solid var(--border)', background: 'none',
+                      color: 'var(--accent-purple)', cursor: 'pointer', fontSize: 12, fontFamily: 'inherit',
+                      transition: 'border-color 0.12s',
+                    }}
+                    onMouseEnter={e => e.currentTarget.style.borderColor = 'var(--accent-purple)'}
+                    onMouseLeave={e => e.currentTarget.style.borderColor = 'var(--border)'}
+                  >
+                    <Sparkles size={12} /> Flashcards
+                  </button>
+                )}
                 {openNote?.type === 'typed' && (
                   <button
                     onClick={() => setTypedZoom(1)}

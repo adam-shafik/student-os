@@ -35,3 +35,16 @@ export async function renderPdfToBackgrounds(source) {
   }
   return { images, dimensions }
 }
+
+export async function extractPdfText(source) {
+  const lib = await loadPdfJs()
+  const data = source instanceof ArrayBuffer ? source : await source.arrayBuffer()
+  const pdf = await lib.getDocument({ data }).promise
+  const pages = []
+  for (let i = 1; i <= pdf.numPages; i++) {
+    const page = await pdf.getPage(i)
+    const content = await page.getTextContent()
+    pages.push(content.items.map(item => item.str).join(' '))
+  }
+  return pages.join('\n\n').replace(/\s{3,}/g, ' ').trim()
+}

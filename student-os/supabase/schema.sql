@@ -256,6 +256,44 @@ alter table todos
   add constraint todos_study_session_fkey
   foreign key (study_session_id) references study_sessions(id) on delete set null;
 
+-- ─── Flashcard Decks ──────────────────────────────────────────────────────────
+create table flashcard_decks (
+  id                uuid primary key default gen_random_uuid(),
+  user_id           uuid not null references auth.users(id) on delete cascade,
+  domain_id         uuid references domains(id) on delete set null,
+  academic_week     integer,
+  note_id           uuid references notes(id) on delete set null,
+  study_session_id  uuid references study_sessions(id) on delete set null,
+  title             text not null default 'Untitled Deck',
+  created_at        timestamptz not null default now(),
+  updated_at        timestamptz not null default now()
+);
+
+alter table flashcard_decks enable row level security;
+create policy "Users manage their own flashcard decks"
+  on flashcard_decks for all using (auth.uid() = user_id);
+
+-- ─── Flashcards ───────────────────────────────────────────────────────────────
+create table flashcards (
+  id             uuid primary key default gen_random_uuid(),
+  deck_id        uuid not null references flashcard_decks(id) on delete cascade,
+  front          text not null default '',
+  back           text not null default '',
+  position       integer not null default 0,
+  ease_factor    numeric not null default 2.5,  -- SM-2 spaced repetition state
+  interval_days  integer not null default 0,
+  due_date       date,                          -- null = new card, always due
+  repetitions    integer not null default 0,
+  created_at     timestamptz not null default now()
+);
+
+alter table flashcards enable row level security;
+create policy "Users manage cards for their decks"
+  on flashcards for all
+  using (exists (
+    select 1 from flashcard_decks where flashcard_decks.id = deck_id and flashcard_decks.user_id = auth.uid()
+  ));
+
 -- ============================================================
 -- Migration: two-semester support (run on existing installs)
 -- ============================================================
