@@ -1,5 +1,5 @@
 import { useState, useMemo, useRef, useEffect } from 'react'
-import { motion } from 'framer-motion'
+import { motion, AnimatePresence } from 'framer-motion'
 import AppSelect, { AppSelectItem } from '../components/AppSelect'
 import { Plus, X, Layers, Trash2, ChevronLeft, Pencil, Play, RotateCcw, FileText, Sparkles, Square, CheckSquare } from 'lucide-react'
 import { totalTeachingWeeks } from '../utils/semester'
@@ -77,6 +77,48 @@ function PerformanceChart({ cards, title }) {
 
 function Label({ children }) {
   return <div style={{ fontSize: 11, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.5px', marginBottom: 7 }}>{children}</div>
+}
+
+// Shimmer-sweep loading text that cycles through generation stages
+const GENERATING_STAGES = [
+  'Reading your material',
+  'Finding the key ideas',
+  'Writing questions',
+  'Polishing the answers',
+]
+
+function GeneratingText() {
+  const [stage, setStage] = useState(0)
+  useEffect(() => {
+    const t = setInterval(() => setStage(p => (p + 1) % GENERATING_STAGES.length), 1800)
+    return () => clearInterval(t)
+  }, [])
+  return (
+    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '54px 0' }}>
+      <AnimatePresence mode="wait">
+        <motion.div
+          key={stage}
+          initial={{ opacity: 0, y: 16 }}
+          animate={{ opacity: 1, y: 0, backgroundPosition: ['200% center', '-200% center'] }}
+          exit={{ opacity: 0, y: -16 }}
+          transition={{
+            opacity: { duration: 0.3 },
+            y: { duration: 0.3 },
+            backgroundPosition: { duration: 2.4, ease: 'linear', repeat: Infinity },
+          }}
+          style={{
+            fontSize: 23, fontWeight: 700, letterSpacing: '-0.3px', whiteSpace: 'nowrap',
+            backgroundImage: 'linear-gradient(90deg, var(--text-muted), var(--accent-purple), var(--text-primary), var(--accent-purple), var(--text-muted))',
+            backgroundSize: '200% 100%',
+            WebkitBackgroundClip: 'text', backgroundClip: 'text',
+            color: 'transparent', WebkitTextFillColor: 'transparent',
+          }}
+        >
+          {GENERATING_STAGES[stage]}
+        </motion.div>
+      </AnimatePresence>
+    </div>
+  )
 }
 
 // Textarea that grows to fit its content (used in the AI review list)
@@ -528,18 +570,7 @@ function GenerateCardsModal({ fixedDeck, decks, notes, domainMap, sourceNote, on
             </>
           )}
 
-          {step === 'loading' && (
-            <div style={{ textAlign: 'center', padding: '50px 0', color: 'var(--text-muted)' }}>
-              <motion.div
-                animate={{ rotate: 360 }}
-                transition={{ duration: 1.6, repeat: Infinity, ease: 'linear' }}
-                style={{ display: 'inline-flex', marginBottom: 14 }}
-              >
-                <Sparkles size={28} style={{ color: 'var(--accent-purple)' }} />
-              </motion.div>
-              <p style={{ fontSize: 13, margin: 0 }}>Reading the material and writing cards…</p>
-            </div>
-          )}
+          {step === 'loading' && <GeneratingText />}
 
           {step === 'unsuitable' && (
             <div style={{ textAlign: 'center', padding: '30px 0', color: 'var(--text-muted)' }}>

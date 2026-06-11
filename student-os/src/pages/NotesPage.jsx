@@ -1,12 +1,9 @@
 import { useState, useMemo, useEffect, useRef } from 'react'
-import ReactMarkdown from 'react-markdown'
-import remarkGfm from 'remark-gfm'
-import remarkMath from 'remark-math'
-import rehypeKatex from 'rehype-katex'
+import MarkdownEditor from '../components/MarkdownEditor'
 import AppSelect, { AppSelectItem } from '../components/AppSelect'
 import {
   PenLine, Plus, Trash2, ChevronRight, ChevronDown,
-  Pencil, Check, X, MapPin, Type, FileText, Share2, Eye, Maximize2, Minimize2, FolderOpen,
+  Pencil, Check, X, MapPin, Type, FileText, Share2, Maximize2, Minimize2, FolderOpen,
   ArrowUpDown, ListFilter, ChevronUp, Sparkles,
 } from 'lucide-react'
 import NoteCanvas from '../components/NoteCanvas'
@@ -110,79 +107,14 @@ function NewNoteTypePicker({ onSelect, onSelectPdf, onClose }) {
   )
 }
 
-const MD_COMPONENTS = {
-  h1: ({ children }) => <h1 style={{ fontSize: 26, fontWeight: 800, letterSpacing: '-0.5px', margin: '28px 0 12px', color: 'var(--text-primary)', lineHeight: 1.25, borderBottom: '1px solid var(--border)', paddingBottom: 10 }}>{children}</h1>,
-  h2: ({ children }) => <h2 style={{ fontSize: 20, fontWeight: 700, letterSpacing: '-0.3px', margin: '24px 0 10px', color: 'var(--text-primary)', lineHeight: 1.3, borderBottom: '1px solid var(--border)', paddingBottom: 8 }}>{children}</h2>,
-  h3: ({ children }) => <h3 style={{ fontSize: 16, fontWeight: 700, margin: '18px 0 8px', color: 'var(--text-primary)' }}>{children}</h3>,
-  h4: ({ children }) => <h4 style={{ fontSize: 14, fontWeight: 700, margin: '14px 0 6px', color: 'var(--text-secondary)' }}>{children}</h4>,
-  p: ({ children }) => <p style={{ fontSize: 15, lineHeight: 1.85, margin: '0 0 12px', color: 'var(--text-primary)' }}>{children}</p>,
-  code: ({ className, children }) => {
-    if (className) {
-      return <code style={{ fontFamily: '"SF Mono","Fira Code","Cascadia Code",monospace', fontSize: 13, display: 'block', lineHeight: 1.7, color: 'var(--text-primary)' }}>{children}</code>
-    }
-    return <code style={{ fontFamily: '"SF Mono","Fira Code",monospace', background: 'var(--bg-elevated)', padding: '2px 6px', borderRadius: 4, fontSize: '0.88em', color: 'var(--accent-blue)', border: '1px solid var(--border)' }}>{children}</code>
-  },
-  pre: ({ children }) => <pre style={{ background: 'var(--bg-elevated)', borderRadius: 10, padding: '16px 20px', overflowX: 'auto', margin: '0 0 16px', border: '1px solid var(--border)' }}>{children}</pre>,
-  blockquote: ({ children }) => <blockquote style={{ borderLeft: '3px solid var(--border-strong)', paddingLeft: 16, margin: '0 0 14px', color: 'var(--text-secondary)', fontStyle: 'italic' }}>{children}</blockquote>,
-  table: ({ children }) => <div style={{ overflowX: 'auto', marginBottom: 16 }}><table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 14 }}>{children}</table></div>,
-  th: ({ children }) => <th style={{ border: '1px solid var(--border)', padding: '8px 12px', textAlign: 'left', background: 'var(--bg-elevated)', fontWeight: 600, fontSize: 12, color: 'var(--text-muted)', whiteSpace: 'nowrap' }}>{children}</th>,
-  td: ({ children }) => <td style={{ border: '1px solid var(--border)', padding: '8px 12px', verticalAlign: 'top', color: 'var(--text-primary)', lineHeight: 1.6 }}>{children}</td>,
-  a: ({ href, children }) => <a href={href} target="_blank" rel="noreferrer" style={{ color: 'var(--accent-blue)', textDecoration: 'underline', textUnderlineOffset: 3 }}>{children}</a>,
-  ul: ({ children }) => <ul style={{ paddingLeft: 24, margin: '0 0 12px', color: 'var(--text-primary)' }}>{children}</ul>,
-  ol: ({ children }) => <ol style={{ paddingLeft: 24, margin: '0 0 12px', color: 'var(--text-primary)' }}>{children}</ol>,
-  li: ({ children }) => <li style={{ marginBottom: 4, lineHeight: 1.7, fontSize: 15 }}>{children}</li>,
-  strong: ({ children }) => <strong style={{ fontWeight: 700 }}>{children}</strong>,
-  em: ({ children }) => <em style={{ fontStyle: 'italic' }}>{children}</em>,
-  del: ({ children }) => <del style={{ textDecoration: 'line-through', color: 'var(--text-muted)' }}>{children}</del>,
-  hr: () => <hr style={{ border: 'none', borderTop: '1px solid var(--border)', margin: '24px 0' }} />,
-  img: ({ src, alt }) => <img src={src} alt={alt || ''} style={{ maxWidth: '100%', borderRadius: 8, marginBottom: 12 }} />,
-}
-
-const SLASH_COMMANDS = [
-  { id: 'h1',      badge: 'H1',   label: 'Heading 1',     desc: 'Large section heading',     insert: '# '          },
-  { id: 'h2',      badge: 'H2',   label: 'Heading 2',     desc: 'Medium section heading',    insert: '## '         },
-  { id: 'h3',      badge: 'H3',   label: 'Heading 3',     desc: 'Small section heading',     insert: '### '        },
-  { id: 'bullet',  badge: '•',    label: 'Bullet List',   desc: 'Unordered list item',       insert: '- '          },
-  { id: 'num',     badge: '1.',   label: 'Numbered List', desc: 'Ordered list item',         insert: '1. '         },
-  { id: 'quote',   badge: '>',    label: 'Quote',         desc: 'Block quote',               insert: '> '          },
-  { id: 'code',    badge: '</>',  label: 'Code Block',    desc: 'Fenced code block',         insert: '```\n\n```', cursorAt: 4   },
-  { id: 'math',    badge: '$$',   label: 'Math Block',    desc: 'Display equation (LaTeX)',   insert: '$$\n\n$$',   cursorAt: 3   },
-  { id: 'imath',   badge: '$',    label: 'Inline Math',   desc: 'Inline LaTeX: $x^2$',       insert: '$x$',        cursorAt: 1, selectLen: 1 },
-  { id: 'table',   badge: '⊞',    label: 'Table',         desc: '3-column markdown table',   insert: '| Col 1 | Col 2 | Col 3 |\n|-------|-------|-------|\n| | | |' },
-  { id: 'divider', badge: '---',  label: 'Divider',       desc: 'Horizontal rule',           insert: '---'         },
-  { id: 'bold',    badge: '**',   label: 'Bold',          desc: 'Bold text **...**',         insert: '****',       cursorAt: 2   },
-  { id: 'italic',  badge: '*',    label: 'Italic',        desc: 'Italic text *...*',         insert: '**',         cursorAt: 1   },
-]
-
-function getSlashTrigger(value, cursorPos) {
-  for (let i = cursorPos - 1; i >= 0; i--) {
-    if (value[i] === '\n') return null
-    if (value[i] === '/') {
-      if (i === 0 || value[i - 1] === '\n') {
-        return { slashPos: i, query: value.slice(i + 1, cursorPos).toLowerCase() }
-      }
-      return null
-    }
-  }
-  return null
-}
-
-function slashMenuPos(textarea, slashPos) {
-  const lh = parseFloat(window.getComputedStyle(textarea).lineHeight) || 28
-  const lineNum = (textarea.value.slice(0, slashPos).match(/\n/g) || []).length
-  const rect = textarea.getBoundingClientRect()
-  const rawTop = rect.top + 40 + lineNum * lh - textarea.scrollTop + lh + 6
-  return { top: Math.min(rawTop, window.innerHeight - 310), left: Math.max(rect.left + 80, 10) }
-}
 
 // ─── Typed note editor ────────────────────────────────────────────────────────
-function TypedEditor({ note, onUpdate, viewMode, zoom = 1, onZoomChange }) {
-  const taRef        = useRef()
+function TypedEditor({ note, onUpdate, zoom = 1, onZoomChange }) {
   const containerRef = useRef()
-  const pendingCursor = useRef(null)
   const onZoomChangeRef = useRef(onZoomChange)
   useEffect(() => { onZoomChangeRef.current = onZoomChange }, [onZoomChange])
 
+  // Pinch-to-zoom (touch) and Ctrl/Cmd-scroll (desktop)
   useEffect(() => {
     const el = containerRef.current
     if (!el) return
@@ -220,133 +152,15 @@ function TypedEditor({ note, onUpdate, viewMode, zoom = 1, onZoomChange }) {
     }
   }, [])
 
-  const [slash, setSlash] = useState({ open: false, query: '', slashPos: -1, selected: 0, pos: { top: 0, left: 0 } })
-
-  const matches = useMemo(() => {
-    if (!slash.open) return []
-    if (!slash.query) return SLASH_COMMANDS
-    const q = slash.query
-    return SLASH_COMMANDS.filter(c => c.label.toLowerCase().includes(q) || c.id.includes(q))
-  }, [slash.open, slash.query])
-
-  // Apply pending cursor after React syncs the controlled value
-  useEffect(() => {
-    if (pendingCursor.current === null || !taRef.current) return
-    const { pos, selectLen } = pendingCursor.current
-    pendingCursor.current = null
-    taRef.current.focus()
-    taRef.current.setSelectionRange(pos, pos + (selectLen || 0))
-  }, [note.content])
-
-  function applyCmd(cmd) {
-    const ta = taRef.current
-    if (!ta) return
-    const before = ta.value.slice(0, slash.slashPos)
-    const after = ta.value.slice(ta.selectionStart)
-    const newVal = before + cmd.insert + after
-    const newCursor = slash.slashPos + (cmd.cursorAt !== undefined ? cmd.cursorAt : cmd.insert.length)
-    pendingCursor.current = { pos: newCursor, selectLen: cmd.selectLen || 0 }
-    onUpdate({ content: newVal })
-    setSlash(s => ({ ...s, open: false }))
-  }
-
-  function onChange(e) {
-    onUpdate({ content: e.target.value })
-    const info = getSlashTrigger(e.target.value, e.target.selectionStart)
-    if (info) {
-      setSlash({ open: true, query: info.query, slashPos: info.slashPos, selected: 0, pos: slashMenuPos(e.target, info.slashPos) })
-    } else if (slash.open) {
-      setSlash(s => ({ ...s, open: false }))
-    }
-  }
-
-  function onKeyDown(e) {
-    if ((e.ctrlKey || e.metaKey) && (e.key === '=' || e.key === '+')) {
-      e.preventDefault(); onZoomChangeRef.current?.(1.1); return
-    }
-    if ((e.ctrlKey || e.metaKey) && e.key === '-') {
-      e.preventDefault(); onZoomChangeRef.current?.(1 / 1.1); return
-    }
-    if ((e.ctrlKey || e.metaKey) && e.key === '0') {
-      e.preventDefault(); onZoomChangeRef.current?.(null); return
-    }
-    if (!slash.open || !matches.length) return
-    if (e.key === 'ArrowDown') { e.preventDefault(); setSlash(s => ({ ...s, selected: Math.min(s.selected + 1, matches.length - 1) })) }
-    else if (e.key === 'ArrowUp') { e.preventDefault(); setSlash(s => ({ ...s, selected: Math.max(s.selected - 1, 0) })) }
-    else if (e.key === 'Enter') { e.preventDefault(); applyCmd(matches[slash.selected]) }
-    else if (e.key === 'Escape') { e.preventDefault(); setSlash(s => ({ ...s, open: false })) }
-  }
-
-  if (viewMode === 'preview') {
-    return (
-      <div ref={containerRef} style={{ height: '100%', overflowY: 'auto', background: 'var(--bg-page)' }}>
-        <div style={{ zoom }}>
-          <div style={{ padding: '40px 80px', maxWidth: 860, boxSizing: 'border-box', fontSize: 15, letterSpacing: '0.3px' }}>
-            {note.content
-              ? <ReactMarkdown remarkPlugins={[remarkGfm, remarkMath]} rehypePlugins={[rehypeKatex]} components={MD_COMPONENTS}>{note.content}</ReactMarkdown>
-              : <p style={{ color: 'var(--text-muted)', fontStyle: 'italic', fontSize: 15, margin: 0 }}>Nothing to preview yet.</p>
-            }
-          </div>
-        </div>
-      </div>
-    )
-  }
-
   return (
     <div ref={containerRef} style={{ height: '100%', overflowY: 'auto', background: 'var(--bg-page)' }}>
-      <div style={{ zoom }}>
-        <textarea
-          ref={taRef}
-          value={note.content || ''}
-          onChange={onChange}
-          onKeyDown={onKeyDown}
-          placeholder="Type your note… use / at the start of a line for commands"
-          autoFocus
-          style={{
-            display: 'block', width: '100%',
-            border: 'none', outline: 'none', resize: 'none',
-            background: 'transparent', color: 'var(--text-primary)',
-            fontSize: 15, lineHeight: 1.85, padding: '40px 80px 160px',
-            letterSpacing: '0.3px',
-            fontFamily: 'system-ui, -apple-system, "Segoe UI", sans-serif',
-            boxSizing: 'border-box',
-          }}
-        />
-      </div>
-      {slash.open && matches.length > 0 && (
-        <div style={{
-          position: 'fixed', top: slash.pos.top, left: slash.pos.left,
-          zIndex: 1100, background: 'var(--bg-surface)',
-          border: '1px solid var(--border-strong)', borderRadius: 12,
-          overflow: 'hidden', boxShadow: '0 8px 32px rgba(0,0,0,0.45)',
-          width: 260, maxHeight: 300, overflowY: 'auto',
-        }}>
-          {matches.map((cmd, i) => (
-            <button
-              key={cmd.id}
-              onMouseDown={e => { e.preventDefault(); applyCmd(cmd) }}
-              onMouseEnter={() => setSlash(s => ({ ...s, selected: i }))}
-              style={{
-                display: 'flex', alignItems: 'center', gap: 10,
-                width: '100%', padding: '8px 12px', border: 'none',
-                background: i === slash.selected ? 'var(--bg-hover)' : 'transparent',
-                cursor: 'pointer', textAlign: 'left', fontFamily: 'inherit',
-              }}
-            >
-              <span style={{
-                fontSize: 10, fontWeight: 800, color: 'var(--text-muted)',
-                background: 'var(--bg-elevated)', border: '1px solid var(--border)',
-                borderRadius: 4, padding: '2px 5px', minWidth: 26, textAlign: 'center',
-                fontFamily: 'monospace', flexShrink: 0,
-              }}>{cmd.badge}</span>
-              <div>
-                <div style={{ fontSize: 13, fontWeight: 600, color: 'var(--text-primary)' }}>{cmd.label}</div>
-                <div style={{ fontSize: 11, color: 'var(--text-muted)' }}>{cmd.desc}</div>
-              </div>
-            </button>
-          ))}
-        </div>
-      )}
+      <MarkdownEditor
+        value={note.content || ''}
+        onChange={content => onUpdate({ content })}
+        zoom={zoom}
+        autoFocus
+        placeholder="Type your note… use / at the start of a line for commands"
+      />
     </div>
   )
 }
@@ -711,7 +525,6 @@ export default function NotesPage({ notes, domains, noteToOpen, onClearNoteToOpe
   const [isLoadingPdf,    setIsLoadingPdf]    = useState(false)
   const [pdfError,        setPdfError]        = useState('')
   const [sharing,          setSharing]          = useState(false)
-  const [typedViewMode,    setTypedViewMode]    = useState('edit')
   const [typedFullscreen,  setTypedFullscreen]  = useState(false)
   const [typedZoom,        setTypedZoom]        = useState(() => { try { return JSON.parse(localStorage.getItem('notecanvas_settings') || '{}').typedZoom ?? 1 } catch { return 1 } })
   const pdfInputRef        = useRef()
@@ -800,7 +613,6 @@ export default function NotesPage({ notes, domains, noteToOpen, onClearNoteToOpe
     clearTimeout(autoSaveTimerRef.current)
     setSaveState('idle')
     setSaveError('')
-    setTypedViewMode('edit')
     setTypedFullscreen(false)
     if (openNote) {
       openNoteBaseline.current = { id: openNote.id, updatedAt: openNote.updatedAt }
@@ -1234,21 +1046,6 @@ export default function NotesPage({ notes, domains, noteToOpen, onClearNoteToOpe
                     {typedFullscreen ? <Minimize2 size={13} /> : <Maximize2 size={13} />}
                   </button>
                 )}
-                {openNote?.type === 'typed' && (
-                  <button
-                    onClick={() => setTypedViewMode(v => v === 'edit' ? 'preview' : 'edit')}
-                    style={{
-                      display: 'flex', alignItems: 'center', gap: 5, padding: '5px 10px',
-                      borderRadius: 7, border: '1px solid var(--border)', background: typedViewMode === 'preview' ? 'var(--accent-blue)' : 'none',
-                      color: typedViewMode === 'preview' ? 'var(--btn-primary-text)' : 'var(--text-secondary)',
-                      cursor: 'pointer', fontSize: 12, fontFamily: 'inherit', transition: 'background 0.12s, color 0.12s',
-                    }}
-                    onMouseEnter={e => { if (typedViewMode !== 'preview') { e.currentTarget.style.color = 'var(--accent-blue)'; e.currentTarget.style.borderColor = 'var(--accent-blue)' } }}
-                    onMouseLeave={e => { if (typedViewMode !== 'preview') { e.currentTarget.style.color = 'var(--text-secondary)'; e.currentTarget.style.borderColor = 'var(--border)' } }}
-                  >
-                    {typedViewMode === 'edit' ? <><Eye size={12} /> Preview</> : <><Pencil size={12} /> Edit</>}
-                  </button>
-                )}
                 <button
                   onClick={handleShare}
                   disabled={sharing}
@@ -1288,7 +1085,6 @@ export default function NotesPage({ notes, domains, noteToOpen, onClearNoteToOpe
                 <TypedEditor
                   note={openNote}
                   onUpdate={updates => onUpdateNote(openNote.id, updates)}
-                  viewMode={typedViewMode}
                   zoom={typedZoom}
                   onZoomChange={sf => sf === null ? setTypedZoom(1) : setTypedZoom(z => Math.min(3, Math.max(0.5, z * sf)))}
                 />
