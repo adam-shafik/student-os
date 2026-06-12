@@ -1,7 +1,7 @@
 import { useState, useMemo, useRef, useEffect } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
 import AppSelect, { AppSelectItem } from '../components/AppSelect'
-import { Plus, X, Layers, Trash2, ChevronLeft, Pencil, Play, RotateCcw, FileText, Sparkles, Square, CheckSquare } from 'lucide-react'
+import { Plus, X, Layers, Trash2, ChevronLeft, Pencil, Play, RotateCcw, FileText, Sparkles, Square, CheckSquare, FlaskConical } from 'lucide-react'
 import { totalTeachingWeeks } from '../utils/semester'
 import { useIsMobile } from '../utils/useIsMobile'
 import { extractPdfText } from '../utils/pdf'
@@ -89,25 +89,50 @@ const GENERATING_STAGES = [
 
 function GeneratingText() {
   const [stage, setStage] = useState(0)
+  // Walk through each stage once, then hold on the last — never loop, so no text repeats
   useEffect(() => {
-    const t = setInterval(() => setStage(p => (p + 1) % GENERATING_STAGES.length), 1800)
+    const t = setInterval(() => setStage(p => Math.min(p + 1, GENERATING_STAGES.length - 1)), 2200)
     return () => clearInterval(t)
   }, [])
   return (
-    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '54px 0' }}>
+    <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: 20, padding: '44px 0' }}>
+      {/* Floating, glowing sparkle */}
+      <motion.div
+        animate={{ y: [0, -9, 0], rotate: [0, 10, -10, 0] }}
+        transition={{ duration: 3.4, repeat: Infinity, ease: 'easeInOut' }}
+        style={{ position: 'relative', display: 'flex', alignItems: 'center', justifyContent: 'center' }}
+      >
+        <motion.div
+          animate={{ opacity: [0.35, 0.85, 0.35], scale: [1, 1.35, 1] }}
+          transition={{ duration: 2.2, repeat: Infinity, ease: 'easeInOut' }}
+          style={{
+            position: 'absolute', width: 52, height: 52, borderRadius: '50%',
+            background: 'radial-gradient(circle, var(--accent-purple) 0%, transparent 68%)',
+            filter: 'blur(7px)',
+          }}
+        />
+        <motion.div
+          animate={{ scale: [1, 1.12, 1] }}
+          transition={{ duration: 2.2, repeat: Infinity, ease: 'easeInOut' }}
+          style={{ position: 'relative', display: 'flex' }}
+        >
+          <Sparkles size={30} style={{ color: 'var(--accent-purple)' }} />
+        </motion.div>
+      </motion.div>
+
       <AnimatePresence mode="wait">
         <motion.div
           key={stage}
-          initial={{ opacity: 0, y: 16 }}
+          initial={{ opacity: 0, y: 14 }}
           animate={{ opacity: 1, y: 0, backgroundPosition: ['200% center', '-200% center'] }}
-          exit={{ opacity: 0, y: -16 }}
+          exit={{ opacity: 0, y: -14 }}
           transition={{
             opacity: { duration: 0.3 },
             y: { duration: 0.3 },
             backgroundPosition: { duration: 2.4, ease: 'linear', repeat: Infinity },
           }}
           style={{
-            fontSize: 23, fontWeight: 700, letterSpacing: '-0.3px', whiteSpace: 'nowrap',
+            fontSize: 22, fontWeight: 700, letterSpacing: '-0.3px', whiteSpace: 'nowrap',
             backgroundImage: 'linear-gradient(90deg, var(--text-muted), var(--accent-purple), var(--text-primary), var(--accent-purple), var(--text-muted))',
             backgroundSize: '200% 100%',
             WebkitBackgroundClip: 'text', backgroundClip: 'text',
@@ -118,6 +143,54 @@ function GeneratingText() {
         </motion.div>
       </AnimatePresence>
     </div>
+  )
+}
+
+// Button that bursts a ring of particles from its center on click
+function Particles({ originRef }) {
+  const rect = originRef.current?.getBoundingClientRect()
+  if (!rect) return null
+  const cx = rect.left + rect.width / 2
+  const cy = rect.top + rect.height / 2
+  return (
+    <div style={{ position: 'fixed', inset: 0, pointerEvents: 'none', zIndex: 2000 }}>
+      {Array.from({ length: 12 }).map((_, i) => {
+        const angle = (Math.PI * 2 * i) / 12 + (Math.random() - 0.5) * 0.4
+        const dist = 26 + Math.random() * 34
+        return (
+          <motion.div
+            key={i}
+            initial={{ x: 0, y: 0, scale: 0, opacity: 1 }}
+            animate={{ x: Math.cos(angle) * dist, y: Math.sin(angle) * dist, scale: [0, 1, 0], opacity: [1, 1, 0] }}
+            transition={{ duration: 0.6, ease: 'easeOut' }}
+            style={{
+              position: 'absolute', left: cx, top: cy, width: 6, height: 6, borderRadius: '50%',
+              background: 'var(--accent-purple)',
+            }}
+          />
+        )
+      })}
+    </div>
+  )
+}
+
+function ParticleButton({ children, onClick, disabled, style }) {
+  const ref = useRef()
+  const [bursts, setBursts] = useState([])
+  const handle = (e) => {
+    if (disabled) return
+    const id = Date.now()
+    setBursts(b => [...b, id])
+    setTimeout(() => setBursts(b => b.filter(x => x !== id)), 650)
+    onClick?.(e)
+  }
+  return (
+    <>
+      {bursts.map(id => <Particles key={id} originRef={ref} />)}
+      <motion.button ref={ref} onClick={handle} disabled={disabled} whileTap={{ scale: 0.95 }} style={style}>
+        {children}
+      </motion.button>
+    </>
   )
 }
 
@@ -381,6 +454,12 @@ function GenerateCardsModal({ fixedDeck, decks, notes, domainMap, sourceNote, on
   const [reason,  setReason]  = useState('')
   const [results, setResults] = useState([]) // [{ front, back, checked }]
   const [saving,  setSaving]  = useState(false)
+  const [mock,    setMock]    = useState(() => localStorage.getItem('sos-mock-ai') === '1')
+  const toggleMock = () => {
+    const next = !mock
+    setMock(next)
+    localStorage.setItem('sos-mock-ai', next ? '1' : '0')
+  }
 
   const selectedNote = typedNotes.find(n => n.id === noteId)
   const canGenerate = source === 'paste' ? pasteText.trim().length >= 100
@@ -567,6 +646,20 @@ function GenerateCardsModal({ fixedDeck, decks, notes, domainMap, sourceNote, on
               )}
 
               {error && <div style={{ fontSize: 12, color: 'var(--accent-red)' }}>{error}</div>}
+
+              {import.meta.env.DEV && (
+                <button onClick={toggleMock} style={{
+                  display: 'flex', alignItems: 'center', gap: 8, padding: '8px 10px', borderRadius: 8,
+                  border: `1px solid ${mock ? 'rgba(52,211,153,0.4)' : 'var(--border)'}`,
+                  background: mock ? 'rgba(52,211,153,0.1)' : 'transparent',
+                  color: mock ? 'var(--accent-green)' : 'var(--text-muted)',
+                  cursor: 'pointer', fontSize: 11, fontFamily: 'inherit', textAlign: 'left',
+                }}>
+                  <FlaskConical size={13} />
+                  <span style={{ flex: 1 }}>Mock mode {mock ? 'on' : 'off'} — {mock ? 'returns sample cards, no API call' : 'click to test without calling Claude'}</span>
+                  {mock ? <CheckSquare size={14} /> : <Square size={14} />}
+                </button>
+              )}
             </>
           )}
 
@@ -606,13 +699,18 @@ function GenerateCardsModal({ fixedDeck, decks, notes, domainMap, sourceNote, on
           {step === 'input' && (
             <>
               <button onClick={onClose} style={{ padding: '8px 16px', borderRadius: 8, border: '1px solid var(--border-strong)', background: 'none', color: 'var(--text-secondary)', cursor: 'pointer', fontSize: 13 }}>Cancel</button>
-              <button onClick={handleGenerate} disabled={!canGenerate || (!fixedDeck && deckChoice === '__new__' && !newDeckTitle.trim())} style={{
-                display: 'flex', alignItems: 'center', gap: 6,
-                padding: '8px 18px', borderRadius: 8, border: 'none', fontSize: 13, fontWeight: 600,
-                background: canGenerate ? 'var(--accent-purple)' : 'var(--border)',
-                color: canGenerate ? '#fff' : 'var(--text-muted)',
-                cursor: canGenerate ? 'pointer' : 'default', transition: 'all 0.15s', fontFamily: 'inherit',
-              }}><Sparkles size={13} /> Generate</button>
+              {(() => {
+                const ready = canGenerate && !(!fixedDeck && deckChoice === '__new__' && !newDeckTitle.trim())
+                return (
+                  <ParticleButton onClick={handleGenerate} disabled={!ready} style={{
+                    display: 'flex', alignItems: 'center', gap: 6,
+                    padding: '8px 18px', borderRadius: 8, border: 'none', fontSize: 13, fontWeight: 600,
+                    background: ready ? 'var(--accent-purple)' : 'var(--border)',
+                    color: ready ? '#fff' : 'var(--text-muted)',
+                    cursor: ready ? 'pointer' : 'default', transition: 'background 0.15s, color 0.15s', fontFamily: 'inherit',
+                  }}><Sparkles size={13} /> Generate</ParticleButton>
+                )
+              })()}
             </>
           )}
           {step === 'unsuitable' && (

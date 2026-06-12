@@ -1093,6 +1093,26 @@ export default function App() {
   }
 
   const handleGenerateCards = async ({ material, deckTitle, domainName, academicWeek }) => {
+    // Dev mock — set localStorage 'sos-mock-ai' = '1' (or use the toggle in the modal)
+    // to exercise the whole flow without calling Claude. Include "unsuitable" in the
+    // material to test the rejection path.
+    if (localStorage.getItem('sos-mock-ai') === '1') {
+      await new Promise(r => setTimeout(r, 2800))
+      if (material.toLowerCase().includes('unsuitable')) {
+        return { suitable: false, reason: 'This looks more like notes-to-self than study material, so I couldn\'t make flashcards from it.', cards: [] }
+      }
+      return {
+        suitable: true,
+        reason: '',
+        cards: [
+          { front: 'What is a binary search tree?', back: "A rooted binary tree where every node's left subtree holds only keys less than the node, and the right subtree only keys greater — giving O(log n) average lookup." },
+          { front: 'Define time complexity', back: "A measure of how an algorithm's running time grows as a function of its input size, written in Big-O notation." },
+          { front: 'What does ACID stand for?', back: 'Atomicity, Consistency, Isolation, Durability — the four guarantees of a reliable database transaction.' },
+          { front: 'State the pigeonhole principle', back: 'If n items go into m containers and n > m, at least one container holds more than one item.' },
+          { front: 'What is encapsulation in OOP?', back: 'Bundling data with the methods that act on it inside a class, and restricting outside access to the internal state.' },
+        ],
+      }
+    }
     const { data, error } = await supabase.functions.invoke('generate-flashcards', {
       body: { material, deckTitle, domainName, academicWeek },
     })

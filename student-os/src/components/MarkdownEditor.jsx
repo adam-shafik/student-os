@@ -98,6 +98,30 @@ class TableWidget extends WidgetType {
   ignoreEvent() { return false }
 }
 
+class HrWidget extends WidgetType {
+  eq() { return true }
+  toDOM() {
+    const wrap = document.createElement('div')
+    wrap.className = 'cm-md-hr'
+    wrap.appendChild(document.createElement('hr'))
+    return wrap
+  }
+  ignoreEvent() { return false }
+}
+
+class CheckboxWidget extends WidgetType {
+  constructor(checked) { super(); this.checked = checked }
+  eq(o) { return o.checked === this.checked }
+  toDOM() {
+    const s = document.createElement('span')
+    s.className = 'cm-md-check'
+    s.textContent = this.checked ? '☑' : '☐'
+    if (this.checked) s.style.color = 'var(--accent-green)'
+    return s
+  }
+  ignoreEvent() { return false }
+}
+
 const HIDE_MARKS = new Set(['HeaderMark', 'EmphasisMark', 'CodeMark', 'StrikethroughMark'])
 
 function buildDecorations(state) {
@@ -120,14 +144,36 @@ function buildDecorations(state) {
           return
         }
 
-        // Bullet markers → render as •, reveal raw when editing that line
+        // Bullet markers → render as •, reveal raw when editing that line.
+        // For task items (- [ ]) hide the bullet entirely so only the checkbox shows.
         if (name === 'ListMark') {
           const line = state.doc.lineAt(node.from)
           if (overlaps(line.from, line.to)) return
-          if (/^[-*+]$/.test(state.doc.sliceString(node.from, node.to))) {
+          if (/^\s*[-*+]\s+\[[ xX]\]/.test(line.text)) {
+            let end = node.to
+            if (state.doc.sliceString(node.to, node.to + 1) === ' ') end = node.to + 1
+            deco.push(Decoration.replace({}).range(node.from, end))
+          } else if (/^[-*+]$/.test(state.doc.sliceString(node.from, node.to))) {
             deco.push(Decoration.replace({ widget: new BulletWidget() }).range(node.from, node.to))
           }
           return
+        }
+
+        // Task checkbox [ ] / [x]
+        if (name === 'TaskMarker') {
+          const line = state.doc.lineAt(node.from)
+          if (overlaps(line.from, line.to)) return
+          const checked = /[xX]/.test(state.doc.sliceString(node.from, node.to))
+          deco.push(Decoration.replace({ widget: new CheckboxWidget(checked) }).range(node.from, node.to))
+          return
+        }
+
+        // Horizontal rule (---, ***, ___) → render an actual line
+        if (name === 'HorizontalRule') {
+          const line = state.doc.lineAt(node.from)
+          if (overlaps(line.from, line.to)) return
+          deco.push(Decoration.replace({ widget: new HrWidget(), block: true }).range(line.from, line.to))
+          return false
         }
 
         // Tables → render as a real table block, reveal raw when the cursor is inside
@@ -232,6 +278,8 @@ const editorTheme = EditorView.theme({
   '.cm-placeholder': { color: 'var(--text-muted)' },
   '.cm-math': { color: 'var(--text-primary)' },
   '.cm-md-bullet': { color: 'var(--accent-blue)', fontWeight: '700' },
+  '.cm-md-hr hr': { border: 'none', borderTop: '1px solid var(--border-strong)', margin: '8px 0' },
+  '.cm-md-check': { fontSize: '15px', marginRight: '3px', color: 'var(--text-secondary)' },
   '.cm-md-table': { borderCollapse: 'collapse', margin: '6px 0 16px', fontSize: '14px', maxWidth: '100%' },
   '.cm-md-table th, .cm-md-table td': { border: '1px solid var(--border)', padding: '6px 12px', textAlign: 'left', color: 'var(--text-primary)', verticalAlign: 'top' },
   '.cm-md-table th': { background: 'var(--bg-overlay)', fontWeight: '600', fontSize: '12px', color: 'var(--text-muted)', whiteSpace: 'nowrap' },
