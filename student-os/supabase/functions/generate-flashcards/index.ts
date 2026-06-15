@@ -69,7 +69,7 @@ First judge the material: it must contain actual study content (lecture notes, t
 
 When suitable, generate as many flashcards as the material genuinely supports — no filler or padding questions. Hard cap: ${MAX_CARDS} cards. Rules:
 - Write cards in the same language as the material.
-- Fronts are a single clear question, term, or prompt. Backs are the concise answer or definition.
+- Fronts are a single clear question, term, or prompt. Backs are the answer or definition — keep answers to one or two sentences.
 - Each card must be self-contained — understandable without seeing the source material.
 - Prefer understanding over rote trivia: definitions, why/how questions, contrasts, applications.
 - Never invent facts not supported by the material.`,

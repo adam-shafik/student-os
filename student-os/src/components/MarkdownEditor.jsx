@@ -255,6 +255,22 @@ function slashSource(context) {
   }
 }
 
+// Click a rendered checkbox to toggle [ ] <-> [x] in the markdown
+const taskToggle = EditorView.domEventHandlers({
+  mousedown(e, view) {
+    const t = e.target
+    if (!(t instanceof HTMLElement) || !t.classList.contains('cm-md-check')) return false
+    const pos = view.posAtDOM(t)
+    const line = view.state.doc.lineAt(pos)
+    const m = /\[([ xX])\]/.exec(line.text)
+    if (!m) return false
+    const at = line.from + m.index + 1
+    view.dispatch({ changes: { from: at, to: at + 1, insert: m[1] === ' ' ? 'x' : ' ' } })
+    e.preventDefault()
+    return true
+  },
+})
+
 // Open the slash menu the moment "/" is typed at the start of a line
 const slashTrigger = EditorView.updateListener.of((u) => {
   if (!u.docChanged) return
@@ -279,7 +295,7 @@ const editorTheme = EditorView.theme({
   '.cm-math': { color: 'var(--text-primary)' },
   '.cm-md-bullet': { color: 'var(--accent-blue)', fontWeight: '700' },
   '.cm-md-hr hr': { border: 'none', borderTop: '1px solid var(--border-strong)', margin: '8px 0' },
-  '.cm-md-check': { fontSize: '15px', marginRight: '3px', color: 'var(--text-secondary)' },
+  '.cm-md-check': { fontSize: '15px', marginRight: '3px', color: 'var(--text-secondary)', cursor: 'pointer' },
   '.cm-md-table': { borderCollapse: 'collapse', margin: '6px 0 16px', fontSize: '14px', maxWidth: '100%' },
   '.cm-md-table th, .cm-md-table td': { border: '1px solid var(--border)', padding: '6px 12px', textAlign: 'left', color: 'var(--text-primary)', verticalAlign: 'top' },
   '.cm-md-table th': { background: 'var(--bg-overlay)', fontWeight: '600', fontSize: '12px', color: 'var(--text-muted)', whiteSpace: 'nowrap' },
@@ -311,6 +327,7 @@ export default function MarkdownEditor({ value, onChange, zoom = 1, autoFocus = 
           EditorView.lineWrapping,
           autocompletion({ override: [slashSource], icons: false, closeOnBlur: true }),
           slashTrigger,
+          taskToggle,
           cmPlaceholder(placeholder),
           editorTheme,
           EditorView.updateListener.of((u) => {

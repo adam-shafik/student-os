@@ -1,7 +1,7 @@
 import { useState, useMemo, useRef, useEffect } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
 import AppSelect, { AppSelectItem } from '../components/AppSelect'
-import { Plus, X, Layers, Trash2, ChevronLeft, Pencil, Play, RotateCcw, FileText, Sparkles, Square, CheckSquare, FlaskConical } from 'lucide-react'
+import { Plus, X, Layers, Trash2, ChevronLeft, Pencil, Play, RotateCcw, FileText, Sparkles, Square, CheckSquare, FlaskConical, Upload } from 'lucide-react'
 import { totalTeachingWeeks } from '../utils/semester'
 import { useIsMobile } from '../utils/useIsMobile'
 import { extractPdfText } from '../utils/pdf'
@@ -146,51 +146,46 @@ function GeneratingText() {
   )
 }
 
-// Button that bursts a ring of particles from its center on click
-function Particles({ originRef }) {
-  const rect = originRef.current?.getBoundingClientRect()
-  if (!rect) return null
+// Burst a ring of particles from an element's center. Particles are appended to
+// document.body and animate themselves, so they survive the button unmounting
+// (the modal switches to its loading step the instant Generate is clicked).
+function burstParticles(el) {
+  if (!el) return
+  const rect = el.getBoundingClientRect()
   const cx = rect.left + rect.width / 2
   const cy = rect.top + rect.height / 2
-  return (
-    <div style={{ position: 'fixed', inset: 0, pointerEvents: 'none', zIndex: 2000 }}>
-      {Array.from({ length: 12 }).map((_, i) => {
-        const angle = (Math.PI * 2 * i) / 12 + (Math.random() - 0.5) * 0.4
-        const dist = 26 + Math.random() * 34
-        return (
-          <motion.div
-            key={i}
-            initial={{ x: 0, y: 0, scale: 0, opacity: 1 }}
-            animate={{ x: Math.cos(angle) * dist, y: Math.sin(angle) * dist, scale: [0, 1, 0], opacity: [1, 1, 0] }}
-            transition={{ duration: 0.6, ease: 'easeOut' }}
-            style={{
-              position: 'absolute', left: cx, top: cy, width: 6, height: 6, borderRadius: '50%',
-              background: 'var(--accent-purple)',
-            }}
-          />
-        )
-      })}
-    </div>
-  )
+  for (let i = 0; i < 14; i++) {
+    const angle = (Math.PI * 2 * i) / 14 + (Math.random() - 0.5) * 0.4
+    const dist = 30 + Math.random() * 38
+    const dx = Math.cos(angle) * dist
+    const dy = Math.sin(angle) * dist
+    const p = document.createElement('div')
+    Object.assign(p.style, {
+      position: 'fixed', left: `${cx}px`, top: `${cy}px`,
+      width: '6px', height: '6px', borderRadius: '50%',
+      background: 'var(--accent-purple)', pointerEvents: 'none', zIndex: '3000',
+    })
+    document.body.appendChild(p)
+    const anim = p.animate([
+      { transform: 'translate(-50%, -50%) scale(0)', opacity: 1 },
+      { transform: `translate(calc(-50% + ${dx}px), calc(-50% + ${dy}px)) scale(1)`, opacity: 1, offset: 0.6 },
+      { transform: `translate(calc(-50% + ${dx * 1.15}px), calc(-50% + ${dy * 1.15}px)) scale(0)`, opacity: 0 },
+    ], { duration: 680, easing: 'cubic-bezier(0.22,1,0.36,1)' })
+    anim.onfinish = () => p.remove()
+  }
 }
 
 function ParticleButton({ children, onClick, disabled, style }) {
   const ref = useRef()
-  const [bursts, setBursts] = useState([])
   const handle = (e) => {
     if (disabled) return
-    const id = Date.now()
-    setBursts(b => [...b, id])
-    setTimeout(() => setBursts(b => b.filter(x => x !== id)), 650)
+    burstParticles(ref.current)
     onClick?.(e)
   }
   return (
-    <>
-      {bursts.map(id => <Particles key={id} originRef={ref} />)}
-      <motion.button ref={ref} onClick={handle} disabled={disabled} whileTap={{ scale: 0.95 }} style={style}>
-        {children}
-      </motion.button>
-    </>
+    <motion.button ref={ref} onClick={handle} disabled={disabled} whileTap={{ scale: 0.95 }} style={style}>
+      {children}
+    </motion.button>
   )
 }
 
@@ -448,6 +443,20 @@ function GenerateCardsModal({ fixedDeck, decks, notes, domainMap, sourceNote, on
   const [pasteText, setPasteText] = useState('')
   const [noteId,  setNoteId]  = useState(sourceNote?.id || '')
   const [pdfId,   setPdfId]   = useState('')
+  const [pdfFile, setPdfFile] = useState(null)
+  const pdfInputRef = useRef()
+
+  // Animated body height when switching source method (mirrors NewNoteModal)
+  const srcBodyRef = useRef(null)
+  const [srcH, setSrcH] = useState(null)
+  useEffect(() => {
+    if (step !== 'input') return
+    const el = srcBodyRef.current
+    if (!el) return
+    const obs = new ResizeObserver(([entry]) => setSrcH(Math.ceil(entry.contentRect.height)))
+    obs.observe(el)
+    return () => obs.disconnect()
+  }, [step])
   const [deckChoice,   setDeckChoice]   = useState(fixedDeck ? fixedDeck.id : '__new__')
   const [newDeckTitle, setNewDeckTitle] = useState(sourceNote?.title ? `${sourceNote.title} — Flashcards` : '')
   const [error,   setError]   = useState('')
@@ -464,7 +473,7 @@ function GenerateCardsModal({ fixedDeck, decks, notes, domainMap, sourceNote, on
   const selectedNote = typedNotes.find(n => n.id === noteId)
   const canGenerate = source === 'paste' ? pasteText.trim().length >= 100
     : source === 'note' ? !!selectedNote
-    : !!pdfId
+    : (!!pdfFile || !!pdfId)
 
   const targetTitle = fixedDeck ? fixedDeck.title
     : deckChoice === '__new__' ? newDeckTitle.trim()
@@ -482,10 +491,15 @@ function GenerateCardsModal({ fixedDeck, decks, notes, domainMap, sourceNote, on
       } else if (source === 'note') {
         material = (selectedNote?.content || '').trim()
       } else {
-        const pdfNote = pdfNotes.find(n => n.id === pdfId)
-        const url = await onGetSignedPdfUrl(pdfNote.pdfStoragePath)
-        const res = await fetch(url)
-        material = await extractPdfText(await res.arrayBuffer())
+        let buffer
+        if (pdfFile) {
+          buffer = await pdfFile.arrayBuffer()
+        } else {
+          const pdfNote = pdfNotes.find(n => n.id === pdfId)
+          const url = await onGetSignedPdfUrl(pdfNote.pdfStoragePath)
+          buffer = await (await fetch(url)).arrayBuffer()
+        }
+        material = await extractPdfText(buffer)
         if (material.length < 100) {
           setReason('No readable text found in this PDF — it may be a scanned document.')
           setStep('unsuitable')
@@ -548,7 +562,7 @@ function GenerateCardsModal({ fixedDeck, decks, notes, domainMap, sourceNote, on
   const SOURCES = [
     ['paste', 'Paste text'],
     ['note',  `Typed note${typedNotes.length ? '' : ' (none)'}`],
-    ['pdf',   `PDF${pdfNotes.length ? '' : ' (none)'}`],
+    ['pdf',   'PDF'],
   ]
 
   return (
@@ -571,61 +585,104 @@ function GenerateCardsModal({ fixedDeck, decks, notes, domainMap, sourceNote, on
 
           {step === 'input' && (
             <>
+              <style>{`@keyframes _gen-in { from { opacity: 0; transform: translateY(6px); } to { opacity: 1; transform: none; } }`}</style>
               <div>
                 <Label>Source material</Label>
                 <div style={{ display: 'flex', gap: 6 }}>
-                  {SOURCES.map(([key, label]) => (
-                    <button key={key} onClick={() => setSource(key)}
-                      disabled={(key === 'note' && !typedNotes.length) || (key === 'pdf' && !pdfNotes.length)}
-                      style={{
-                        flex: 1, padding: '8px 4px', borderRadius: 7, border: 'none', cursor: 'pointer',
-                        fontSize: 11, fontWeight: 600, fontFamily: 'inherit',
-                        background: source === key ? 'rgba(167,139,250,0.14)' : 'var(--bg-overlay)',
-                        color: source === key ? 'var(--accent-purple)' : 'var(--text-secondary)',
-                        outline: source === key ? '1.5px solid rgba(167,139,250,0.4)' : '1.5px solid transparent',
-                        opacity: (key === 'note' && !typedNotes.length) || (key === 'pdf' && !pdfNotes.length) ? 0.4 : 1,
-                        transition: 'all 0.12s',
-                      }}>{label}</button>
-                  ))}
+                  {SOURCES.map(([key, label]) => {
+                    const disabled = key === 'note' && !typedNotes.length
+                    return (
+                      <button key={key} onClick={() => !disabled && setSource(key)} disabled={disabled}
+                        style={{
+                          flex: 1, padding: '8px 4px', borderRadius: 7, border: 'none', cursor: disabled ? 'default' : 'pointer',
+                          fontSize: 11, fontWeight: 600, fontFamily: 'inherit',
+                          background: source === key ? 'rgba(167,139,250,0.14)' : 'var(--bg-overlay)',
+                          color: source === key ? 'var(--accent-purple)' : 'var(--text-secondary)',
+                          outline: source === key ? '1.5px solid rgba(167,139,250,0.4)' : '1.5px solid transparent',
+                          opacity: disabled ? 0.4 : 1,
+                          transition: 'background 0.12s, color 0.12s, outline-color 0.12s',
+                        }}>{label}</button>
+                    )
+                  })}
                 </div>
               </div>
 
-              {source === 'paste' && (
-                <div>
-                  <Label>Material</Label>
-                  <textarea
-                    autoFocus value={pasteText} onChange={e => setPasteText(e.target.value)}
-                    placeholder="Paste lecture notes, slides text, a textbook section…"
-                    style={{ ...inputStyle, minHeight: 160, resize: 'vertical' }}
-                    onFocus={e => e.target.style.borderColor = 'var(--border-focus)'}
-                    onBlur={e => e.target.style.borderColor = 'var(--border-strong)'}
-                  />
-                  {pasteText.trim().length > 0 && pasteText.trim().length < 100 && (
-                    <div style={{ fontSize: 11, color: 'var(--text-muted)', marginTop: 5 }}>Add a bit more material (at least ~100 characters).</div>
-                  )}
-                </div>
-              )}
+              {/* Animated-height body — resizes smoothly when switching source method */}
+              <div style={{ overflow: 'hidden', height: srcH ?? 'auto', transition: 'height 0.28s cubic-bezier(0.32,0.72,0,1)' }}>
+                <div ref={srcBodyRef}>
+                  <div key={source} style={{ animation: '_gen-in 0.2s ease' }}>
 
-              {source === 'note' && (
-                <div>
-                  <Label>Typed note</Label>
-                  <AppSelect value={noteId} onChange={setNoteId}>
-                    <AppSelectItem value="">Pick a note</AppSelectItem>
-                    {typedNotes.map(n => <AppSelectItem key={n.id} value={n.id}>{n.title || 'Untitled'}</AppSelectItem>)}
-                  </AppSelect>
-                </div>
-              )}
+                    {source === 'paste' && (
+                      <div>
+                        <Label>Material</Label>
+                        <textarea
+                          autoFocus value={pasteText} onChange={e => setPasteText(e.target.value)}
+                          placeholder="Paste lecture notes, slides text, a textbook section…"
+                          style={{ ...inputStyle, minHeight: 160, resize: 'vertical', display: 'block' }}
+                          onFocus={e => e.target.style.borderColor = 'var(--border-focus)'}
+                          onBlur={e => e.target.style.borderColor = 'var(--border-strong)'}
+                        />
+                        {pasteText.trim().length > 0 && pasteText.trim().length < 100 && (
+                          <div style={{ fontSize: 11, color: 'var(--text-muted)', marginTop: 5 }}>Add a bit more material (at least ~100 characters).</div>
+                        )}
+                      </div>
+                    )}
 
-              {source === 'pdf' && (
-                <div>
-                  <Label>PDF note</Label>
-                  <AppSelect value={pdfId} onChange={setPdfId}>
-                    <AppSelectItem value="">Pick a PDF</AppSelectItem>
-                    {pdfNotes.map(n => <AppSelectItem key={n.id} value={n.id}>{n.title || 'Untitled'}</AppSelectItem>)}
-                  </AppSelect>
-                  <div style={{ fontSize: 11, color: 'var(--text-muted)', marginTop: 5 }}>Text-based PDFs only — scanned pages can't be read.</div>
+                    {source === 'note' && (
+                      <div>
+                        <Label>Typed note</Label>
+                        <AppSelect value={noteId} onChange={setNoteId}>
+                          <AppSelectItem value="">Pick a note</AppSelectItem>
+                          {typedNotes.map(n => <AppSelectItem key={n.id} value={n.id}>{n.title || 'Untitled'}</AppSelectItem>)}
+                        </AppSelect>
+                      </div>
+                    )}
+
+                    {source === 'pdf' && (
+                      <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
+                        <input
+                          ref={pdfInputRef} type="file" accept=".pdf,application/pdf" style={{ display: 'none' }}
+                          onChange={e => { const f = e.target.files?.[0]; if (f) { setPdfFile(f); setPdfId('') } }}
+                        />
+                        <div>
+                          <Label>Upload a PDF</Label>
+                          <button
+                            onClick={() => pdfInputRef.current?.click()}
+                            style={{
+                              width: '100%', display: 'flex', alignItems: 'center', gap: 8, padding: '11px 12px',
+                              borderRadius: 8, border: `1.5px dashed ${pdfFile ? 'var(--accent-purple)' : 'var(--border-strong)'}`,
+                              background: pdfFile ? 'rgba(167,139,250,0.08)' : 'var(--bg-overlay)',
+                              color: pdfFile ? 'var(--text-primary)' : 'var(--text-secondary)',
+                              cursor: 'pointer', fontSize: 13, fontFamily: 'inherit', textAlign: 'left',
+                            }}
+                          >
+                            <Upload size={15} style={{ color: 'var(--accent-purple)', flexShrink: 0 }} />
+                            <span style={{ flex: 1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                              {pdfFile ? pdfFile.name : 'Choose a PDF file…'}
+                            </span>
+                            {pdfFile && (
+                              <X size={14} style={{ color: 'var(--text-muted)', flexShrink: 0 }}
+                                onClick={e => { e.stopPropagation(); setPdfFile(null); if (pdfInputRef.current) pdfInputRef.current.value = '' }} />
+                            )}
+                          </button>
+                          <div style={{ fontSize: 11, color: 'var(--text-muted)', marginTop: 5 }}>Text-based PDFs only — scanned pages can't be read.</div>
+                        </div>
+
+                        {pdfNotes.length > 0 && (
+                          <div>
+                            <Label>Or pick a saved PDF note</Label>
+                            <AppSelect value={pdfId} onChange={v => { setPdfId(v); if (v) setPdfFile(null) }}>
+                              <AppSelectItem value="">None</AppSelectItem>
+                              {pdfNotes.map(n => <AppSelectItem key={n.id} value={n.id}>{n.title || 'Untitled'}</AppSelectItem>)}
+                            </AppSelect>
+                          </div>
+                        )}
+                      </div>
+                    )}
+
+                  </div>
                 </div>
-              )}
+              </div>
 
               {!fixedDeck && (
                 <div>
