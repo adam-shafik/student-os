@@ -1,5 +1,6 @@
 import { useState, useMemo, useEffect, useRef } from 'react'
 import MarkdownEditor from '../components/MarkdownEditor'
+import ErrorBoundary from '../components/ErrorBoundary'
 import AppSelect, { AppSelectItem } from '../components/AppSelect'
 import {
   PenLine, Plus, Trash2, ChevronRight, ChevronDown,
@@ -1081,6 +1082,7 @@ export default function NotesPage({ notes, domains, noteToOpen, onClearNoteToOpe
             )}
 
             <div style={{ flex: 1, overflow: 'hidden' }}>
+              <ErrorBoundary key={openNote.id} label="This note couldn't be displayed">
               {openNote.type === 'typed' ? (
                 <TypedEditor
                   note={openNote}
@@ -1103,6 +1105,7 @@ export default function NotesPage({ notes, domains, noteToOpen, onClearNoteToOpe
                   isPdfNote={openNote.type === 'pdf'}
                 />
               )}
+              </ErrorBoundary>
             </div>
           </div>
         ) : (

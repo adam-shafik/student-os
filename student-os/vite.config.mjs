@@ -4,11 +4,28 @@ import tailwindcss from '@tailwindcss/vite'
 import electron from 'vite-plugin-electron'
 import { VitePWA } from 'vite-plugin-pwa'
 
+// Inject the Content-Security-Policy meta. In dev we also allow localhost ws/http
+// so Vite's hot-reload socket works; production stays locked down to Supabase only.
+function cspPlugin(isDev) {
+  const connect = isDev
+    ? "connect-src 'self' https://*.supabase.co wss://*.supabase.co ws://localhost:* http://localhost:*"
+    : "connect-src https://*.supabase.co wss://*.supabase.co"
+  const csp = `default-src 'self'; script-src 'self'; ${connect}; img-src 'self' blob: data: https://picsum.photos https://fastly.picsum.photos; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src 'self' https://fonts.gstatic.com; worker-src blob:;`
+  return {
+    name: 'html-csp',
+    transformIndexHtml: {
+      order: 'pre',
+      handler: (html) => html.replace('<!--CSP-->', `<meta http-equiv="Content-Security-Policy" content="${csp}" />`),
+    },
+  }
+}
+
 export default defineConfig(({ command }) => {
   const isElectron = !!process.env.VITE_ELECTRON
   return {
     base: command === 'build' ? './' : '/',
     plugins: [
+      cspPlugin(command === 'serve'),
       tailwindcss(),
       react(),
       ...(isElectron ? [electron([{

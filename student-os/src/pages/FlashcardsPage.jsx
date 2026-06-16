@@ -1,7 +1,7 @@
 import { useState, useMemo, useRef, useEffect } from 'react'
-import { motion, AnimatePresence } from 'framer-motion'
+import { motion, AnimatePresence, useReducedMotion } from 'framer-motion'
 import AppSelect, { AppSelectItem } from '../components/AppSelect'
-import { Plus, X, Layers, Trash2, ChevronLeft, Pencil, Play, RotateCcw, FileText, Sparkles, Square, CheckSquare, FlaskConical, Upload } from 'lucide-react'
+import { Plus, X, Layers, Trash2, ChevronLeft, Pencil, Play, RotateCcw, FileText, Sparkles, Square, CheckSquare, FlaskConical, Upload, Shuffle, ArrowLeftRight } from 'lucide-react'
 import { totalTeachingWeeks } from '../utils/semester'
 import { useIsMobile } from '../utils/useIsMobile'
 import { extractPdfText } from '../utils/pdf'
@@ -13,6 +13,33 @@ const GRADES = [
   { key: 'good',  label: 'Good',  color: '#fbbf24', hotkey: '2' },
   { key: 'easy',  label: 'Easy',  color: '#34d399', hotkey: '3' },
 ]
+
+// Shared button motion. `fc-btn` lifts + brightens text/action buttons; `fc-icon`
+// scales square icon buttons. Pure CSS so it never fights framer's transform on the
+// few buttons that animate via JS, and it's fully suppressed under reduced motion.
+const FC_MOTION_CSS = `
+.fc-btn{transition:transform .15s cubic-bezier(.22,1,.36,1),filter .15s ease,background-color .15s ease,border-color .15s ease,box-shadow .15s ease;}
+.fc-btn:hover:not(:disabled){filter:brightness(1.09);transform:translateY(-1px);}
+.fc-btn:active:not(:disabled){transform:translateY(0) scale(.97);transition-duration:.06s;}
+.fc-icon{transition:transform .15s cubic-bezier(.22,1,.36,1),color .15s ease,background-color .15s ease,border-color .15s ease;}
+.fc-icon:hover:not(:disabled){transform:scale(1.13);}
+.fc-icon:active:not(:disabled){transform:scale(.9);}
+.fc-ai-btn{box-shadow:inset 0 0 12px color-mix(in srgb, var(--accent-purple) 13%, transparent);}
+.fc-ai-btn:hover:not(:disabled){box-shadow:inset 0 0 16px color-mix(in srgb, var(--accent-purple) 24%, transparent),0 6px 22px -8px color-mix(in srgb, var(--accent-purple) 55%, transparent);}
+.fc-ai-glow{position:absolute;top:0;left:0;right:0;bottom:0;z-index:0;pointer-events:none;border-radius:inherit;background:linear-gradient(90deg,transparent,color-mix(in srgb, var(--accent-purple) 22%, transparent),transparent);opacity:0;transition:opacity .3s ease;}
+.fc-ai-btn:hover:not(:disabled) .fc-ai-glow{opacity:1;}
+.fc-ai-sheen{position:absolute;top:0;left:0;right:0;bottom:0;z-index:1;pointer-events:none;background:linear-gradient(110deg,transparent 32%,color-mix(in srgb, var(--accent-purple) 34%, transparent) 50%,transparent 68%);transform:translateX(-120%);transition:transform .6s cubic-bezier(.22,1,.36,1);}
+.fc-ai-btn:hover:not(:disabled) .fc-ai-sheen{transform:translateX(120%);}
+.fc-ai-icon{transition:transform .3s cubic-bezier(.22,1,.36,1);}
+.fc-ai-btn:hover:not(:disabled) .fc-ai-icon{transform:scale(1.12) rotate(-8deg);}
+.fc-ai-btn:active:not(:disabled) .fc-ai-icon{transform:scale(.95);}
+@media (prefers-reduced-motion: reduce){
+.fc-btn,.fc-icon{transition:color .12s ease,background-color .12s ease,border-color .12s ease!important;}
+.fc-btn:hover,.fc-btn:active,.fc-icon:hover,.fc-icon:active{transform:none!important;filter:none!important;}
+.fc-ai-sheen{display:none!important;}
+.fc-ai-glow{transition:none!important;}
+.fc-ai-icon{transform:none!important;}
+}`
 
 function todayStr() {
   const d = new Date()
@@ -189,6 +216,27 @@ function ParticleButton({ children, onClick, disabled, style }) {
   )
 }
 
+// Single source for the "Generate with AI" action so it looks identical on the home
+// page and inside a deck. Sheen sweep + sparkle flourish on hover (driven by FC_MOTION_CSS).
+function GenerateAIButton({ onClick, style }) {
+  return (
+    <button onClick={onClick} className="fc-btn fc-ai-btn" style={{
+      position: 'relative', overflow: 'hidden', isolation: 'isolate',
+      display: 'inline-flex', alignItems: 'center', gap: 7, flexShrink: 0,
+      padding: '9px 16px', borderRadius: 9, border: '1px solid transparent',
+      background: 'linear-gradient(180deg, color-mix(in srgb, var(--accent-purple) 18%, transparent), color-mix(in srgb, var(--accent-purple) 6%, transparent)) padding-box, linear-gradient(135deg, color-mix(in srgb, var(--accent-purple) 72%, transparent), color-mix(in srgb, var(--accent-purple) 20%, transparent)) border-box',
+      color: 'color-mix(in srgb, var(--accent-purple) 58%, var(--text-primary))',
+      fontSize: 13, fontWeight: 600, cursor: 'pointer', fontFamily: 'inherit',
+      ...style,
+    }}>
+      <span className="fc-ai-glow" aria-hidden />
+      <span className="fc-ai-icon" style={{ display: 'flex', position: 'relative', zIndex: 2 }}><Sparkles size={14} /></span>
+      <span style={{ position: 'relative', zIndex: 2 }}>Generate with AI</span>
+      <span className="fc-ai-sheen" aria-hidden />
+    </button>
+  )
+}
+
 // Textarea that grows to fit its content (used in the AI review list)
 function AutoTextarea({ value, onChange, style }) {
   const ref = useRef()
@@ -264,7 +312,7 @@ function DeckModal({ deck, domains, notes, studySessions, domainMap, onClose, on
 
         <div style={{ padding: '18px 22px', borderBottom: '1px solid var(--border)', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
           <span style={{ fontSize: 15, fontWeight: 600, color: 'var(--text-primary)' }}>{deck ? 'Edit Deck' : 'New Deck'}</span>
-          <button onClick={onClose} style={{ width: 28, height: 28, borderRadius: 7, border: 'none', background: 'var(--bg-overlay)', color: 'var(--text-secondary)', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+          <button onClick={onClose} className="fc-icon" style={{ width: 28, height: 28, borderRadius: 7, border: 'none', background: 'var(--bg-overlay)', color: 'var(--text-secondary)', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
             <X size={14} />
           </button>
         </div>
@@ -332,20 +380,20 @@ function DeckModal({ deck, domains, notes, studySessions, domainMap, onClose, on
         <div style={{ padding: '14px 22px', borderTop: '1px solid var(--border)', display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 8 }}>
           <div>
             {deck && onDelete && !confirmingDelete && (
-              <button onClick={() => setConfirmingDelete(true)} style={{ padding: '8px 12px', borderRadius: 8, border: 'none', background: 'none', color: 'var(--accent-red)', cursor: 'pointer', fontSize: 13, fontFamily: 'inherit' }}>
+              <button onClick={() => setConfirmingDelete(true)} className="fc-btn" style={{ padding: '8px 12px', borderRadius: 8, border: 'none', background: 'none', color: 'var(--accent-red)', cursor: 'pointer', fontSize: 13, fontFamily: 'inherit' }}>
                 Delete deck
               </button>
             )}
             {confirmingDelete && (
               <div style={{ display: 'flex', gap: 6 }}>
-                <button onClick={() => setConfirmingDelete(false)} style={{ padding: '6px 10px', borderRadius: 6, border: '1px solid var(--border-strong)', background: 'transparent', color: 'var(--text-muted)', fontSize: 11, cursor: 'pointer', fontFamily: 'inherit' }}>Cancel</button>
-                <button onClick={() => { onDelete(deck.id); onClose() }} style={{ padding: '6px 10px', borderRadius: 6, border: '1px solid rgba(251,113,133,0.4)', background: 'rgba(251,113,133,0.14)', color: '#fb7185', fontSize: 11, fontWeight: 600, cursor: 'pointer', fontFamily: 'inherit' }}>Confirm delete</button>
+                <button onClick={() => setConfirmingDelete(false)} className="fc-btn" style={{ padding: '6px 10px', borderRadius: 6, border: '1px solid var(--border-strong)', background: 'transparent', color: 'var(--text-muted)', fontSize: 11, cursor: 'pointer', fontFamily: 'inherit' }}>Cancel</button>
+                <button onClick={() => { onDelete(deck.id); onClose() }} className="fc-btn" style={{ padding: '6px 10px', borderRadius: 6, border: '1px solid rgba(251,113,133,0.4)', background: 'rgba(251,113,133,0.14)', color: '#fb7185', fontSize: 11, fontWeight: 600, cursor: 'pointer', fontFamily: 'inherit' }}>Confirm delete</button>
               </div>
             )}
           </div>
           <div style={{ display: 'flex', gap: 8 }}>
-            <button onClick={onClose} style={{ padding: '8px 16px', borderRadius: 8, border: '1px solid var(--border-strong)', background: 'none', color: 'var(--text-secondary)', cursor: 'pointer', fontSize: 13 }}>Cancel</button>
-            <button onClick={handleSave} disabled={!canSave} style={{
+            <button onClick={onClose} className="fc-btn" style={{ padding: '8px 16px', borderRadius: 8, border: '1px solid var(--border-strong)', background: 'none', color: 'var(--text-secondary)', cursor: 'pointer', fontSize: 13 }}>Cancel</button>
+            <button onClick={handleSave} disabled={!canSave} className="fc-btn" style={{
               padding: '8px 18px', borderRadius: 8, border: 'none', fontSize: 13, fontWeight: 600,
               background: canSave ? 'var(--accent-blue)' : 'var(--border)',
               color: canSave ? 'var(--btn-primary-text)' : 'var(--text-muted)',
@@ -384,7 +432,7 @@ function CardModal({ card, onClose, onSave, onDelete }) {
 
         <div style={{ padding: '18px 22px', borderBottom: '1px solid var(--border)', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
           <span style={{ fontSize: 15, fontWeight: 600, color: 'var(--text-primary)' }}>Edit Card</span>
-          <button onClick={onClose} style={{ width: 28, height: 28, borderRadius: 7, border: 'none', background: 'var(--bg-overlay)', color: 'var(--text-secondary)', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+          <button onClick={onClose} className="fc-icon" style={{ width: 28, height: 28, borderRadius: 7, border: 'none', background: 'var(--bg-overlay)', color: 'var(--text-secondary)', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
             <X size={14} />
           </button>
         </div>
@@ -407,20 +455,20 @@ function CardModal({ card, onClose, onSave, onDelete }) {
         <div style={{ padding: '14px 22px', borderTop: '1px solid var(--border)', display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 8 }}>
           <div>
             {!confirmingDelete && (
-              <button onClick={() => setConfirmingDelete(true)} style={{ padding: '8px 12px', borderRadius: 8, border: 'none', background: 'none', color: 'var(--accent-red)', cursor: 'pointer', fontSize: 13, fontFamily: 'inherit' }}>
+              <button onClick={() => setConfirmingDelete(true)} className="fc-btn" style={{ padding: '8px 12px', borderRadius: 8, border: 'none', background: 'none', color: 'var(--accent-red)', cursor: 'pointer', fontSize: 13, fontFamily: 'inherit' }}>
                 Delete
               </button>
             )}
             {confirmingDelete && (
               <div style={{ display: 'flex', gap: 6 }}>
-                <button onClick={() => setConfirmingDelete(false)} style={{ padding: '6px 10px', borderRadius: 6, border: '1px solid var(--border-strong)', background: 'transparent', color: 'var(--text-muted)', fontSize: 11, cursor: 'pointer', fontFamily: 'inherit' }}>Cancel</button>
-                <button onClick={() => { onDelete(); onClose() }} style={{ padding: '6px 10px', borderRadius: 6, border: '1px solid rgba(251,113,133,0.4)', background: 'rgba(251,113,133,0.14)', color: '#fb7185', fontSize: 11, fontWeight: 600, cursor: 'pointer', fontFamily: 'inherit' }}>Confirm delete</button>
+                <button onClick={() => setConfirmingDelete(false)} className="fc-btn" style={{ padding: '6px 10px', borderRadius: 6, border: '1px solid var(--border-strong)', background: 'transparent', color: 'var(--text-muted)', fontSize: 11, cursor: 'pointer', fontFamily: 'inherit' }}>Cancel</button>
+                <button onClick={() => { onDelete(); onClose() }} className="fc-btn" style={{ padding: '6px 10px', borderRadius: 6, border: '1px solid rgba(251,113,133,0.4)', background: 'rgba(251,113,133,0.14)', color: '#fb7185', fontSize: 11, fontWeight: 600, cursor: 'pointer', fontFamily: 'inherit' }}>Confirm delete</button>
               </div>
             )}
           </div>
           <div style={{ display: 'flex', gap: 8 }}>
-            <button onClick={onClose} style={{ padding: '8px 16px', borderRadius: 8, border: '1px solid var(--border-strong)', background: 'none', color: 'var(--text-secondary)', cursor: 'pointer', fontSize: 13 }}>Cancel</button>
-            <button onClick={handleSave} disabled={!canSave} style={{
+            <button onClick={onClose} className="fc-btn" style={{ padding: '8px 16px', borderRadius: 8, border: '1px solid var(--border-strong)', background: 'none', color: 'var(--text-secondary)', cursor: 'pointer', fontSize: 13 }}>Cancel</button>
+            <button onClick={handleSave} disabled={!canSave} className="fc-btn" style={{
               padding: '8px 18px', borderRadius: 8, border: 'none', fontSize: 13, fontWeight: 600,
               background: canSave ? 'var(--accent-blue)' : 'var(--border)',
               color: canSave ? 'var(--btn-primary-text)' : 'var(--text-muted)',
@@ -438,15 +486,21 @@ function GenerateCardsModal({ fixedDeck, decks, notes, domainMap, sourceNote, on
   const typedNotes = notes.filter(n => n.type === 'typed' && (n.content || '').trim().length >= 200)
   const pdfNotes   = notes.filter(n => n.type === 'pdf' && n.pdfStoragePath)
 
+  // Combined "your notes" list — typed notes and saved PDFs in one picker
+  const existingNotes = [
+    ...typedNotes.map(n => ({ id: n.id, label: `${n.title || 'Untitled'} · note`, kind: 'typed', note: n })),
+    ...pdfNotes.map(n => ({ id: n.id, label: `${n.title || 'Untitled'} · PDF`, kind: 'pdf', note: n })),
+  ]
+
   const [step,    setStep]    = useState('input') // 'input' | 'loading' | 'review' | 'unsuitable'
-  const [source,  setSource]  = useState(sourceNote ? 'note' : 'paste')
+  const [source,  setSource]  = useState(sourceNote ? 'existing' : 'upload') // 'existing' | 'upload'
+  const [existingId, setExistingId] = useState(sourceNote?.id || '')
   const [pasteText, setPasteText] = useState('')
-  const [noteId,  setNoteId]  = useState(sourceNote?.id || '')
-  const [pdfId,   setPdfId]   = useState('')
   const [pdfFile, setPdfFile] = useState(null)
+  const [dragging, setDragging] = useState(false)
   const pdfInputRef = useRef()
 
-  // Animated body height when switching source method (mirrors NewNoteModal)
+  // Animated body height — the whole input body resizes smoothly as it changes (mirrors NewNoteModal)
   const srcBodyRef = useRef(null)
   const [srcH, setSrcH] = useState(null)
   useEffect(() => {
@@ -470,34 +524,30 @@ function GenerateCardsModal({ fixedDeck, decks, notes, domainMap, sourceNote, on
     localStorage.setItem('sos-mock-ai', next ? '1' : '0')
   }
 
-  const selectedNote = typedNotes.find(n => n.id === noteId)
-  const canGenerate = source === 'paste' ? pasteText.trim().length >= 100
-    : source === 'note' ? !!selectedNote
-    : (!!pdfFile || !!pdfId)
+  const selectedExisting = existingNotes.find(e => e.id === existingId)
+  const canGenerate = source === 'existing'
+    ? !!selectedExisting
+    : (pasteText.trim().length >= 100 || !!pdfFile)
 
   const targetTitle = fixedDeck ? fixedDeck.title
     : deckChoice === '__new__' ? newDeckTitle.trim()
     : decks.find(d => d.id === deckChoice)?.title
 
-  const contextNote = source === 'note' ? selectedNote : sourceNote
+  const contextNote = (source === 'existing' ? selectedExisting?.note : null) || sourceNote
 
   const handleGenerate = async () => {
     setError('')
     setStep('loading')
     try {
       let material
-      if (source === 'paste') {
-        material = pasteText.trim()
-      } else if (source === 'note') {
-        material = (selectedNote?.content || '').trim()
-      } else {
+      const usingPdf = source === 'existing' ? selectedExisting?.kind === 'pdf' : !!pdfFile
+      if (usingPdf) {
         let buffer
-        if (pdfFile) {
-          buffer = await pdfFile.arrayBuffer()
-        } else {
-          const pdfNote = pdfNotes.find(n => n.id === pdfId)
-          const url = await onGetSignedPdfUrl(pdfNote.pdfStoragePath)
+        if (source === 'existing') {
+          const url = await onGetSignedPdfUrl(selectedExisting.note.pdfStoragePath)
           buffer = await (await fetch(url)).arrayBuffer()
+        } else {
+          buffer = await pdfFile.arrayBuffer()
         }
         material = await extractPdfText(buffer)
         if (material.length < 100) {
@@ -505,6 +555,10 @@ function GenerateCardsModal({ fixedDeck, decks, notes, domainMap, sourceNote, on
           setStep('unsuitable')
           return
         }
+      } else if (source === 'existing') {
+        material = (selectedExisting?.note.content || '').trim()
+      } else {
+        material = pasteText.trim()
       }
       const ctxDomainId = fixedDeck?.domainId
         || (deckChoice !== '__new__' ? decks.find(d => d.id === deckChoice)?.domainId : null)
@@ -560,9 +614,8 @@ function GenerateCardsModal({ fixedDeck, decks, notes, domainMap, sourceNote, on
   }
 
   const SOURCES = [
-    ['paste', 'Paste text'],
-    ['note',  `Typed note${typedNotes.length ? '' : ' (none)'}`],
-    ['pdf',   'PDF'],
+    ['existing', 'Your notes'],
+    ['upload',   'Paste or upload'],
   ]
 
   return (
@@ -575,7 +628,7 @@ function GenerateCardsModal({ fixedDeck, decks, notes, domainMap, sourceNote, on
             {step === 'review' ? `Review ${results.length} cards` : 'Generate Flashcards'}
           </span>
           {step !== 'loading' && (
-            <button onClick={onClose} style={{ width: 28, height: 28, borderRadius: 7, border: 'none', background: 'var(--bg-overlay)', color: 'var(--text-secondary)', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+            <button onClick={onClose} className="fc-icon" style={{ width: 28, height: 28, borderRadius: 7, border: 'none', background: 'var(--bg-overlay)', color: 'var(--text-secondary)', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
               <X size={14} />
             </button>
           )}
@@ -586,137 +639,150 @@ function GenerateCardsModal({ fixedDeck, decks, notes, domainMap, sourceNote, on
           {step === 'input' && (
             <>
               <style>{`@keyframes _gen-in { from { opacity: 0; transform: translateY(6px); } to { opacity: 1; transform: none; } }`}</style>
-              <div>
-                <Label>Source material</Label>
-                <div style={{ display: 'flex', gap: 6 }}>
-                  {SOURCES.map(([key, label]) => {
-                    const disabled = key === 'note' && !typedNotes.length
-                    return (
-                      <button key={key} onClick={() => !disabled && setSource(key)} disabled={disabled}
-                        style={{
-                          flex: 1, padding: '8px 4px', borderRadius: 7, border: 'none', cursor: disabled ? 'default' : 'pointer',
-                          fontSize: 11, fontWeight: 600, fontFamily: 'inherit',
-                          background: source === key ? 'rgba(167,139,250,0.14)' : 'var(--bg-overlay)',
-                          color: source === key ? 'var(--accent-purple)' : 'var(--text-secondary)',
-                          outline: source === key ? '1.5px solid rgba(167,139,250,0.4)' : '1.5px solid transparent',
-                          opacity: disabled ? 0.4 : 1,
-                          transition: 'background 0.12s, color 0.12s, outline-color 0.12s',
-                        }}>{label}</button>
-                    )
-                  })}
-                </div>
-              </div>
 
-              {/* Animated-height body — resizes smoothly when switching source method */}
+              {/* Animated-height body — the whole form resizes smoothly as it changes */}
               <div style={{ overflow: 'hidden', height: srcH ?? 'auto', transition: 'height 0.28s cubic-bezier(0.32,0.72,0,1)' }}>
-                <div ref={srcBodyRef}>
+                <div ref={srcBodyRef} style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
+
+                  <div>
+                    <Label>Where should the cards come from?</Label>
+                    <div style={{ display: 'flex', gap: 6 }}>
+                      {SOURCES.map(([key, label]) => {
+                        const disabled = key === 'existing' && existingNotes.length === 0
+                        return (
+                          <button key={key} onClick={() => !disabled && setSource(key)} disabled={disabled} className="fc-btn"
+                            title={disabled ? 'You have no notes yet' : undefined}
+                            style={{
+                              flex: 1, padding: '9px 4px', borderRadius: 7, border: 'none', cursor: disabled ? 'default' : 'pointer',
+                              fontSize: 12, fontWeight: 600, fontFamily: 'inherit',
+                              background: source === key ? 'rgba(167,139,250,0.14)' : 'var(--bg-overlay)',
+                              color: source === key ? 'var(--accent-purple)' : 'var(--text-secondary)',
+                              outline: source === key ? '1.5px solid rgba(167,139,250,0.4)' : '1.5px solid transparent',
+                              opacity: disabled ? 0.4 : 1,
+                              transition: 'background 0.12s, color 0.12s, outline-color 0.12s',
+                            }}>{label}</button>
+                        )
+                      })}
+                    </div>
+                  </div>
+
+                  {/* Source-specific panel, keyed so it fades in on switch */}
                   <div key={source} style={{ animation: '_gen-in 0.2s ease' }}>
 
-                    {source === 'paste' && (
+                    {source === 'existing' && (
                       <div>
-                        <Label>Material</Label>
-                        <textarea
-                          autoFocus value={pasteText} onChange={e => setPasteText(e.target.value)}
-                          placeholder="Paste lecture notes, slides text, a textbook section…"
-                          style={{ ...inputStyle, minHeight: 160, resize: 'vertical', display: 'block' }}
-                          onFocus={e => e.target.style.borderColor = 'var(--border-focus)'}
-                          onBlur={e => e.target.style.borderColor = 'var(--border-strong)'}
-                        />
-                        {pasteText.trim().length > 0 && pasteText.trim().length < 100 && (
-                          <div style={{ fontSize: 11, color: 'var(--text-muted)', marginTop: 5 }}>Add a bit more material (at least ~100 characters).</div>
+                        <Label>Choose a note or PDF</Label>
+                        <AppSelect value={existingId} onChange={setExistingId}>
+                          <AppSelectItem value="">Pick one of your notes</AppSelectItem>
+                          {existingNotes.map(e => <AppSelectItem key={e.id} value={e.id}>{e.label}</AppSelectItem>)}
+                        </AppSelect>
+                        {selectedExisting?.kind === 'pdf' && (
+                          <div style={{ fontSize: 11, color: 'var(--text-muted)', marginTop: 5 }}>Text is read from the PDF — scanned pages can't be used.</div>
                         )}
                       </div>
                     )}
 
-                    {source === 'note' && (
-                      <div>
-                        <Label>Typed note</Label>
-                        <AppSelect value={noteId} onChange={setNoteId}>
-                          <AppSelectItem value="">Pick a note</AppSelectItem>
-                          {typedNotes.map(n => <AppSelectItem key={n.id} value={n.id}>{n.title || 'Untitled'}</AppSelectItem>)}
-                        </AppSelect>
-                      </div>
-                    )}
-
-                    {source === 'pdf' && (
+                    {source === 'upload' && (
                       <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
                         <input
                           ref={pdfInputRef} type="file" accept=".pdf,application/pdf" style={{ display: 'none' }}
-                          onChange={e => { const f = e.target.files?.[0]; if (f) { setPdfFile(f); setPdfId('') } }}
+                          onChange={e => { const f = e.target.files?.[0]; if (f) setPdfFile(f) }}
                         />
                         <div>
-                          <Label>Upload a PDF</Label>
-                          <button
-                            onClick={() => pdfInputRef.current?.click()}
-                            style={{
-                              width: '100%', display: 'flex', alignItems: 'center', gap: 8, padding: '11px 12px',
-                              borderRadius: 8, border: `1.5px dashed ${pdfFile ? 'var(--accent-purple)' : 'var(--border-strong)'}`,
-                              background: pdfFile ? 'rgba(167,139,250,0.08)' : 'var(--bg-overlay)',
-                              color: pdfFile ? 'var(--text-primary)' : 'var(--text-secondary)',
-                              cursor: 'pointer', fontSize: 13, fontFamily: 'inherit', textAlign: 'left',
-                            }}
-                          >
-                            <Upload size={15} style={{ color: 'var(--accent-purple)', flexShrink: 0 }} />
-                            <span style={{ flex: 1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-                              {pdfFile ? pdfFile.name : 'Choose a PDF file…'}
-                            </span>
-                            {pdfFile && (
-                              <X size={14} style={{ color: 'var(--text-muted)', flexShrink: 0 }}
-                                onClick={e => { e.stopPropagation(); setPdfFile(null); if (pdfInputRef.current) pdfInputRef.current.value = '' }} />
-                            )}
-                          </button>
-                          <div style={{ fontSize: 11, color: 'var(--text-muted)', marginTop: 5 }}>Text-based PDFs only — scanned pages can't be read.</div>
+                          <Label>Write or paste</Label>
+                          <textarea
+                            autoFocus value={pasteText} onChange={e => setPasteText(e.target.value)}
+                            placeholder="Paste lecture notes, slides text, a textbook section…"
+                            style={{ ...inputStyle, minHeight: 130, resize: 'vertical', display: 'block' }}
+                            onFocus={e => e.target.style.borderColor = 'var(--border-focus)'}
+                            onBlur={e => e.target.style.borderColor = 'var(--border-strong)'}
+                          />
+                          {pasteText.trim().length > 0 && pasteText.trim().length < 100 && (
+                            <div style={{ fontSize: 11, color: 'var(--text-muted)', marginTop: 5 }}>Add a bit more text (at least ~100 characters).</div>
+                          )}
                         </div>
 
-                        {pdfNotes.length > 0 && (
-                          <div>
-                            <Label>Or pick a saved PDF note</Label>
-                            <AppSelect value={pdfId} onChange={v => { setPdfId(v); if (v) setPdfFile(null) }}>
-                              <AppSelectItem value="">None</AppSelectItem>
-                              {pdfNotes.map(n => <AppSelectItem key={n.id} value={n.id}>{n.title || 'Untitled'}</AppSelectItem>)}
-                            </AppSelect>
-                          </div>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+                          <div style={{ flex: 1, height: 1, background: 'var(--border)' }} />
+                          <span style={{ fontSize: 11, color: 'var(--text-muted)' }}>or upload a PDF</span>
+                          <div style={{ flex: 1, height: 1, background: 'var(--border)' }} />
+                        </div>
+
+                        <button
+                          onClick={() => pdfInputRef.current?.click()}
+                          onDragOver={e => { e.preventDefault(); if (!dragging) setDragging(true) }}
+                          onDragEnter={e => { e.preventDefault(); setDragging(true) }}
+                          onDragLeave={e => { if (!e.currentTarget.contains(e.relatedTarget)) setDragging(false) }}
+                          onDrop={e => {
+                            e.preventDefault(); setDragging(false)
+                            const f = e.dataTransfer.files?.[0]
+                            if (f && (f.type === 'application/pdf' || f.name.toLowerCase().endsWith('.pdf'))) setPdfFile(f)
+                          }}
+                          style={{
+                            width: '100%', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: 7,
+                            padding: '22px 12px', borderRadius: 10,
+                            border: `1.5px dashed ${dragging || pdfFile ? 'var(--accent-purple)' : 'var(--border-strong)'}`,
+                            background: dragging || pdfFile ? 'rgba(167,139,250,0.1)' : 'var(--bg-overlay)',
+                            color: pdfFile ? 'var(--text-primary)' : 'var(--text-secondary)',
+                            cursor: 'pointer', fontFamily: 'inherit', textAlign: 'center',
+                            transition: 'border-color 0.15s, background 0.15s', boxSizing: 'border-box',
+                          }}
+                        >
+                          <Upload size={20} style={{ color: 'var(--accent-purple)' }} />
+                          <span style={{ fontSize: 13, fontWeight: 500, maxWidth: '100%', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                            {pdfFile ? pdfFile.name : dragging ? 'Drop the PDF here' : 'Click to choose, or drag a PDF here'}
+                          </span>
+                          {pdfFile && (
+                            <span
+                              onClick={e => { e.stopPropagation(); setPdfFile(null); if (pdfInputRef.current) pdfInputRef.current.value = '' }}
+                              style={{ fontSize: 11, color: 'var(--text-muted)', textDecoration: 'underline' }}
+                            >Remove</span>
+                          )}
+                        </button>
+                        {pdfFile && pasteText.trim() && (
+                          <div style={{ fontSize: 11, color: 'var(--text-muted)' }}>The PDF will be used (clear it to use your pasted text instead).</div>
                         )}
                       </div>
                     )}
 
                   </div>
+
+                  {!fixedDeck && (
+                    <div>
+                      <Label>Add cards to</Label>
+                      <AppSelect value={deckChoice} onChange={setDeckChoice}>
+                        <AppSelectItem value="__new__">New deck</AppSelectItem>
+                        {decks.map(d => <AppSelectItem key={d.id} value={d.id}>{d.title}</AppSelectItem>)}
+                      </AppSelect>
+                      {deckChoice === '__new__' && (
+                        <input
+                          style={{ ...inputStyle, marginTop: 8 }} placeholder="New deck name"
+                          value={newDeckTitle} onChange={e => setNewDeckTitle(e.target.value)}
+                          onFocus={e => e.target.style.borderColor = 'var(--border-focus)'}
+                          onBlur={e => e.target.style.borderColor = 'var(--border-strong)'}
+                        />
+                      )}
+                    </div>
+                  )}
+
+                  {error && <div style={{ fontSize: 12, color: 'var(--accent-red)' }}>{error}</div>}
+
+                  {import.meta.env.DEV && (
+                    <button onClick={toggleMock} className="fc-btn" style={{
+                      display: 'flex', alignItems: 'center', gap: 8, padding: '8px 10px', borderRadius: 8,
+                      border: `1px solid ${mock ? 'rgba(52,211,153,0.4)' : 'var(--border)'}`,
+                      background: mock ? 'rgba(52,211,153,0.1)' : 'transparent',
+                      color: mock ? 'var(--accent-green)' : 'var(--text-muted)',
+                      cursor: 'pointer', fontSize: 11, fontFamily: 'inherit', textAlign: 'left',
+                    }}>
+                      <FlaskConical size={13} />
+                      <span style={{ flex: 1 }}>Mock mode {mock ? 'on' : 'off'} — {mock ? 'returns sample cards, no API call' : 'click to test without calling Claude'}</span>
+                      {mock ? <CheckSquare size={14} /> : <Square size={14} />}
+                    </button>
+                  )}
+
                 </div>
               </div>
-
-              {!fixedDeck && (
-                <div>
-                  <Label>Add cards to</Label>
-                  <AppSelect value={deckChoice} onChange={setDeckChoice}>
-                    <AppSelectItem value="__new__">New deck</AppSelectItem>
-                    {decks.map(d => <AppSelectItem key={d.id} value={d.id}>{d.title}</AppSelectItem>)}
-                  </AppSelect>
-                  {deckChoice === '__new__' && (
-                    <input
-                      style={{ ...inputStyle, marginTop: 8 }} placeholder="New deck name"
-                      value={newDeckTitle} onChange={e => setNewDeckTitle(e.target.value)}
-                      onFocus={e => e.target.style.borderColor = 'var(--border-focus)'}
-                      onBlur={e => e.target.style.borderColor = 'var(--border-strong)'}
-                    />
-                  )}
-                </div>
-              )}
-
-              {error && <div style={{ fontSize: 12, color: 'var(--accent-red)' }}>{error}</div>}
-
-              {import.meta.env.DEV && (
-                <button onClick={toggleMock} style={{
-                  display: 'flex', alignItems: 'center', gap: 8, padding: '8px 10px', borderRadius: 8,
-                  border: `1px solid ${mock ? 'rgba(52,211,153,0.4)' : 'var(--border)'}`,
-                  background: mock ? 'rgba(52,211,153,0.1)' : 'transparent',
-                  color: mock ? 'var(--accent-green)' : 'var(--text-muted)',
-                  cursor: 'pointer', fontSize: 11, fontFamily: 'inherit', textAlign: 'left',
-                }}>
-                  <FlaskConical size={13} />
-                  <span style={{ flex: 1 }}>Mock mode {mock ? 'on' : 'off'} — {mock ? 'returns sample cards, no API call' : 'click to test without calling Claude'}</span>
-                  {mock ? <CheckSquare size={14} /> : <Square size={14} />}
-                </button>
-              )}
             </>
           )}
 
@@ -737,7 +803,7 @@ function GenerateCardsModal({ fixedDeck, decks, notes, domainMap, sourceNote, on
               </div>
               {results.map((r, i) => (
                 <div key={i} style={{ display: 'flex', gap: 10, alignItems: 'flex-start', opacity: r.checked ? 1 : 0.45, transition: 'opacity 0.12s' }}>
-                  <button onClick={() => setResult(i, { checked: !r.checked })} style={{ background: 'none', border: 'none', cursor: 'pointer', padding: 0, marginTop: 9, color: r.checked ? 'var(--accent-purple)' : 'var(--text-muted)', display: 'flex', flexShrink: 0 }}>
+                  <button onClick={() => setResult(i, { checked: !r.checked })} className="fc-icon" style={{ background: 'none', border: 'none', cursor: 'pointer', padding: 0, marginTop: 9, color: r.checked ? 'var(--accent-purple)' : 'var(--text-muted)', display: 'flex', flexShrink: 0 }}>
                     {r.checked ? <CheckSquare size={16} /> : <Square size={16} />}
                   </button>
                   <div style={{ flex: 1, display: 'flex', flexDirection: 'column', gap: 6 }}>
@@ -755,7 +821,7 @@ function GenerateCardsModal({ fixedDeck, decks, notes, domainMap, sourceNote, on
         <div style={{ padding: '14px 22px', borderTop: '1px solid var(--border)', display: 'flex', justifyContent: 'flex-end', gap: 8, flexShrink: 0 }}>
           {step === 'input' && (
             <>
-              <button onClick={onClose} style={{ padding: '8px 16px', borderRadius: 8, border: '1px solid var(--border-strong)', background: 'none', color: 'var(--text-secondary)', cursor: 'pointer', fontSize: 13 }}>Cancel</button>
+              <button onClick={onClose} className="fc-btn" style={{ padding: '8px 16px', borderRadius: 8, border: '1px solid var(--border-strong)', background: 'none', color: 'var(--text-secondary)', cursor: 'pointer', fontSize: 13 }}>Cancel</button>
               {(() => {
                 const ready = canGenerate && !(!fixedDeck && deckChoice === '__new__' && !newDeckTitle.trim())
                 return (
@@ -771,12 +837,12 @@ function GenerateCardsModal({ fixedDeck, decks, notes, domainMap, sourceNote, on
             </>
           )}
           {step === 'unsuitable' && (
-            <button onClick={() => setStep('input')} style={{ padding: '8px 18px', borderRadius: 8, border: '1px solid var(--border-strong)', background: 'none', color: 'var(--text-secondary)', cursor: 'pointer', fontSize: 13 }}>Try different material</button>
+            <button onClick={() => setStep('input')} className="fc-btn" style={{ padding: '8px 18px', borderRadius: 8, border: '1px solid var(--border-strong)', background: 'none', color: 'var(--text-secondary)', cursor: 'pointer', fontSize: 13 }}>Try different material</button>
           )}
           {step === 'review' && (
             <>
-              <button onClick={() => setStep('input')} style={{ padding: '8px 16px', borderRadius: 8, border: '1px solid var(--border-strong)', background: 'none', color: 'var(--text-secondary)', cursor: 'pointer', fontSize: 13 }}>Back</button>
-              <button onClick={handleSave} disabled={checkedCount === 0 || saving} style={{
+              <button onClick={() => setStep('input')} className="fc-btn" style={{ padding: '8px 16px', borderRadius: 8, border: '1px solid var(--border-strong)', background: 'none', color: 'var(--text-secondary)', cursor: 'pointer', fontSize: 13 }}>Back</button>
+              <button onClick={handleSave} disabled={checkedCount === 0 || saving} className="fc-btn" style={{
                 padding: '8px 18px', borderRadius: 8, border: 'none', fontSize: 13, fontWeight: 600,
                 background: checkedCount > 0 && !saving ? 'var(--accent-blue)' : 'var(--border)',
                 color: checkedCount > 0 && !saving ? 'var(--btn-primary-text)' : 'var(--text-muted)',
@@ -828,7 +894,7 @@ function QuickAddCard({ onAdd }) {
         onFocus={e => e.target.style.borderColor = 'var(--border-focus)'}
         onBlur={e => e.target.style.borderColor = 'var(--border-strong)'}
       />
-      <button onClick={add} disabled={!canAdd} style={{
+      <button onClick={add} disabled={!canAdd} className="fc-btn" style={{
         display: 'flex', alignItems: 'center', gap: 5, padding: '9px 14px', borderRadius: 8,
         border: 'none', fontSize: 13, fontWeight: 600,
         background: canAdd ? 'var(--accent-blue)' : 'var(--border)',
@@ -869,7 +935,7 @@ function CardRow({ card, onEdit, onDelete, isLast }) {
         </span>
       )}
       {hovered && !confirming && (
-        <button onClick={e => { e.stopPropagation(); setConfirming(true) }} style={{ background: 'none', border: 'none', cursor: 'pointer', padding: 2, color: 'var(--text-muted)', flexShrink: 0, display: 'flex' }}
+        <button onClick={e => { e.stopPropagation(); setConfirming(true) }} className="fc-icon" style={{ background: 'none', border: 'none', cursor: 'pointer', padding: 2, color: 'var(--text-muted)', flexShrink: 0, display: 'flex' }}
           onMouseEnter={e => e.currentTarget.style.color = 'var(--accent-red)'}
           onMouseLeave={e => e.currentTarget.style.color = 'var(--text-muted)'}>
           <Trash2 size={13} />
@@ -877,8 +943,8 @@ function CardRow({ card, onEdit, onDelete, isLast }) {
       )}
       {confirming && (
         <div style={{ display: 'flex', gap: 6, flexShrink: 0 }}>
-          <button onClick={() => setConfirming(false)} style={{ padding: '3px 9px', borderRadius: 6, border: '1px solid var(--border-strong)', background: 'transparent', color: 'var(--text-muted)', fontSize: 11, cursor: 'pointer', fontFamily: 'inherit' }}>Cancel</button>
-          <button onClick={onDelete} style={{ padding: '3px 9px', borderRadius: 6, border: '1px solid rgba(251,113,133,0.4)', background: 'rgba(251,113,133,0.14)', color: '#fb7185', fontSize: 11, fontWeight: 600, cursor: 'pointer', fontFamily: 'inherit' }}>Delete</button>
+          <button onClick={() => setConfirming(false)} className="fc-btn" style={{ padding: '3px 9px', borderRadius: 6, border: '1px solid var(--border-strong)', background: 'transparent', color: 'var(--text-muted)', fontSize: 11, cursor: 'pointer', fontFamily: 'inherit' }}>Cancel</button>
+          <button onClick={onDelete} className="fc-btn" style={{ padding: '3px 9px', borderRadius: 6, border: '1px solid rgba(251,113,133,0.4)', background: 'rgba(251,113,133,0.14)', color: '#fb7185', fontSize: 11, fontWeight: 600, cursor: 'pointer', fontFamily: 'inherit' }}>Delete</button>
         </div>
       )}
     </div>
@@ -886,17 +952,33 @@ function CardRow({ card, onEdit, onDelete, isLast }) {
 }
 
 // ─── Review mode ───────────────────────────────────────────────────────────────
-function ReviewView({ deck, practice, onGrade, onExit }) {
-  const [queue, setQueue] = useState(() => (practice ? deck.cards : deck.cards.filter(isDue)).map(c => c.id))
+function shuffleArr(a) {
+  const r = a.slice()
+  for (let i = r.length - 1; i > 0; i--) { const j = Math.floor(Math.random() * (i + 1)); [r[i], r[j]] = [r[j], r[i]] }
+  return r
+}
+
+// `cards` is a flat list where each card carries a `deckId` (so this works across decks)
+function ReviewView({ cards, shuffle: shuffleInit, reverse: reverseInit, onGrade, onExit, exitLabel = 'Back to deck' }) {
+  const cardMap = useMemo(() => Object.fromEntries(cards.map(c => [c.id, c])), [cards])
+  const [queue, setQueue] = useState(() => {
+    const ids = cards.map(c => c.id)
+    return shuffleInit ? shuffleArr(ids) : ids
+  })
   const [index, setIndex] = useState(0)
   const [flipped, setFlipped] = useState(false)
+  const [reverse, setReverse] = useState(!!reverseInit)
   const [graded, setGraded] = useState(0)
-
-  const cardMap = Object.fromEntries(deck.cards.map(c => [c.id, c]))
-  const card = index < queue.length ? cardMap[queue[index]] : null
   // Back face renders from this; only updated when revealing, so the grade flip-back
   // keeps showing the card you just saw instead of spoiling the next card's answer.
   const [backCard, setBackCard] = useState(null)
+  const [shuffling, setShuffling] = useState(false)
+  const shuffleTimer = useRef()
+  const reduce = useReducedMotion()
+
+  const card = index < queue.length ? cardMap[queue[index]] : null
+  const promptText = card ? (reverse ? card.back : card.front) : ''
+  const answerText = backCard ? (reverse ? backCard.front : backCard.back) : ''
 
   const flip = () => {
     if (!flipped) setBackCard(card)
@@ -904,12 +986,23 @@ function ReviewView({ deck, practice, onGrade, onExit }) {
   }
 
   const handleGrade = (grade) => {
-    onGrade(deck.id, queue[index], grade)
+    onGrade(card.deckId, card.id, grade)
     setGraded(n => n + 1)
     if (grade === 'again') setQueue(q => [...q, queue[index]])
     setFlipped(false)   // flips 180 → 0, landing on the next card's front
     setIndex(i => i + 1)
   }
+
+  const reshuffle = () => {
+    setQueue(q => [...q.slice(0, index), ...shuffleArr(q.slice(index))])
+    setFlipped(false)
+    if (reduce) return
+    setShuffling(true)
+    clearTimeout(shuffleTimer.current)
+    shuffleTimer.current = setTimeout(() => setShuffling(false), 560)
+  }
+  useEffect(() => () => clearTimeout(shuffleTimer.current), [])
+  const toggleReverse = () => { setFlipped(false); setBackCard(null); setReverse(v => !v) }
 
   // Keyboard: Space flips, 1/2/3 grade once revealed
   useEffect(() => {
@@ -927,7 +1020,7 @@ function ReviewView({ deck, practice, onGrade, onExit }) {
     }
     window.addEventListener('keydown', onKey)
     return () => window.removeEventListener('keydown', onKey)
-  }, [card, flipped, index, queue])
+  }, [card, flipped, index, queue, reverse])
 
   if (!card) {
     return (
@@ -935,13 +1028,19 @@ function ReviewView({ deck, practice, onGrade, onExit }) {
         <Layers size={36} style={{ marginBottom: 12, color: 'var(--accent-green)' }} />
         <p style={{ fontSize: 16, fontWeight: 600, margin: 0, color: 'var(--text-primary)' }}>Review complete</p>
         <p style={{ fontSize: 13, margin: '6px 0 18px' }}>{graded} card{graded !== 1 ? 's' : ''} reviewed</p>
-        <button onClick={onExit} style={{
+        <button onClick={onExit} className="fc-btn" style={{
           padding: '9px 18px', borderRadius: 9, border: 'none', fontSize: 13, fontWeight: 600,
           background: 'var(--accent-blue)', color: 'var(--btn-primary-text)', cursor: 'pointer',
-        }}>Back to deck</button>
+        }}>{exitLabel}</button>
       </div>
     )
   }
+
+  const chip = (active) => ({
+    width: 30, height: 28, borderRadius: 7, border: `1px solid ${active ? 'var(--accent-purple)' : 'var(--border-strong)'}`,
+    background: active ? 'rgba(167,139,250,0.12)' : 'none', color: active ? 'var(--accent-purple)' : 'var(--text-secondary)',
+    cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0,
+  })
 
   return (
     <div style={{ maxWidth: 560, margin: '0 auto' }}>
@@ -949,18 +1048,59 @@ function ReviewView({ deck, practice, onGrade, onExit }) {
         <span style={{ fontSize: 12, fontWeight: 600, color: 'var(--text-muted)' }}>
           {index + 1} / {queue.length}
         </span>
-        <button onClick={onExit} style={{ display: 'flex', alignItems: 'center', gap: 5, padding: '5px 12px', borderRadius: 7, border: '1px solid var(--border-strong)', background: 'none', color: 'var(--text-secondary)', cursor: 'pointer', fontSize: 12, fontFamily: 'inherit' }}>
-          <X size={12} /> End review
-        </button>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+          <button onClick={reshuffle} className="fc-icon" title="Shuffle the remaining cards" style={chip(false)}>
+            <Shuffle size={13} />
+          </button>
+          <button onClick={toggleReverse} className="fc-icon" title="Reverse (show the answer side first)" style={chip(reverse)}>
+            <motion.span animate={{ rotate: reverse ? 180 : 0 }} transition={{ duration: reduce ? 0 : 0.25, ease: [0.22, 1, 0.36, 1] }} style={{ display: 'flex' }}>
+              <ArrowLeftRight size={13} />
+            </motion.span>
+          </button>
+          <button onClick={onExit} className="fc-btn" style={{ display: 'flex', alignItems: 'center', gap: 5, padding: '5px 12px', borderRadius: 7, border: '1px solid var(--border-strong)', background: 'none', color: 'var(--text-secondary)', cursor: 'pointer', fontSize: 12, fontFamily: 'inherit' }}>
+            <X size={12} /> End
+          </button>
+        </div>
       </div>
 
-      <div onClick={flip} style={{ perspective: 1600, cursor: 'pointer' }}>
+      <div style={{ position: 'relative' }}>
+        {/* Two faint cards behind give the review a real-deck feel; on shuffle they
+            riffle out to opposite sides and restack while the top card lifts. */}
+        {[0, 1].map(i => {
+          const rest = i === 0
+            ? { x: 0, y: 8, rotate: 1.1, scale: 0.975, opacity: 0.5 }
+            : { x: 0, y: 15, rotate: -1.3, scale: 0.95, opacity: 0.28 }
+          const riffle = i === 0
+            ? { x: [0, 70, 0], y: [8, -6, 8], rotate: [1.1, 11, 1.1], scale: 0.975, opacity: [0.5, 0.85, 0.5] }
+            : { x: [0, -70, 0], y: [15, -2, 15], rotate: [-1.3, -11, -1.3], scale: 0.95, opacity: [0.28, 0.72, 0.28] }
+          return (
+            <motion.div
+              key={i} aria-hidden
+              animate={shuffling ? riffle : rest}
+              transition={shuffling
+                ? { duration: 0.55, ease: [0.4, 0, 0.2, 1], delay: i * 0.05 }
+                : { duration: reduce ? 0 : 0.3, ease: [0.4, 0, 0.2, 1] }}
+              style={{
+                position: 'absolute', inset: 0, height: 300, borderRadius: 16,
+                background: 'var(--bg-surface)', border: '1px solid var(--border)',
+                boxShadow: 'var(--shadow-modal)', zIndex: 0, pointerEvents: 'none',
+              }}
+            />
+          )
+        })}
+
         <motion.div
-          animate={{ rotateY: flipped ? 180 : 0 }}
-          transition={{ duration: 0.45, ease: [0.4, 0, 0.2, 1] }}
-          style={{ position: 'relative', height: 300, transformStyle: 'preserve-3d' }}
+          animate={shuffling ? { y: [0, -12, 0], rotate: [0, -2.5, 1.5, 0], scale: [1, 1.025, 0.99, 1] } : { y: 0, rotate: 0, scale: 1 }}
+          transition={{ duration: shuffling ? 0.55 : (reduce ? 0 : 0.3), ease: [0.4, 0, 0.2, 1] }}
+          style={{ position: 'relative', zIndex: 2 }}
         >
-          {[false, true].map(isBack => (
+          <div onClick={flip} style={{ perspective: 1600, cursor: 'pointer' }}>
+            <motion.div
+              animate={{ rotateY: flipped ? 180 : 0 }}
+              transition={{ duration: reduce ? 0 : 0.45, ease: [0.4, 0, 0.2, 1] }}
+              style={{ position: 'relative', height: 300, transformStyle: 'preserve-3d' }}
+            >
+              {[false, true].map(isBack => (
             <div key={String(isBack)} style={{
               position: 'absolute', inset: 0,
               backfaceVisibility: 'hidden', WebkitBackfaceVisibility: 'hidden',
@@ -972,28 +1112,36 @@ function ReviewView({ deck, practice, onGrade, onExit }) {
               overflowY: 'auto',
             }}>
               <span style={{ fontSize: 10, fontWeight: 700, letterSpacing: '1px', textTransform: 'uppercase', color: isBack ? 'var(--accent-green)' : 'var(--text-muted)' }}>
-                {isBack ? 'Back' : 'Front'}
+                {isBack ? (reverse ? 'Front' : 'Back') : (reverse ? 'Back' : 'Front')}
               </span>
               <div style={{ fontSize: 18, fontWeight: 500, color: 'var(--text-primary)', whiteSpace: 'pre-wrap', lineHeight: 1.5 }}>
-                {isBack ? (backCard?.back ?? '') : card.front}
+                {isBack ? answerText : promptText}
               </div>
               {!isBack && <span style={{ fontSize: 11, color: 'var(--text-muted)' }}>Tap or press Space to reveal</span>}
             </div>
           ))}
+            </motion.div>
+          </div>
         </motion.div>
       </div>
 
       <div style={{ display: 'flex', gap: 10, marginTop: 18, minHeight: 44 }}>
-        {flipped && GRADES.map(g => (
-          <button key={g.key} onClick={() => handleGrade(g.key)} style={{
-            flex: 1, padding: '11px 4px', borderRadius: 10, border: `1.5px solid ${g.color}55`,
-            background: `${g.color}18`, color: g.color, fontSize: 13, fontWeight: 700,
-            cursor: 'pointer', fontFamily: 'inherit', transition: 'all 0.12s',
-            display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 7,
-          }}>
+        {flipped && GRADES.map((g, gi) => (
+          <motion.button key={g.key} onClick={() => handleGrade(g.key)}
+            initial={reduce ? false : { opacity: 0, y: 8 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ duration: 0.18, ease: [0.22, 1, 0.36, 1], delay: reduce ? 0 : gi * 0.04 }}
+            whileHover={reduce ? undefined : { scale: 1.04, backgroundColor: `${g.color}2b` }}
+            whileTap={reduce ? undefined : { scale: 0.96 }}
+            style={{
+              flex: 1, padding: '11px 4px', borderRadius: 10, border: `1.5px solid ${g.color}55`,
+              background: `${g.color}18`, color: g.color, fontSize: 13, fontWeight: 700,
+              cursor: 'pointer', fontFamily: 'inherit',
+              display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 7,
+            }}>
             {g.label}
             <span style={{ fontSize: 10, fontWeight: 700, opacity: 0.7, border: `1px solid ${g.color}66`, borderRadius: 4, padding: '1px 5px', lineHeight: 1.3 }}>{g.hotkey}</span>
-          </button>
+          </motion.button>
         ))}
       </div>
     </div>
@@ -1001,21 +1149,48 @@ function ReviewView({ deck, practice, onGrade, onExit }) {
 }
 
 // ─── Deck card (list view) ─────────────────────────────────────────────────────
-function DeckCard({ deck, domain, onOpen }) {
+function DeckCard({ deck, domain, onOpen, onDelete }) {
   const [hovered, setHovered] = useState(false)
-  const dueCount = deck.cards.filter(isDue).length
+  const [confirming, setConfirming] = useState(false)
 
   return (
-    <div onClick={onOpen} onMouseEnter={() => setHovered(true)} onMouseLeave={() => setHovered(false)} style={{
+    <div onClick={() => !confirming && onOpen()} onMouseEnter={() => setHovered(true)} onMouseLeave={() => { setHovered(false); setConfirming(false) }} style={{
+      position: 'relative',
       background: 'var(--bg-surface)', border: `1px solid ${hovered ? 'var(--border-strong)' : 'var(--border)'}`,
       borderRadius: 14, padding: '18px 18px 16px', cursor: 'pointer',
       transition: 'border-color 0.12s, transform 0.12s',
       transform: hovered ? 'translateY(-2px)' : 'none',
       display: 'flex', flexDirection: 'column', gap: 10,
     }}>
+      {confirming && (
+        <div onClick={e => e.stopPropagation()} style={{
+          position: 'absolute', inset: 0, zIndex: 2, borderRadius: 14,
+          background: 'var(--bg-surface)', border: '1px solid var(--border-strong)',
+          display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: 12, padding: 16, textAlign: 'center',
+        }}>
+          <span style={{ fontSize: 13, color: 'var(--text-primary)' }}>Delete <strong>{deck.title}</strong> and its {deck.cards.length} card{deck.cards.length !== 1 ? 's' : ''}?</span>
+          <div style={{ display: 'flex', gap: 8 }}>
+            <button onClick={() => setConfirming(false)} className="fc-btn" style={{ padding: '6px 14px', borderRadius: 7, border: '1px solid var(--border-strong)', background: 'transparent', color: 'var(--text-secondary)', fontSize: 12, cursor: 'pointer', fontFamily: 'inherit' }}>Cancel</button>
+            <button onClick={() => onDelete(deck.id)} className="fc-btn" style={{ padding: '6px 14px', borderRadius: 7, border: '1px solid rgba(251,113,133,0.4)', background: 'rgba(251,113,133,0.14)', color: '#fb7185', fontSize: 12, fontWeight: 600, cursor: 'pointer', fontFamily: 'inherit' }}>Delete</button>
+          </div>
+        </div>
+      )}
       <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: 8 }}>
         <span style={{ fontSize: 14, fontWeight: 600, color: 'var(--text-primary)', lineHeight: 1.35 }}>{deck.title}</span>
-        <Layers size={15} style={{ color: domain ? domain.color : 'var(--text-muted)', flexShrink: 0, marginTop: 1 }} />
+        {hovered ? (
+          <button
+            onClick={e => { e.stopPropagation(); setConfirming(true) }}
+            title="Delete deck"
+            className="fc-icon"
+            style={{ background: 'none', border: 'none', cursor: 'pointer', padding: 0, color: 'var(--text-muted)', flexShrink: 0, marginTop: 1, display: 'flex' }}
+            onMouseEnter={e => e.currentTarget.style.color = 'var(--accent-red)'}
+            onMouseLeave={e => e.currentTarget.style.color = 'var(--text-muted)'}
+          >
+            <Trash2 size={15} />
+          </button>
+        ) : (
+          <Layers size={15} style={{ color: domain ? domain.color : 'var(--text-muted)', flexShrink: 0, marginTop: 1 }} />
+        )}
       </div>
       <div style={{ display: 'flex', alignItems: 'center', gap: 6, flexWrap: 'wrap' }}>
         {domain && (
@@ -1028,9 +1203,6 @@ function DeckCard({ deck, domain, onOpen }) {
       </div>
       <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginTop: 'auto' }}>
         <span style={{ fontSize: 12, color: 'var(--text-muted)' }}>{deck.cards.length} card{deck.cards.length !== 1 ? 's' : ''}</span>
-        {dueCount > 0 && (
-          <span style={{ fontSize: 11, fontWeight: 600, color: 'var(--accent-amber)' }}>{dueCount} due</span>
-        )}
       </div>
     </div>
   )
@@ -1045,11 +1217,21 @@ export default function FlashcardsPage({
   generateSourceNote, onClearGenerateSource,
 }) {
   const isMobile = useIsMobile()
+  useEffect(() => {
+    if (document.getElementById('fc-motion-styles')) return
+    const el = document.createElement('style')
+    el.id = 'fc-motion-styles'
+    el.textContent = FC_MOTION_CSS
+    document.head.appendChild(el)
+  }, [])
   const [openDeckId,  setOpenDeckId]  = useState(null)
   const [showNewDeck, setShowNewDeck] = useState(false)
   const [editingDeck, setEditingDeck] = useState(false)
   const [editingCard, setEditingCard] = useState(null)
   const [reviewing,   setReviewing]   = useState(null)  // null | 'study' | 'practice'
+  const [shuffle,     setShuffle]     = useState(false)
+  const [reverse,     setReverse]     = useState(false)
+  const [crossDue,    setCrossDue]    = useState(false)  // cross-deck "review all due"
   const [showGenerate, setShowGenerate] = useState(false)
 
   useEffect(() => {
@@ -1068,6 +1250,14 @@ export default function FlashcardsPage({
   const closeDeck = () => { setOpenDeckId(null); setReviewing(null) }
 
   // ── Deck detail / review ─────────────────────────────────────────────────────
+  const toggleChip = (active) => ({
+    width: 34, height: 34, borderRadius: 9, flexShrink: 0,
+    border: `1px solid ${active ? 'var(--accent-purple)' : 'var(--border-strong)'}`,
+    background: active ? 'rgba(167,139,250,0.12)' : 'var(--bg-surface)',
+    color: active ? 'var(--accent-purple)' : 'var(--text-secondary)',
+    cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center',
+  })
+
   if (openDeck) {
     const domain = openDeck.domainId ? domainMap[openDeck.domainId] : null
     const dueCount = openDeck.cards.filter(isDue).length
@@ -1075,7 +1265,7 @@ export default function FlashcardsPage({
     return (
       <div style={{ padding: isMobile ? '22px 16px 28px' : '36px 40px', maxWidth: 860 }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 6 }}>
-          <button onClick={reviewing ? () => setReviewing(null) : closeDeck} style={{
+          <button onClick={reviewing ? () => setReviewing(null) : closeDeck} className="fc-icon" style={{
             width: 30, height: 30, borderRadius: 8, border: '1px solid var(--border-strong)',
             background: 'var(--bg-surface)', color: 'var(--text-secondary)', cursor: 'pointer',
             display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0,
@@ -1086,45 +1276,17 @@ export default function FlashcardsPage({
             {openDeck.title}
           </h1>
           {!reviewing && (
-            <>
-              <button onClick={() => setEditingDeck(true)} style={{
-                width: 32, height: 32, borderRadius: 8, border: '1px solid var(--border-strong)',
-                background: 'var(--bg-surface)', color: 'var(--text-secondary)', cursor: 'pointer',
-                display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0,
-              }}>
-                <Pencil size={14} />
-              </button>
-              <button onClick={() => setShowGenerate(true)} title="Generate cards with AI" style={{
-                width: 32, height: 32, borderRadius: 8, border: '1px solid var(--border-strong)',
-                background: 'var(--bg-surface)', color: 'var(--accent-purple)', cursor: 'pointer',
-                display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0,
-              }}>
-                <Sparkles size={14} />
-              </button>
-              <button onClick={() => setReviewing('practice')} disabled={openDeck.cards.length === 0} style={{
-                display: 'flex', alignItems: 'center', gap: 6, padding: '8px 14px', borderRadius: 9,
-                border: '1px solid var(--border-strong)', fontSize: 13, fontWeight: 600, flexShrink: 0,
-                background: 'var(--bg-surface)',
-                color: openDeck.cards.length > 0 ? 'var(--text-secondary)' : 'var(--text-muted)',
-                cursor: openDeck.cards.length > 0 ? 'pointer' : 'default', fontFamily: 'inherit',
-              }}>
-                <RotateCcw size={13} /> Practice
-              </button>
-              <button onClick={() => setReviewing('study')} disabled={dueCount === 0} style={{
-                display: 'flex', alignItems: 'center', gap: 6, padding: '8px 16px', borderRadius: 9,
-                border: 'none', fontSize: 13, fontWeight: 600, flexShrink: 0,
-                background: dueCount > 0 ? 'var(--accent-blue)' : 'var(--border)',
-                color: dueCount > 0 ? 'var(--btn-primary-text)' : 'var(--text-muted)',
-                cursor: dueCount > 0 ? 'pointer' : 'default',
-                boxShadow: dueCount > 0 ? 'var(--glow-blue)' : 'none',
-              }}>
-                <Play size={13} /> Study
-              </button>
-            </>
+            <button onClick={() => setEditingDeck(true)} title="Edit deck" className="fc-icon" style={{
+              width: 32, height: 32, borderRadius: 8, border: '1px solid var(--border-strong)',
+              background: 'var(--bg-surface)', color: 'var(--text-secondary)', cursor: 'pointer',
+              display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0,
+            }}>
+              <Pencil size={14} />
+            </button>
           )}
         </div>
 
-        <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 22, marginLeft: 40, flexWrap: 'wrap' }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: reviewing ? 22 : 16, marginLeft: 40, flexWrap: 'wrap' }}>
           {domain && (
             <span style={{ fontSize: 10, fontWeight: 600, padding: '2px 7px', borderRadius: 4, background: `${domain.color}18`, color: domain.color }}>
               {domain.code || domain.name}
@@ -1132,17 +1294,57 @@ export default function FlashcardsPage({
           )}
           <WeekBadge week={openDeck.academicWeek} />
           {openDeck.noteId && onOpenNote && (
-            <button onClick={() => onOpenNote(openDeck.noteId)} style={{ display: 'flex', alignItems: 'center', gap: 4, background: 'none', border: 'none', cursor: 'pointer', padding: 0, color: 'var(--accent-purple)', fontSize: 11, fontWeight: 600, fontFamily: 'inherit' }}>
+            <button onClick={() => onOpenNote(openDeck.noteId)} className="fc-btn" style={{ display: 'flex', alignItems: 'center', gap: 4, background: 'none', border: 'none', cursor: 'pointer', padding: 0, color: 'var(--accent-purple)', fontSize: 11, fontWeight: 600, fontFamily: 'inherit' }}>
               <FileText size={11} /> Open linked note
             </button>
           )}
           <span style={{ fontSize: 12, color: 'var(--text-muted)' }}>
-            {openDeck.cards.length} card{openDeck.cards.length !== 1 ? 's' : ''}{dueCount > 0 ? ` · ${dueCount} due` : ''}
+            {openDeck.cards.length} card{openDeck.cards.length !== 1 ? 's' : ''}
           </span>
         </div>
 
+        {!reviewing && (
+          <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 22, marginLeft: 40, flexWrap: 'wrap' }}>
+            <button onClick={() => setReviewing('practice')} disabled={openDeck.cards.length === 0} className="fc-btn" style={{
+              display: 'flex', alignItems: 'center', gap: 6, padding: '8px 16px', borderRadius: 9,
+              border: 'none', fontSize: 13, fontWeight: 600, flexShrink: 0,
+              background: openDeck.cards.length ? 'var(--accent-blue)' : 'var(--border)',
+              color: openDeck.cards.length ? 'var(--btn-primary-text)' : 'var(--text-muted)',
+              cursor: openDeck.cards.length ? 'pointer' : 'default', fontFamily: 'inherit',
+              boxShadow: openDeck.cards.length ? 'var(--glow-blue)' : 'none',
+            }}>
+              <Play size={13} /> Practice
+            </button>
+            <button onClick={() => setReviewing('study')} disabled={dueCount === 0} className="fc-btn"
+              title={dueCount === 0 ? 'No cards due for review right now' : 'Spaced-repetition review of due cards'} style={{
+                display: 'flex', alignItems: 'center', gap: 6, padding: '8px 14px', borderRadius: 9,
+                border: '1px solid var(--border-strong)', fontSize: 13, fontWeight: 600, flexShrink: 0,
+                background: 'var(--bg-surface)', color: dueCount ? 'var(--text-secondary)' : 'var(--text-muted)',
+                cursor: dueCount ? 'pointer' : 'default', fontFamily: 'inherit', opacity: dueCount ? 1 : 0.6,
+              }}>
+              <RotateCcw size={13} /> Study{dueCount ? ` (${dueCount})` : ''}
+            </button>
+            <button onClick={() => setShuffle(v => !v)} className="fc-icon" title="Shuffle card order" style={toggleChip(shuffle)}>
+              <Shuffle size={14} />
+            </button>
+            <button onClick={() => setReverse(v => !v)} className="fc-icon" title="Reverse — show the answer side first" style={toggleChip(reverse)}>
+              <motion.span animate={{ rotate: reverse ? 180 : 0 }} transition={{ duration: 0.25, ease: [0.22, 1, 0.36, 1] }} style={{ display: 'flex' }}>
+                <ArrowLeftRight size={14} />
+              </motion.span>
+            </button>
+            <div style={{ flex: 1 }} />
+            <GenerateAIButton onClick={() => setShowGenerate(true)} />
+          </div>
+        )}
+
         {reviewing ? (
-          <ReviewView deck={openDeck} practice={reviewing === 'practice'} onGrade={onGradeCard} onExit={() => setReviewing(null)} />
+          <ReviewView
+            cards={(reviewing === 'practice' ? openDeck.cards : openDeck.cards.filter(isDue)).map(c => ({ ...c, deckId: openDeck.id }))}
+            shuffle={shuffle}
+            reverse={reverse}
+            onGrade={onGradeCard}
+            onExit={() => setReviewing(null)}
+          />
         ) : (
           <>
             <QuickAddCard onAdd={card => onAddCard(openDeck.id, card)} />
@@ -1205,23 +1407,65 @@ export default function FlashcardsPage({
     )
   }
 
+  // ── Cross-deck "review all due" ──────────────────────────────────────────────
+  if (crossDue) {
+    const dueCards = decks.flatMap(d => d.cards.filter(isDue).map(c => ({ ...c, deckId: d.id })))
+    return (
+      <div style={{ padding: isMobile ? '22px 16px 28px' : '36px 40px', maxWidth: 860 }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 24 }}>
+          <button onClick={() => setCrossDue(false)} className="fc-icon" style={{
+            width: 30, height: 30, borderRadius: 8, border: '1px solid var(--border-strong)',
+            background: 'var(--bg-surface)', color: 'var(--text-secondary)', cursor: 'pointer',
+            display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0,
+          }}>
+            <ChevronLeft size={16} />
+          </button>
+          <h1 style={{ margin: 0, fontSize: isMobile ? 22 : 28, fontWeight: 800, color: 'var(--text-primary)', letterSpacing: '-0.8px' }}>
+            Review all due
+          </h1>
+        </div>
+        {dueCards.length === 0 ? (
+          <div style={{ textAlign: 'center', padding: '80px 0', color: 'var(--text-muted)' }}>
+            <Layers size={36} style={{ marginBottom: 12, color: 'var(--accent-green)' }} />
+            <p style={{ fontSize: 14, margin: 0 }}>Nothing due — you're all caught up.</p>
+          </div>
+        ) : (
+          <ReviewView cards={dueCards} shuffle reverse={false} onGrade={onGradeCard} onExit={() => setCrossDue(false)} exitLabel="Done" />
+        )}
+      </div>
+    )
+  }
+
   // ── Deck list ────────────────────────────────────────────────────────────────
+  const totalCards = decks.reduce((n, d) => n + d.cards.length, 0)
   return (
     <div style={{ padding: isMobile ? '22px 16px 28px' : '36px 40px', maxWidth: 1100 }}>
       <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', marginBottom: isMobile ? 18 : 24, gap: 12 }}>
         <div>
           <h1 style={{ margin: 0, fontSize: isMobile ? 30 : 40, fontWeight: 800, color: 'var(--text-primary)', letterSpacing: '-1px' }}>Flashcards</h1>
           <p style={{ margin: '4px 0 0', fontSize: 14, color: 'var(--text-secondary)' }}>
-            {decks.length === 0 ? 'Create a deck to start' : totalDue === 0 ? 'All caught up' : `${totalDue} card${totalDue !== 1 ? 's' : ''} due for review`}
+            {decks.length === 0 ? 'Create a deck to start' : `${decks.length} deck${decks.length !== 1 ? 's' : ''} · ${totalCards} card${totalCards !== 1 ? 's' : ''}`}
           </p>
+          {totalDue > 0 && (
+            <button onClick={() => setCrossDue(true)} className="fc-btn" style={{
+              display: 'flex', alignItems: 'center', gap: 6, marginTop: 10, padding: '6px 12px', borderRadius: 8,
+              border: '1px solid var(--border-strong)', background: 'var(--bg-surface)',
+              color: 'var(--text-secondary)', fontSize: 12, fontWeight: 600, cursor: 'pointer', fontFamily: 'inherit',
+            }}>
+              <RotateCcw size={13} /> Review all due ({totalDue})
+            </button>
+          )}
         </div>
-        <button data-tutorial-id="flashcards-new-btn" onClick={() => setShowNewDeck(true)} style={{
-          display: 'flex', alignItems: 'center', gap: 6, padding: '9px 16px', borderRadius: 9,
-          border: 'none', background: 'var(--accent-blue)', color: 'var(--btn-primary-text)',
-          fontSize: 13, fontWeight: 600, cursor: 'pointer', boxShadow: 'var(--glow-blue)',
-        }}>
-          <Plus size={14} /> New Deck
-        </button>
+        <div style={{ display: 'flex', gap: 8, flexShrink: 0, flexWrap: 'wrap', justifyContent: 'flex-end' }}>
+          <GenerateAIButton onClick={() => setShowGenerate(true)} />
+          <button data-tutorial-id="flashcards-new-btn" onClick={() => setShowNewDeck(true)} className="fc-btn" style={{
+            display: 'flex', alignItems: 'center', gap: 6, padding: '9px 16px', borderRadius: 9,
+            border: '1px solid var(--border-strong)', background: 'var(--bg-surface)', color: 'var(--text-secondary)',
+            fontSize: 13, fontWeight: 600, cursor: 'pointer', fontFamily: 'inherit',
+          }}>
+            <Plus size={14} /> New Deck
+          </button>
+        </div>
       </div>
 
       {decks.length === 0 ? (
@@ -1238,6 +1482,7 @@ export default function FlashcardsPage({
                 deck={deck}
                 domain={deck.domainId ? domainMap[deck.domainId] : null}
                 onOpen={() => setOpenDeckId(deck.id)}
+                onDelete={onDeleteDeck}
               />
             ))}
           </div>

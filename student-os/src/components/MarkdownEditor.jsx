@@ -5,6 +5,7 @@ import {
 } from '@codemirror/view'
 import { EditorState, StateField } from '@codemirror/state'
 import { markdown, markdownLanguage } from '@codemirror/lang-markdown'
+import { languages as allLanguages } from '@codemirror/language-data'
 import { syntaxTree, syntaxHighlighting, HighlightStyle } from '@codemirror/language'
 import { history, historyKeymap, defaultKeymap } from '@codemirror/commands'
 import { autocompletion, startCompletion, completionKeymap } from '@codemirror/autocomplete'
@@ -28,7 +29,14 @@ export const SLASH_COMMANDS = [
   { id: 'italic',  badge: '*',    label: 'Italic',        insert: '**',         cursorAt: 1 },
 ]
 
-// Content styling — headings sized, inline formatting rendered (markers are hidden separately below)
+// Curated CS languages — descriptions lazy-load their parser only when a code block uses them
+const CODE_LANG_NAMES = new Set([
+  'JavaScript', 'TypeScript', 'JSX', 'TSX', 'Python', 'Java', 'C', 'C++', 'C#',
+  'SQL', 'HTML', 'CSS', 'JSON', 'Shell', 'Rust', 'Go', 'Kotlin', 'PHP', 'Ruby', 'Swift', 'YAML', 'XML',
+])
+const CODE_LANGUAGES = allLanguages.filter(l => CODE_LANG_NAMES.has(l.name))
+
+// Content styling — markdown structure + code-token colors for fenced blocks
 const mdHighlight = HighlightStyle.define([
   { tag: tags.heading1, fontSize: '1.9em',  fontWeight: '800', lineHeight: '1.3' },
   { tag: tags.heading2, fontSize: '1.55em', fontWeight: '800' },
@@ -43,6 +51,16 @@ const mdHighlight = HighlightStyle.define([
   { tag: tags.monospace, fontFamily: 'ui-monospace, SFMono-Regular, Menlo, monospace', background: 'var(--bg-overlay)', borderRadius: '4px', padding: '0 3px' },
   { tag: tags.quote, color: 'var(--text-secondary)', fontStyle: 'italic' },
   { tag: tags.processingInstruction, color: 'var(--text-muted)' },
+  // Code tokens (fenced blocks)
+  { tag: tags.keyword, color: 'var(--accent-purple)' },
+  { tag: [tags.string, tags.regexp], color: 'var(--accent-green)' },
+  { tag: tags.comment, color: 'var(--text-muted)', fontStyle: 'italic' },
+  { tag: [tags.number, tags.bool, tags.atom], color: 'var(--accent-amber)' },
+  { tag: [tags.typeName, tags.className], color: 'var(--accent-amber)' },
+  { tag: [tags.propertyName, tags.variableName], color: 'var(--accent-blue)' },
+  { tag: tags.tagName, color: 'var(--accent-red)' },
+  { tag: tags.attributeName, color: 'var(--accent-amber)' },
+  { tag: tags.operator, color: 'var(--text-secondary)' },
 ])
 
 class MathWidget extends WidgetType {
@@ -321,7 +339,7 @@ export default function MarkdownEditor({ value, onChange, zoom = 1, autoFocus = 
         extensions: [
           history(),
           keymap.of([...completionKeymap, ...defaultKeymap, ...historyKeymap]),
-          markdown({ base: markdownLanguage }),
+          markdown({ base: markdownLanguage, codeLanguages: CODE_LANGUAGES }),
           syntaxHighlighting(mdHighlight),
           livePreview,
           EditorView.lineWrapping,
