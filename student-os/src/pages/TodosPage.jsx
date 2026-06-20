@@ -100,7 +100,7 @@ function AddTaskModal({ domains, onClose, onSave, initialDomainId, defaultDueDat
 
         <div style={{ padding: '18px 22px', borderBottom: '1px solid var(--border)', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
           <span style={{ fontSize: 15, fontWeight: 600, color: 'var(--text-primary)' }}>New Task</span>
-          <button onClick={onClose} style={{ width: 28, height: 28, borderRadius: 7, border: 'none', background: 'var(--bg-overlay)', color: 'var(--text-secondary)', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+          <button className="btn-press" onClick={onClose} style={{ width: 28, height: 28, borderRadius: 7, border: 'none', background: 'var(--bg-overlay)', color: 'var(--text-secondary)', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
             <X size={14} />
           </button>
         </div>
@@ -143,7 +143,7 @@ function AddTaskModal({ domains, onClose, onSave, initialDomainId, defaultDueDat
               <Label>Priority</Label>
               <div style={{ display: 'flex', gap: 6 }}>
                 {Object.entries(PRIORITIES).map(([key, cfg]) => (
-                  <button key={key} onClick={() => set('priority', key)} style={{
+                  <button className="btn-press" key={key} onClick={() => set('priority', key)} style={{
                     flex: 1, padding: '8px 4px', borderRadius: 7, border: 'none', cursor: 'pointer',
                     fontSize: 11, fontWeight: 600,
                     background: form.priority === key ? `${PRIORITY_DOTS[key]}22` : 'var(--bg-overlay)',
@@ -170,8 +170,8 @@ function AddTaskModal({ domains, onClose, onSave, initialDomainId, defaultDueDat
         </div>
 
         <div style={{ padding: '14px 22px', borderTop: '1px solid var(--border)', display: 'flex', justifyContent: 'flex-end', gap: 8 }}>
-          <button onClick={onClose} style={{ padding: '8px 16px', borderRadius: 8, border: '1px solid var(--border-strong)', background: 'none', color: 'var(--text-secondary)', cursor: 'pointer', fontSize: 13 }}>Cancel</button>
-          <button onClick={handleSave} disabled={!canSave || isTutorial} style={{
+          <button className="btn-press" onClick={onClose} style={{ padding: '8px 16px', borderRadius: 8, border: '1px solid var(--border-strong)', background: 'none', color: 'var(--text-secondary)', cursor: 'pointer', fontSize: 13 }}>Cancel</button>
+          <button className="btn-press" onClick={handleSave} disabled={!canSave || isTutorial} style={{
             padding: '8px 18px', borderRadius: 8, border: 'none', fontSize: 13, fontWeight: 600,
             background: canSave && !isTutorial ? 'var(--accent-blue)' : 'var(--border)',
             color: canSave && !isTutorial ? 'var(--btn-primary-text)' : 'var(--text-muted)',
@@ -229,7 +229,7 @@ function TaskDetailModal({ task, domains, notes, studySessions, domainMap, onClo
 
         <div style={{ padding: '18px 22px', borderBottom: '1px solid var(--border)', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
           <span style={{ fontSize: 15, fontWeight: 600, color: 'var(--text-primary)' }}>Edit Task</span>
-          <button onClick={onClose} style={{ width: 28, height: 28, borderRadius: 7, border: 'none', background: 'var(--bg-overlay)', color: 'var(--text-secondary)', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+          <button className="btn-press" onClick={onClose} style={{ width: 28, height: 28, borderRadius: 7, border: 'none', background: 'var(--bg-overlay)', color: 'var(--text-secondary)', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
             <X size={14} />
           </button>
         </div>
@@ -264,7 +264,7 @@ function TaskDetailModal({ task, domains, notes, studySessions, domainMap, onClo
               <Label>Priority</Label>
               <div style={{ display: 'flex', gap: 6 }}>
                 {Object.entries(PRIORITIES).map(([key, cfg]) => (
-                  <button key={key} onClick={() => set('priority', key)} style={{
+                  <button className="btn-press" key={key} onClick={() => set('priority', key)} style={{
                     flex: 1, padding: '8px 4px', borderRadius: 7, border: 'none', cursor: 'pointer',
                     fontSize: 11, fontWeight: 600,
                     background: form.priority === key ? `${PRIORITY_DOTS[key]}22` : 'var(--bg-overlay)',
@@ -312,8 +312,8 @@ function TaskDetailModal({ task, domains, notes, studySessions, domainMap, onClo
         </div>
 
         <div style={{ padding: '14px 22px', borderTop: '1px solid var(--border)', display: 'flex', justifyContent: 'flex-end', gap: 8 }}>
-          <button onClick={onClose} style={{ padding: '8px 16px', borderRadius: 8, border: '1px solid var(--border-strong)', background: 'none', color: 'var(--text-secondary)', cursor: 'pointer', fontSize: 13 }}>Cancel</button>
-          <button onClick={handleSave} disabled={!canSave} style={{
+          <button className="btn-press" onClick={onClose} style={{ padding: '8px 16px', borderRadius: 8, border: '1px solid var(--border-strong)', background: 'none', color: 'var(--text-secondary)', cursor: 'pointer', fontSize: 13 }}>Cancel</button>
+          <button className="btn-press" onClick={handleSave} disabled={!canSave} style={{
             padding: '8px 18px', borderRadius: 8, border: 'none', fontSize: 13, fontWeight: 600,
             background: canSave ? 'var(--accent-blue)' : 'var(--border)',
             color: canSave ? 'var(--btn-primary-text)' : 'var(--text-muted)',
@@ -338,7 +338,7 @@ function TaskRow({ task, domainMap, onToggle, onDelete, onOpenNote, onOpenDetail
       background: hovered ? 'var(--nav-hover)' : (task.priority === 'high' && !task.done ? 'rgba(251,113,133,0.04)' : 'transparent'),
       transition: 'background 0.12s',
     }}>
-      <button onClick={() => onToggle(task.id)} style={{ background: 'none', border: 'none', cursor: 'pointer', padding: 0, color: task.done ? 'var(--accent-green)' : 'var(--text-muted)', flexShrink: 0, display: 'flex' }}>
+      <button className="btn-press" onClick={() => onToggle(task.id)} style={{ background: 'none', border: 'none', cursor: 'pointer', padding: 0, color: task.done ? 'var(--accent-green)' : 'var(--text-muted)', flexShrink: 0, display: 'flex' }}>
         {task.done ? <CheckSquare size={16} /> : <Square size={16} />}
       </button>
       <PriorityDot priority={task.priority} />
@@ -363,12 +363,12 @@ function TaskRow({ task, domainMap, onToggle, onDelete, onOpenNote, onOpenDetail
         </span>
       )}
       {task.noteId && onOpenNote && (
-        <button onClick={() => onOpenNote(task.noteId)} title="Open linked note" style={{ background: 'none', border: 'none', cursor: 'pointer', padding: 2, color: 'var(--accent-purple)', display: 'flex', flexShrink: 0 }}>
+        <button className="btn-press" onClick={() => onOpenNote(task.noteId)} title="Open linked note" style={{ background: 'none', border: 'none', cursor: 'pointer', padding: 2, color: 'var(--accent-purple)', display: 'flex', flexShrink: 0 }}>
           <FileText size={12} />
         </button>
       )}
       {hovered && !confirming && (
-        <button onClick={e => { e.stopPropagation(); setConfirming(true) }} style={{ background: 'none', border: 'none', cursor: 'pointer', padding: 2, color: 'var(--text-muted)', flexShrink: 0, display: 'flex' }}
+        <button className="btn-press" onClick={e => { e.stopPropagation(); setConfirming(true) }} style={{ background: 'none', border: 'none', cursor: 'pointer', padding: 2, color: 'var(--text-muted)', flexShrink: 0, display: 'flex' }}
           onMouseEnter={e => e.currentTarget.style.color = 'var(--accent-red)'}
           onMouseLeave={e => e.currentTarget.style.color = 'var(--text-muted)'}>
           <Trash2 size={13} />
@@ -376,8 +376,8 @@ function TaskRow({ task, domainMap, onToggle, onDelete, onOpenNote, onOpenDetail
       )}
       {confirming && (
         <div style={{ display: 'flex', gap: 6, flexShrink: 0 }}>
-          <button onClick={() => setConfirming(false)} style={{ padding: '3px 9px', borderRadius: 6, border: '1px solid var(--border-strong)', background: 'transparent', color: 'var(--text-muted)', fontSize: 11, cursor: 'pointer', fontFamily: 'inherit' }}>Cancel</button>
-          <button onClick={() => onDelete(task.id)} style={{ padding: '3px 9px', borderRadius: 6, border: '1px solid rgba(251,113,133,0.4)', background: 'rgba(251,113,133,0.14)', color: '#fb7185', fontSize: 11, fontWeight: 600, cursor: 'pointer', fontFamily: 'inherit' }}>Delete</button>
+          <button className="btn-press" onClick={() => setConfirming(false)} style={{ padding: '3px 9px', borderRadius: 6, border: '1px solid var(--border-strong)', background: 'transparent', color: 'var(--text-muted)', fontSize: 11, cursor: 'pointer', fontFamily: 'inherit' }}>Cancel</button>
+          <button className="btn-press" onClick={() => onDelete(task.id)} style={{ padding: '3px 9px', borderRadius: 6, border: '1px solid rgba(251,113,133,0.4)', background: 'rgba(251,113,133,0.14)', color: '#fb7185', fontSize: 11, fontWeight: 600, cursor: 'pointer', fontFamily: 'inherit' }}>Delete</button>
         </div>
       )}
     </div>
@@ -399,7 +399,7 @@ function StudyPlanTaskRow({ task, domainMap, noteMap, onToggle, onDelete, onOpen
       background: hovered ? 'var(--nav-hover)' : 'transparent',
       transition: 'background 0.12s',
     }}>
-      <button onClick={() => onToggle(task.id)} style={{ background: 'none', border: 'none', cursor: 'pointer', padding: 0, color: task.done ? 'var(--accent-green)' : 'var(--text-muted)', flexShrink: 0, display: 'flex' }}>
+      <button className="btn-press" onClick={() => onToggle(task.id)} style={{ background: 'none', border: 'none', cursor: 'pointer', padding: 0, color: task.done ? 'var(--accent-green)' : 'var(--text-muted)', flexShrink: 0, display: 'flex' }}>
         {task.done ? <CheckSquare size={15} /> : <Square size={15} />}
       </button>
 
@@ -425,7 +425,7 @@ function StudyPlanTaskRow({ task, domainMap, noteMap, onToggle, onDelete, onOpen
       <div style={{ display: 'flex', alignItems: 'center', gap: 6, flexShrink: 0 }}>
         <PriorityDot priority={task.priority} />
         {note && (
-          <button onClick={() => onOpenNote(note.id)} title={`Note: ${note.title}`}
+          <button className="btn-press" onClick={() => onOpenNote(note.id)} title={`Note: ${note.title}`}
             style={{ background: 'none', border: 'none', cursor: 'pointer', padding: 2, color: 'var(--accent-purple)', display: 'flex' }}>
             <FileText size={12} />
           </button>
@@ -436,7 +436,7 @@ function StudyPlanTaskRow({ task, domainMap, noteMap, onToggle, onDelete, onOpen
           </span>
         )}
         {hovered && !confirming && (
-          <button onClick={e => { e.stopPropagation(); setConfirming(true) }} style={{ background: 'none', border: 'none', cursor: 'pointer', padding: 2, color: 'var(--text-muted)', display: 'flex' }}
+          <button className="btn-press" onClick={e => { e.stopPropagation(); setConfirming(true) }} style={{ background: 'none', border: 'none', cursor: 'pointer', padding: 2, color: 'var(--text-muted)', display: 'flex' }}
             onMouseEnter={e => e.currentTarget.style.color = 'var(--accent-red)'}
             onMouseLeave={e => e.currentTarget.style.color = 'var(--text-muted)'}>
             <Trash2 size={12} />
@@ -444,8 +444,8 @@ function StudyPlanTaskRow({ task, domainMap, noteMap, onToggle, onDelete, onOpen
         )}
         {confirming && (
           <div style={{ display: 'flex', gap: 6, flexShrink: 0 }}>
-            <button onClick={() => setConfirming(false)} style={{ padding: '3px 9px', borderRadius: 6, border: '1px solid var(--border-strong)', background: 'transparent', color: 'var(--text-muted)', fontSize: 11, cursor: 'pointer', fontFamily: 'inherit' }}>Cancel</button>
-            <button onClick={() => onDelete(task.id)} style={{ padding: '3px 9px', borderRadius: 6, border: '1px solid rgba(251,113,133,0.4)', background: 'rgba(251,113,133,0.14)', color: '#fb7185', fontSize: 11, fontWeight: 600, cursor: 'pointer', fontFamily: 'inherit' }}>Delete</button>
+            <button className="btn-press" onClick={() => setConfirming(false)} style={{ padding: '3px 9px', borderRadius: 6, border: '1px solid var(--border-strong)', background: 'transparent', color: 'var(--text-muted)', fontSize: 11, cursor: 'pointer', fontFamily: 'inherit' }}>Cancel</button>
+            <button className="btn-press" onClick={() => onDelete(task.id)} style={{ padding: '3px 9px', borderRadius: 6, border: '1px solid rgba(251,113,133,0.4)', background: 'rgba(251,113,133,0.14)', color: '#fb7185', fontSize: 11, fontWeight: 600, cursor: 'pointer', fontFamily: 'inherit' }}>Delete</button>
           </div>
         )}
       </div>
@@ -530,7 +530,7 @@ function StudyPlanView({ todos, domainMap, noteMap, onToggle, onDelete, onAdd, o
               </span>
 
               {!isPast && (
-                <button onClick={() => onAdd(key === '__none__' ? null : key)}
+                <button className="btn-press" onClick={() => onAdd(key === '__none__' ? null : key)}
                   style={{ background: 'none', border: 'none', cursor: 'pointer', padding: 3, color: 'var(--text-muted)', display: 'flex', borderRadius: 5 }}
                   onMouseEnter={e => e.currentTarget.style.color = 'var(--accent-blue)'}
                   onMouseLeave={e => e.currentTarget.style.color = 'var(--text-muted)'}>
@@ -574,7 +574,7 @@ function TaskGroup({ label, labelColor, tasks, domainMap, onToggle, onDelete, on
   if (tasks.length === 0) return null
   return (
     <div style={{ marginBottom: 8 }}>
-      <button onClick={() => setOpen(v => !v)} style={{ display: 'flex', alignItems: 'center', gap: 8, background: 'none', border: 'none', cursor: 'pointer', padding: '6px 0', width: '100%', textAlign: 'left' }}>
+      <button className="btn-press" onClick={() => setOpen(v => !v)} style={{ display: 'flex', alignItems: 'center', gap: 8, background: 'none', border: 'none', cursor: 'pointer', padding: '6px 0', width: '100%', textAlign: 'left' }}>
         <span style={{ fontSize: 13, fontWeight: 700, color: labelColor || 'var(--text-secondary)' }}>{label}</span>
         {pending > 0 && (
           <span style={{ fontSize: 10, fontWeight: 600, background: 'var(--border)', color: 'var(--text-secondary)', padding: '1px 7px', borderRadius: 10 }}>{pending}</span>
@@ -597,7 +597,7 @@ function DomainSection({ domain, tasks, domainMap, onToggle, onDelete, onOpenNot
     <div style={{ marginBottom: 8 }}>
       <div style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '6px 0', marginBottom: 4 }}>
         {domain && <div style={{ width: 10, height: 10, borderRadius: '50%', background: domain.color, flexShrink: 0 }} />}
-        <button onClick={() => setOpen(v => !v)} style={{ display: 'flex', alignItems: 'center', gap: 8, background: 'none', border: 'none', cursor: 'pointer', padding: 0, flex: 1, textAlign: 'left' }}>
+        <button className="btn-press" onClick={() => setOpen(v => !v)} style={{ display: 'flex', alignItems: 'center', gap: 8, background: 'none', border: 'none', cursor: 'pointer', padding: 0, flex: 1, textAlign: 'left' }}>
           <span style={{ fontSize: 13, fontWeight: 700, color: domain ? domain.color : 'var(--text-secondary)' }}>
             {domain ? (domain.code ? `${domain.code} · ${domain.name}` : domain.name) : 'General'}
           </span>
@@ -607,7 +607,7 @@ function DomainSection({ domain, tasks, domainMap, onToggle, onDelete, onOpenNot
           <div style={{ flex: 1, height: 1, background: 'var(--border)' }} />
           <ChevronDown size={13} color="var(--text-muted)" style={{ transform: open ? 'none' : 'rotate(-90deg)', transition: 'transform 0.2s', flexShrink: 0 }} />
         </button>
-        <button onClick={onAdd} style={{ background: 'none', border: 'none', cursor: 'pointer', padding: 3, color: 'var(--text-muted)', display: 'flex' }}
+        <button className="btn-press" onClick={onAdd} style={{ background: 'none', border: 'none', cursor: 'pointer', padding: 3, color: 'var(--text-muted)', display: 'flex' }}
           onMouseEnter={e => e.currentTarget.style.color = 'var(--accent-blue)'}
           onMouseLeave={e => e.currentTarget.style.color = 'var(--text-muted)'}>
           <Plus size={14} />
@@ -726,7 +726,7 @@ export default function TodosPage({ todos, domains, onAddTodo, onToggleTodo, onD
             {totalPending === 0 ? 'All caught up' : `${totalPending} task${totalPending !== 1 ? 's' : ''} remaining`}
           </p>
         </div>
-        <button data-tutorial-id="todos-new-btn" onClick={() => openAdd()} style={{
+        <button className="btn-press" data-tutorial-id="todos-new-btn" onClick={() => openAdd()} style={{
           display: 'flex', alignItems: 'center', gap: 6, padding: '9px 16px', borderRadius: 9,
           border: 'none', background: 'var(--accent-blue)', color: 'var(--btn-primary-text)',
           fontSize: 13, fontWeight: 600, cursor: 'pointer', boxShadow: 'var(--glow-blue)',
@@ -749,7 +749,7 @@ export default function TodosPage({ todos, domains, onAddTodo, onToggleTodo, onD
             pointerEvents: 'none',
           }} />
           {VIEW_OPTS.map(([v, Icon, label]) => (
-            <button key={v} onClick={() => setView(v)} style={{
+            <button className="btn-press" key={v} onClick={() => setView(v)} style={{
               display: 'flex', alignItems: 'center', gap: 5,
               padding: '6px 16px', borderRadius: 7, border: 'none', cursor: 'pointer',
               fontSize: 12, fontWeight: 600, position: 'relative', zIndex: 1, background: 'none',
@@ -765,7 +765,7 @@ export default function TodosPage({ todos, domains, onAddTodo, onToggleTodo, onD
           <>
             <span style={{ fontSize: 11, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.5px' }}>Group by</span>
             {GROUP_OPTIONS.map(opt => (
-              <button key={opt.key} onClick={() => setGroupBy(opt.key)} style={{
+              <button className="btn-press" key={opt.key} onClick={() => setGroupBy(opt.key)} style={{
                 padding: '4px 12px', borderRadius: 6, border: 'none', cursor: 'pointer', fontSize: 12, fontWeight: 500,
                 background: groupBy === opt.key ? 'var(--nav-active)' : 'transparent',
                 color: groupBy === opt.key ? 'var(--accent-blue)' : 'var(--text-secondary)',
@@ -855,7 +855,7 @@ export default function TodosPage({ todos, domains, onAddTodo, onToggleTodo, onD
 
               {done.length > 0 && (
                 <div style={{ borderTop: '1px solid var(--border)', marginTop: 8, paddingTop: 8 }}>
-                  <button onClick={() => setShowDone(v => !v)} style={{ display: 'flex', alignItems: 'center', gap: 8, background: 'none', border: 'none', cursor: 'pointer', padding: '6px 14px', color: 'var(--text-muted)', fontSize: 12, width: '100%', textAlign: 'left' }}>
+                  <button className="btn-press" onClick={() => setShowDone(v => !v)} style={{ display: 'flex', alignItems: 'center', gap: 8, background: 'none', border: 'none', cursor: 'pointer', padding: '6px 14px', color: 'var(--text-muted)', fontSize: 12, width: '100%', textAlign: 'left' }}>
                     <ChevronDown size={13} style={{ transform: showDone ? 'none' : 'rotate(-90deg)', transition: 'transform 0.2s' }} />
                     {done.length} completed
                   </button>

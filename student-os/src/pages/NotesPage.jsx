@@ -28,7 +28,7 @@ function FolderItem({ label, count, active, depth = 0, onClick, children, defaul
 
   return (
     <div>
-      <button
+      <button className="btn-press"
         onClick={() => { onClick?.(); if (hasChildren) setOpen(v => !v) }}
         style={{
           width: '100%', display: 'flex', alignItems: 'center', gap: 6,
@@ -78,7 +78,7 @@ function NewNoteTypePicker({ onSelect, onSelectPdf, onClose }) {
       borderRadius: 10, overflow: 'hidden', boxShadow: 'var(--shadow-modal)',
       minWidth: 170,
     }}>
-      <button
+      <button className="btn-press"
         style={optBtn}
         onMouseEnter={e => { e.currentTarget.style.background = 'var(--bg-hover)'; e.currentTarget.style.color = 'var(--accent-purple)' }}
         onMouseLeave={e => { e.currentTarget.style.background = 'none'; e.currentTarget.style.color = 'var(--text-secondary)' }}
@@ -87,7 +87,7 @@ function NewNoteTypePicker({ onSelect, onSelectPdf, onClose }) {
         <PenLine size={14} color="var(--accent-purple)" /> Handwritten
       </button>
       <div style={{ height: 1, background: 'var(--border)' }} />
-      <button
+      <button className="btn-press"
         style={optBtn}
         onMouseEnter={e => { e.currentTarget.style.background = 'var(--bg-hover)'; e.currentTarget.style.color = 'var(--accent-blue)' }}
         onMouseLeave={e => { e.currentTarget.style.background = 'none'; e.currentTarget.style.color = 'var(--text-secondary)' }}
@@ -96,7 +96,7 @@ function NewNoteTypePicker({ onSelect, onSelectPdf, onClose }) {
         <Type size={14} color="var(--accent-blue)" /> Typed
       </button>
       <div style={{ height: 1, background: 'var(--border)' }} />
-      <button
+      <button className="btn-press"
         style={optBtn}
         onMouseEnter={e => { e.currentTarget.style.background = 'var(--bg-hover)'; e.currentTarget.style.color = '#f97316' }}
         onMouseLeave={e => { e.currentTarget.style.background = 'none'; e.currentTarget.style.color = 'var(--text-secondary)' }}
@@ -203,11 +203,11 @@ function NoteCard({ note, domain, onClick, onDelete }) {
     >
       {confirming ? (
         <div onClick={e => e.stopPropagation()} style={{ position: 'absolute', top: 8, right: 8, display: 'flex', gap: 6 }}>
-          <button onClick={() => setConfirming(false)} style={{ padding: '3px 9px', borderRadius: 6, border: '1px solid var(--border-strong)', background: 'var(--bg-surface)', color: 'var(--text-muted)', fontSize: 11, cursor: 'pointer', fontFamily: 'inherit' }}>Cancel</button>
-          <button onClick={e => { e.stopPropagation(); onDelete() }} style={{ padding: '3px 9px', borderRadius: 6, border: '1px solid rgba(251,113,133,0.4)', background: 'rgba(251,113,133,0.14)', color: '#fb7185', fontSize: 11, fontWeight: 600, cursor: 'pointer', fontFamily: 'inherit' }}>Delete</button>
+          <button className="btn-press" onClick={() => setConfirming(false)} style={{ padding: '3px 9px', borderRadius: 6, border: '1px solid var(--border-strong)', background: 'var(--bg-surface)', color: 'var(--text-muted)', fontSize: 11, cursor: 'pointer', fontFamily: 'inherit' }}>Cancel</button>
+          <button className="btn-press" onClick={e => { e.stopPropagation(); onDelete() }} style={{ padding: '3px 9px', borderRadius: 6, border: '1px solid rgba(251,113,133,0.4)', background: 'rgba(251,113,133,0.14)', color: '#fb7185', fontSize: 11, fontWeight: 600, cursor: 'pointer', fontFamily: 'inherit' }}>Delete</button>
         </div>
       ) : (
-        <button
+        <button className="btn-press"
           onClick={e => { e.stopPropagation(); setConfirming(true) }}
           style={{
             position: 'absolute', top: 10, right: 10, background: 'none', border: 'none',
@@ -302,10 +302,10 @@ function NoteTitle({ value, onChange }) {
             letterSpacing: '-0.3px',
           }}
         />
-        <button onClick={commit} style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--accent-green)', display: 'flex' }}>
+        <button className="btn-press" onClick={commit} style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--accent-green)', display: 'flex' }}>
           <Check size={15} />
         </button>
-        <button onClick={() => { setEditing(false); setDraft(value) }} style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--text-muted)', display: 'flex' }}>
+        <button className="btn-press" onClick={() => { setEditing(false); setDraft(value) }} style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--text-muted)', display: 'flex' }}>
           <X size={15} />
         </button>
       </div>
@@ -356,7 +356,7 @@ function NoteLocationPicker({ note, domains, onSave }) {
 
   return (
     <div ref={ref} style={{ position: 'relative' }}>
-      <button
+      <button className="btn-press"
         onClick={() => setOpen(v => !v)}
         style={{
           display: 'flex', alignItems: 'center', gap: 5, padding: '5px 10px',
@@ -420,13 +420,13 @@ function NoteLocationPicker({ note, domains, onSave }) {
             )}
 
             <div style={{ display: 'flex', gap: 8, justifyContent: 'flex-end' }}>
-              <button
+              <button className="btn-press"
                 onClick={() => setOpen(false)}
                 style={{ padding: '6px 12px', borderRadius: 7, border: '1px solid var(--border)', background: 'none', color: 'var(--text-secondary)', cursor: 'pointer', fontSize: 12 }}
               >
                 Cancel
               </button>
-              <button
+              <button className="btn-press"
                 onClick={apply}
                 style={{ padding: '6px 14px', borderRadius: 7, border: 'none', background: 'var(--accent-blue)', color: 'var(--btn-primary-text)', cursor: 'pointer', fontSize: 12, fontWeight: 600 }}
               >
@@ -460,7 +460,7 @@ function HeaderDropdown({ icon: Icon, options, value, onChange, isMobile }) {
   const current = options.find(([v]) => v === value)?.[1] || options[0][1]
   return (
     <div style={{ position: 'relative', flexShrink: 0 }}>
-      <button
+      <button className="btn-press"
         onClick={() => setOpen(o => !o)}
         style={{
           display: 'flex', alignItems: 'center', gap: 6, padding: '8px 11px',
@@ -482,7 +482,7 @@ function HeaderDropdown({ icon: Icon, options, value, onChange, isMobile }) {
             borderRadius: 10, boxShadow: 'var(--shadow-modal)', overflow: 'hidden', padding: 4,
           }}>
             {options.map(([v, label]) => (
-              <button
+              <button className="btn-press"
                 key={v}
                 onClick={() => { onChange(v); setOpen(false) }}
                 style={{
@@ -880,7 +880,7 @@ export default function NotesPage({ notes, domains, noteToOpen, onClearNoteToOpe
         } : {}),
       }}>
         <div style={{ padding: '16px 10px 10px', position: 'relative' }}>
-          <button
+          <button className="btn-press"
             {...(isMobile ? {} : { 'data-tutorial-id': 'notes-new-btn' })}
             onClick={() => setShowNewNoteModal(true)}
             style={{
@@ -968,7 +968,7 @@ export default function NotesPage({ notes, domains, noteToOpen, onClearNoteToOpe
               borderBottom: '1px solid var(--border)', flexShrink: 0,
               background: 'var(--bg-surface)',
             }}>
-              <button
+              <button className="btn-press"
                 onClick={closeNote}
                 style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--text-secondary)', display: 'flex', padding: 4, borderRadius: 6 }}
                 onMouseEnter={e => e.currentTarget.style.color = 'var(--text-primary)'}
@@ -1002,22 +1002,23 @@ export default function NotesPage({ notes, domains, noteToOpen, onClearNoteToOpe
                 </span>
                 {openNote?.type === 'typed' && onGenerateFlashcards && (openNote.content || '').trim().length >= 200 && (
                   <button
+                    className="btn-press ai-btn"
                     onClick={() => onGenerateFlashcards(openNote)}
                     title="Generate flashcards from this note"
                     style={{
-                      display: 'flex', alignItems: 'center', gap: 5, padding: '5px 10px',
-                      borderRadius: 7, border: '1px solid var(--border)', background: 'none',
-                      color: 'var(--accent-purple)', cursor: 'pointer', fontSize: 12, fontFamily: 'inherit',
-                      transition: 'border-color 0.12s',
+                      display: 'flex', alignItems: 'center', gap: 5, padding: '5px 11px',
+                      borderRadius: 7, cursor: 'pointer', fontSize: 12, fontFamily: 'inherit', fontWeight: 600,
+                      flexShrink: 0, whiteSpace: 'nowrap',
                     }}
-                    onMouseEnter={e => e.currentTarget.style.borderColor = 'var(--accent-purple)'}
-                    onMouseLeave={e => e.currentTarget.style.borderColor = 'var(--border)'}
                   >
-                    <Sparkles size={12} /> Flashcards
+                    <span className="ai-glow" aria-hidden />
+                    <span className="ai-icon" style={{ display: 'flex', position: 'relative', zIndex: 2 }}><Sparkles size={12} /></span>
+                    <span style={{ position: 'relative', zIndex: 2 }}>Flashcards</span>
+                    <span className="ai-sheen" aria-hidden />
                   </button>
                 )}
                 {openNote?.type === 'typed' && (
-                  <button
+                  <button className="btn-press"
                     onClick={() => setTypedZoom(1)}
                     title={typedZoom !== 1 ? 'Reset zoom (Ctrl+0)' : 'Ctrl+Scroll or pinch to zoom'}
                     style={{
@@ -1032,7 +1033,7 @@ export default function NotesPage({ notes, domains, noteToOpen, onClearNoteToOpe
                   </button>
                 )}
                 {openNote?.type === 'typed' && (
-                  <button
+                  <button className="btn-press"
                     onClick={() => setTypedFullscreen(v => !v)}
                     title={typedFullscreen ? 'Exit fullscreen' : 'Fullscreen'}
                     style={{
@@ -1047,7 +1048,7 @@ export default function NotesPage({ notes, domains, noteToOpen, onClearNoteToOpe
                     {typedFullscreen ? <Minimize2 size={13} /> : <Maximize2 size={13} />}
                   </button>
                 )}
-                <button
+                <button className="btn-press"
                   onClick={handleShare}
                   disabled={sharing}
                   style={{ display: 'flex', alignItems: 'center', gap: 5, padding: '5px 10px', borderRadius: 7, border: '1px solid var(--border)', background: 'none', color: sharing ? 'var(--text-muted)' : 'var(--text-secondary)', cursor: sharing ? 'default' : 'pointer', fontSize: 12, fontFamily: 'inherit' }}
@@ -1058,11 +1059,11 @@ export default function NotesPage({ notes, domains, noteToOpen, onClearNoteToOpe
                 </button>
                 {confirmDelNote ? (
                   <div style={{ display: 'flex', gap: 6 }}>
-                    <button onClick={() => setConfirmDelNote(false)} style={{ padding: '5px 10px', borderRadius: 7, border: '1px solid var(--border-strong)', background: 'transparent', color: 'var(--text-muted)', fontSize: 12, cursor: 'pointer', fontFamily: 'inherit' }}>Cancel</button>
-                    <button onClick={() => { clearTimeout(autoSaveTimerRef.current); onDeleteNote(openNote.id); setOpenNoteId(null); setConfirmDelNote(false) }} style={{ display: 'flex', alignItems: 'center', gap: 5, padding: '5px 10px', borderRadius: 7, border: '1px solid rgba(251,113,133,0.4)', background: 'rgba(251,113,133,0.14)', color: '#fb7185', fontSize: 12, fontWeight: 600, cursor: 'pointer', fontFamily: 'inherit' }}>Delete</button>
+                    <button className="btn-press" onClick={() => setConfirmDelNote(false)} style={{ padding: '5px 10px', borderRadius: 7, border: '1px solid var(--border-strong)', background: 'transparent', color: 'var(--text-muted)', fontSize: 12, cursor: 'pointer', fontFamily: 'inherit' }}>Cancel</button>
+                    <button className="btn-press" onClick={() => { clearTimeout(autoSaveTimerRef.current); onDeleteNote(openNote.id); setOpenNoteId(null); setConfirmDelNote(false) }} style={{ display: 'flex', alignItems: 'center', gap: 5, padding: '5px 10px', borderRadius: 7, border: '1px solid rgba(251,113,133,0.4)', background: 'rgba(251,113,133,0.14)', color: '#fb7185', fontSize: 12, fontWeight: 600, cursor: 'pointer', fontFamily: 'inherit' }}>Delete</button>
                   </div>
                 ) : (
-                  <button onClick={() => setConfirmDelNote(true)} style={{ display: 'flex', alignItems: 'center', gap: 5, padding: '5px 10px', borderRadius: 7, border: '1px solid var(--border)', background: 'none', color: 'var(--accent-red)', cursor: 'pointer', fontSize: 12 }}>
+                  <button className="btn-press" onClick={() => setConfirmDelNote(true)} style={{ display: 'flex', alignItems: 'center', gap: 5, padding: '5px 10px', borderRadius: 7, border: '1px solid var(--border)', background: 'none', color: 'var(--accent-red)', cursor: 'pointer', fontSize: 12 }}>
                     <Trash2 size={12} /> Delete
                   </button>
                 )}
@@ -1114,7 +1115,7 @@ export default function NotesPage({ notes, domains, noteToOpen, onClearNoteToOpe
             <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 20, gap: 10 }}>
               <div style={{ display: 'flex', alignItems: 'center', gap: 10, minWidth: 0 }}>
                 {isMobile && (
-                  <button
+                  <button className="btn-press"
                     onClick={() => setMobileFoldersOpen(true)}
                     style={{ flexShrink: 0, width: 38, height: 38, borderRadius: 9, border: '1px solid var(--border-strong)', background: 'var(--bg-surface)', color: 'var(--text-secondary)', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center' }}
                   >
@@ -1137,7 +1138,7 @@ export default function NotesPage({ notes, domains, noteToOpen, onClearNoteToOpe
               <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexShrink: 0 }}>
                 <HeaderDropdown icon={ListFilter} options={TYPE_FILTERS} value={typeFilter} onChange={setTypeFilter} isMobile={isMobile} />
                 <HeaderDropdown icon={ArrowUpDown} options={SORT_OPTIONS} value={sortBy} onChange={setSortBy} isMobile={isMobile} />
-                <button
+                <button className="btn-press"
                   {...(isMobile ? { 'data-tutorial-id': 'notes-new-btn' } : {})}
                   onClick={() => setShowNewNoteModal(true)}
                   style={{

@@ -70,7 +70,7 @@ function EventRow({ event, isLast, onClick }) {
 // ─── Note button ──────────────────────────────────────────────────────────────
 function NoteButton({ onNewNote, meta, label = 'Note' }) {
   return (
-    <button
+    <button className="btn-press"
       onClick={e => { e.stopPropagation(); onNewNote(meta) }}
       style={{ display: 'flex', alignItems: 'center', gap: 4, padding: '4px 9px', borderRadius: 6,
         border: '1px solid var(--border)', background: 'none', color: 'var(--text-muted)',
@@ -329,7 +329,7 @@ function ScheduleTab({ domain, domainEvents, onNewNote, notes, eventNotes, showC
         return (
           <SectionCard key={week}>
             <div style={{ display: 'flex', alignItems: 'center' }}>
-              <button
+              <button className="btn-press"
                 onClick={() => setOpenWeeks(prev => ({ ...prev, [week]: !prev[week] }))}
                 style={{ flex: 1, display: 'flex', alignItems: 'center', gap: 12, padding: '13px 20px',
                   background: 'none', border: 'none', cursor: 'pointer', textAlign: 'left' }}
@@ -374,7 +374,7 @@ function ScheduleTab({ domain, domainEvents, onNewNote, notes, eventNotes, showC
 
 function SortBtn({ active, onClick, label }) {
   return (
-    <button onClick={onClick} style={{
+    <button className="btn-press" onClick={onClick} style={{
       padding: '5px 12px', borderRadius: 6, border: `1px solid ${active ? 'var(--accent-blue)' : 'var(--border)'}`,
       background: active ? 'rgba(91,140,255,0.1)' : 'none', color: active ? 'var(--accent-blue)' : 'var(--text-muted)',
       cursor: 'pointer', fontSize: 12, fontWeight: active ? 600 : 400, transition: 'all 0.12s',
@@ -415,7 +415,7 @@ function AssessmentModal({ domain, initial, onClose, onSave }) {
       <div onClick={e => e.stopPropagation()} style={{ background: 'var(--bg-surface)', border: '1px solid var(--border-strong)', borderRadius: 16, width: 440, maxWidth: '92vw', boxShadow: 'var(--shadow-modal)', overflow: 'hidden' }}>
         <div style={{ padding: '16px 20px', borderBottom: '1px solid var(--border)', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
           <span style={{ fontSize: 15, fontWeight: 600, color: 'var(--text-primary)' }}>{initial ? 'Edit' : 'Add'} Assessment</span>
-          <button onClick={onClose} style={{ width: 28, height: 28, borderRadius: 7, border: 'none', background: 'var(--bg-overlay)', color: 'var(--text-secondary)', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+          <button className="btn-press" onClick={onClose} style={{ width: 28, height: 28, borderRadius: 7, border: 'none', background: 'var(--bg-overlay)', color: 'var(--text-secondary)', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
             <X size={14} />
           </button>
         </div>
@@ -428,7 +428,7 @@ function AssessmentModal({ domain, initial, onClose, onSave }) {
                 { key: 'exam', label: 'Exam', Icon: GraduationCap, color: '#fb7185' },
                 { key: 'assignment', label: 'Assignment', Icon: FileText, color: '#fbbf24' },
               ].map(opt => (
-                <button key={opt.key} onClick={() => set('type', opt.key)} style={{
+                <button className="btn-press" key={opt.key} onClick={() => set('type', opt.key)} style={{
                   flex: 1, padding: '8px', borderRadius: 8, border: `1px solid ${form.type === opt.key ? opt.color : 'var(--border)'}`,
                   background: form.type === opt.key ? `${opt.color}12` : 'none',
                   color: form.type === opt.key ? opt.color : 'var(--text-secondary)',
@@ -472,7 +472,7 @@ function AssessmentModal({ domain, initial, onClose, onSave }) {
               {[{ d: 0, label: 'Day of' }, { d: 1, label: '1 day before' }, { d: 3, label: '3 days before' }].map(({ d, label }) => {
                 const on = form.reminderDays.includes(d)
                 return (
-                  <button key={d} type="button" onClick={() => toggleReminder(d)} style={{
+                  <button className="btn-press" key={d} type="button" onClick={() => toggleReminder(d)} style={{
                     padding: '5px 12px', borderRadius: 20, fontSize: 12, cursor: 'pointer',
                     border: `1px solid ${on ? 'var(--accent-blue)' : 'var(--border-strong)'}`,
                     background: on ? 'rgba(91,140,255,0.12)' : 'none',
@@ -486,8 +486,8 @@ function AssessmentModal({ domain, initial, onClose, onSave }) {
         </div>
 
         <div style={{ padding: '12px 20px', borderTop: '1px solid var(--border)', display: 'flex', justifyContent: 'flex-end', gap: 8 }}>
-          <button onClick={onClose} style={{ padding: '8px 16px', borderRadius: 8, border: '1px solid var(--border-strong)', background: 'none', color: 'var(--text-secondary)', cursor: 'pointer', fontSize: 13 }}>Cancel</button>
-          <button onClick={() => { if (!canSave) return; onSave({ type: form.type, title: form.title.trim(), date: form.date || null, weight: parseInt(form.weight) || 0, location: form.location.trim() || null, reminderDays: form.reminderDays }); onClose() }}
+          <button className="btn-press" onClick={onClose} style={{ padding: '8px 16px', borderRadius: 8, border: '1px solid var(--border-strong)', background: 'none', color: 'var(--text-secondary)', cursor: 'pointer', fontSize: 13 }}>Cancel</button>
+          <button className="btn-press" onClick={() => { if (!canSave) return; onSave({ type: form.type, title: form.title.trim(), date: form.date || null, weight: parseInt(form.weight) || 0, location: form.location.trim() || null, reminderDays: form.reminderDays }); onClose() }}
             disabled={!canSave} style={{ padding: '8px 18px', borderRadius: 8, border: 'none', fontSize: 13, fontWeight: 600,
               background: canSave ? domain.color : 'var(--border)', color: canSave ? '#fff' : 'var(--text-muted)',
               cursor: canSave ? 'pointer' : 'default', transition: 'all 0.15s' }}>
@@ -512,11 +512,11 @@ function GradeInput({ assessment, onSave, onCancel }) {
           background: 'var(--bg-input)', color: 'var(--text-primary)', fontSize: 13, outline: 'none' }}
       />
       <span style={{ fontSize: 13, color: 'var(--text-muted)' }}>%</span>
-      <button onClick={() => valid && onSave(num)}
+      <button className="btn-press" onClick={() => valid && onSave(num)}
         style={{ width: 24, height: 24, borderRadius: 5, border: 'none', background: valid ? 'var(--accent-green)' : 'var(--border)', color: valid ? '#fff' : 'var(--text-muted)', cursor: valid ? 'pointer' : 'default', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
         <Check size={12} />
       </button>
-      <button onClick={onCancel} style={{ width: 24, height: 24, borderRadius: 5, border: 'none', background: 'var(--bg-overlay)', color: 'var(--text-muted)', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+      <button className="btn-press" onClick={onCancel} style={{ width: 24, height: 24, borderRadius: 5, border: 'none', background: 'var(--bg-overlay)', color: 'var(--text-muted)', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
         <X size={12} />
       </button>
     </div>
@@ -536,11 +536,11 @@ function PredictInput({ assessment, onSave, onCancel }) {
           background: 'var(--bg-input)', color: 'var(--text-primary)', fontSize: 13, outline: 'none' }}
       />
       <span style={{ fontSize: 13, color: 'var(--text-muted)' }}>%</span>
-      <button onClick={() => valid && onSave(num)}
+      <button className="btn-press" onClick={() => valid && onSave(num)}
         style={{ width: 24, height: 24, borderRadius: 5, border: 'none', background: valid ? 'var(--accent-purple)' : 'var(--border)', color: valid ? '#fff' : 'var(--text-muted)', cursor: valid ? 'pointer' : 'default', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
         <Check size={12} />
       </button>
-      <button onClick={onCancel} style={{ width: 24, height: 24, borderRadius: 5, border: 'none', background: 'var(--bg-overlay)', color: 'var(--text-muted)', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+      <button className="btn-press" onClick={onCancel} style={{ width: 24, height: 24, borderRadius: 5, border: 'none', background: 'var(--bg-overlay)', color: 'var(--text-muted)', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
         <X size={12} />
       </button>
     </div>
@@ -618,13 +618,13 @@ function AssessmentsTab({ domain, assessments, onAddAssessment, onUpdateAssessme
               if (error) setSaveError(error.message || 'Unknown error'); else setPredictingId(null)
             }} onCancel={() => setPredictingId(null)} />
           ) : item.grade != null ? (
-            <button onClick={() => { setGradingId(item.id); setPredictingId(null) }} title="Edit grade"
+            <button className="btn-press" onClick={() => { setGradingId(item.id); setPredictingId(null) }} title="Edit grade"
               style={{ background: `${gradeColor(item.grade)}18`, color: gradeColor(item.grade), fontSize: 14, fontWeight: 700, padding: '5px 12px', borderRadius: 7, border: `1px solid ${gradeColor(item.grade)}40`, cursor: 'pointer' }}>
               {item.grade}%
             </button>
           ) : (
             <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-              <button onClick={() => { setGradingId(item.id); setPredictingId(null) }}
+              <button className="btn-press" onClick={() => { setGradingId(item.id); setPredictingId(null) }}
                 style={{ padding: '5px 10px', borderRadius: 7, border: '1px dashed var(--border-strong)', background: 'none',
                   color: 'var(--text-muted)', fontSize: 12, cursor: isPast ? 'pointer' : 'default', opacity: isPast ? 1 : 0.45 }}
                 title={isPast ? 'Enter actual grade' : 'Date not yet reached'}>
@@ -632,12 +632,12 @@ function AssessmentsTab({ domain, assessments, onAddAssessment, onUpdateAssessme
               </button>
               {item.predictedGrade != null ? (
                 <div style={{ display: 'flex', alignItems: 'center', gap: 3 }}>
-                  <button onClick={() => { setPredictingId(item.id); setGradingId(null) }} title="Edit prediction"
+                  <button className="btn-press" onClick={() => { setPredictingId(item.id); setGradingId(null) }} title="Edit prediction"
                     style={{ padding: '5px 10px', borderRadius: 7, border: '1px solid rgba(167,139,250,0.35)',
                       background: 'rgba(167,139,250,0.1)', color: 'var(--accent-purple)', fontSize: 12, fontWeight: 600, cursor: 'pointer' }}>
                     ~{item.predictedGrade}%
                   </button>
-                  <button onClick={async () => {
+                  <button className="btn-press" onClick={async () => {
                     const { error } = await onUpdateAssessment(item.id, { ...item, predictedGrade: null })
                     if (error) setSaveError(error.message || 'Unknown error')
                   }} title="Clear prediction"
@@ -648,7 +648,7 @@ function AssessmentsTab({ domain, assessments, onAddAssessment, onUpdateAssessme
                   </button>
                 </div>
               ) : (
-                <button onClick={() => { setPredictingId(item.id); setGradingId(null) }}
+                <button className="btn-press" onClick={() => { setPredictingId(item.id); setGradingId(null) }}
                   style={{ padding: '5px 10px', borderRadius: 7, border: '1px dashed rgba(167,139,250,0.4)', background: 'none',
                     color: 'rgba(167,139,250,0.7)', fontSize: 12, cursor: 'pointer' }}
                   title="Add predicted grade">
@@ -657,11 +657,11 @@ function AssessmentsTab({ domain, assessments, onAddAssessment, onUpdateAssessme
               )}
             </div>
           )}
-          <button onClick={() => setEditing(item)}
+          <button className="btn-press" onClick={() => setEditing(item)}
             style={{ width: 28, height: 28, borderRadius: 6, border: 'none', background: 'var(--bg-overlay)', color: 'var(--text-muted)', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
             <Edit2 size={12} />
           </button>
-          <button onClick={() => setConfirmDelId(item.id)}
+          <button className="btn-press" onClick={() => setConfirmDelId(item.id)}
             style={{ width: 28, height: 28, borderRadius: 6, border: 'none', background: 'var(--bg-overlay)', color: 'var(--text-muted)', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center' }}
             onMouseEnter={e => { e.currentTarget.style.background = 'rgba(251,113,133,0.12)'; e.currentTarget.style.color = '#fb7185' }}
             onMouseLeave={e => { e.currentTarget.style.background = 'var(--bg-overlay)'; e.currentTarget.style.color = 'var(--text-muted)' }}>
@@ -731,7 +731,7 @@ function AssessmentsTab({ domain, assessments, onAddAssessment, onUpdateAssessme
             <span style={{ fontSize: 13, color: 'var(--text-muted)', alignSelf: 'center' }}>No grades entered yet. Add actual grades or predictions to get started.</span>
           )}
         </div>
-        <button
+        <button className="btn-press"
           onClick={() => setShowAdd(true)}
           style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '8px 14px', borderRadius: 8,
             border: 'none', background: domain.color, color: readableTextOn(domain.color), cursor: 'pointer', fontSize: 13, fontWeight: 600, flexShrink: 0 }}>
@@ -742,7 +742,7 @@ function AssessmentsTab({ domain, assessments, onAddAssessment, onUpdateAssessme
       {saveError && (
         <div style={{ padding: '10px 14px', borderRadius: 8, background: 'rgba(251,113,133,0.1)', border: '1px solid rgba(251,113,133,0.25)', color: '#fb7185', fontSize: 13, display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 12 }}>
           <span style={{ flex: 1 }}>Save failed: {saveError}</span>
-          <button onClick={() => setSaveError(null)} style={{ background: 'none', border: 'none', color: '#fb7185', cursor: 'pointer', padding: 0, display: 'flex' }}><X size={14} /></button>
+          <button className="btn-press" onClick={() => setSaveError(null)} style={{ background: 'none', border: 'none', color: '#fb7185', cursor: 'pointer', padding: 0, display: 'flex' }}><X size={14} /></button>
         </div>
       )}
 
@@ -839,7 +839,7 @@ function StudyTab({ domain, studySessions, notes, weekConfidence, onSetWeekConfi
               </div>
               <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
                 {s.noteId && onOpenNote && (
-                  <button onClick={() => onOpenNote(s.noteId)}
+                  <button className="btn-press" onClick={() => onOpenNote(s.noteId)}
                     style={{ display: 'flex', alignItems: 'center', gap: 4, padding: '3px 8px', borderRadius: 5,
                       border: '1px solid rgba(167,139,250,0.3)', background: 'rgba(167,139,250,0.08)', color: 'var(--accent-purple)', cursor: 'pointer', fontSize: 10 }}>
                     <PenLine size={9} /> Open Note
@@ -895,14 +895,14 @@ function StudyTab({ domain, studySessions, notes, weekConfidence, onSetWeekConfi
                 )}
               </div>
               {showContent && <NoteButton onNewNote={onNewNote} meta={{ domainId: domain.id, academicWeek: week, title: `Week ${week} – Study Notes` }} />}
-              <button onClick={e => cycleConf(week, e)}
+              <button className="btn-press" onClick={e => cycleConf(week, e)}
                 style={{ display: 'flex', alignItems: 'center', gap: 5, padding: '5px 10px', borderRadius: 6,
                   border: `1px solid ${confCfg.color}40`, background: confCfg.bg, color: confCfg.color,
                   cursor: 'pointer', fontSize: 11, fontWeight: 600, flexShrink: 0, transition: 'all 0.12s' }}>
                 {confCfg.label}
               </button>
               {hasData && showContent && (
-                <button onClick={() => setOpenWeeks(prev => ({ ...prev, [week]: !prev[week] }))}
+                <button className="btn-press" onClick={() => setOpenWeeks(prev => ({ ...prev, [week]: !prev[week] }))}
                   style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--text-muted)', display: 'flex', padding: 4, borderRadius: 5, flexShrink: 0 }}>
                   {isOpen ? <ChevronDown size={15} /> : <ChevronRight size={15} />}
                 </button>
@@ -1039,7 +1039,7 @@ function EditDomainModal({ domain, onClose, onSave }) {
             </div>
             <span style={{ fontSize: 15, fontWeight: 600, color: 'var(--text-primary)' }}>Edit Domain</span>
           </div>
-          <button onClick={onClose} style={{ width: 28, height: 28, borderRadius: 7, border: 'none', background: 'var(--bg-overlay)', color: 'var(--text-secondary)', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+          <button className="btn-press" onClick={onClose} style={{ width: 28, height: 28, borderRadius: 7, border: 'none', background: 'var(--bg-overlay)', color: 'var(--text-secondary)', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
             <X size={14} />
           </button>
         </div>
@@ -1066,7 +1066,7 @@ function EditDomainModal({ domain, onClose, onSave }) {
                   <div style={{ fontSize: 10, fontWeight: 600, color: 'var(--text-secondary)', textTransform: 'uppercase', letterSpacing: '0.5px', marginBottom: 5 }}>{group.label}</div>
                   <div style={{ display: 'flex', flexWrap: 'wrap', gap: 5 }}>
                     {group.icons.map(name => (
-                      <button key={name} onClick={() => set('icon', name)} title={name}
+                      <button className="btn-press" key={name} onClick={() => set('icon', name)} title={name}
                         style={{ width: 32, height: 32, borderRadius: 7, border: 'none', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center',
                           background: form.icon === name ? `${form.color}22` : 'var(--bg-overlay)',
                           outline: form.icon === name ? `1.5px solid ${form.color}66` : '1.5px solid transparent', transition: 'all 0.12s' }}
@@ -1085,7 +1085,7 @@ function EditDomainModal({ domain, onClose, onSave }) {
             <div style={{ fontSize: 11, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.5px', marginBottom: 7 }}>Colour</div>
             <div style={{ display: 'flex', gap: 7, flexWrap: 'wrap' }}>
               {DOMAIN_COLORS.map(c => (
-                <button key={c} onClick={() => set('color', c)} style={{ width: 26, height: 26, borderRadius: '50%', border: 'none', cursor: 'pointer', background: c,
+                <button className="btn-press" key={c} onClick={() => set('color', c)} style={{ width: 26, height: 26, borderRadius: '50%', border: 'none', cursor: 'pointer', background: c,
                   outline: form.color === c ? `2.5px solid ${c}` : '2.5px solid transparent', outlineOffset: 2,
                   transform: form.color === c ? 'scale(1.15)' : 'scale(1)', transition: 'all 0.12s' }} />
               ))}
@@ -1118,7 +1118,7 @@ function EditDomainModal({ domain, onClose, onSave }) {
                   <div style={{ fontSize: 11, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.5px', marginBottom: 7 }}>Teaching semester</div>
                   <div style={{ display: 'flex', gap: 6 }}>
                     {[{ v: 1, label: 'Sem 1' }, { v: 2, label: 'Sem 2' }, { v: 0, label: 'Full year' }].map(o => (
-                      <button key={o.v} onClick={() => set('semesterNumber', o.v)} style={{
+                      <button className="btn-press" key={o.v} onClick={() => set('semesterNumber', o.v)} style={{
                         flex: 1, padding: '8px 0', borderRadius: 7, cursor: 'pointer', fontFamily: 'inherit', fontSize: 12,
                         fontWeight: form.semesterNumber === o.v ? 600 : 400,
                         border: `1px solid ${form.semesterNumber === o.v ? 'var(--accent-blue)' : 'var(--border-strong)'}`,
@@ -1143,8 +1143,8 @@ function EditDomainModal({ domain, onClose, onSave }) {
         </div>
 
         <div style={{ padding: '14px 22px', borderTop: '1px solid var(--border)', display: 'flex', justifyContent: 'flex-end', gap: 8, flexShrink: 0 }}>
-          <button onClick={onClose} style={{ padding: '8px 16px', borderRadius: 8, border: '1px solid var(--border-strong)', background: 'none', color: 'var(--text-secondary)', cursor: 'pointer', fontSize: 13 }}>Cancel</button>
-          <button onClick={() => { if (!canSave) return; onSave({ name: form.name.trim(), code: form.code.trim().toUpperCase(), icon: form.icon, color: form.color, colorMuted: `${form.color}18`, description: form.description.trim(), ...(isAcademic ? { professor: form.professor.trim(), credits: parseInt(form.credits) || 0, semester: form.semester.trim(), ...(twoSemesters ? { semesterNumber: form.semesterNumber } : {}) } : { role: form.role.trim() }) }); onClose() }}
+          <button className="btn-press" onClick={onClose} style={{ padding: '8px 16px', borderRadius: 8, border: '1px solid var(--border-strong)', background: 'none', color: 'var(--text-secondary)', cursor: 'pointer', fontSize: 13 }}>Cancel</button>
+          <button className="btn-press" onClick={() => { if (!canSave) return; onSave({ name: form.name.trim(), code: form.code.trim().toUpperCase(), icon: form.icon, color: form.color, colorMuted: `${form.color}18`, description: form.description.trim(), ...(isAcademic ? { professor: form.professor.trim(), credits: parseInt(form.credits) || 0, semester: form.semester.trim(), ...(twoSemesters ? { semesterNumber: form.semesterNumber } : {}) } : { role: form.role.trim() }) }); onClose() }}
             disabled={!canSave} style={{ padding: '8px 18px', borderRadius: 8, border: 'none', fontSize: 13, fontWeight: 600, background: canSave ? form.color : 'var(--border)', color: canSave ? '#fff' : 'var(--text-muted)', cursor: canSave ? 'pointer' : 'default', transition: 'all 0.15s' }}>
             Save Changes
           </button>
@@ -1226,14 +1226,14 @@ export default function DomainDetailPage({
   return (
     <div style={{ padding: isMobile ? '20px 16px 28px' : '32px 40px', maxWidth: 1000 }}>
       <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: isMobile ? 16 : 24, gap: 10, flexWrap: 'wrap' }}>
-        <button onClick={onBack}
+        <button className="btn-press" onClick={onBack}
           style={{ display: 'flex', alignItems: 'center', gap: 6, background: 'none', border: 'none', cursor: 'pointer', color: 'var(--text-secondary)', fontSize: 13, padding: 0, transition: 'color 0.15s' }}
           onMouseEnter={e => e.currentTarget.style.color = 'var(--text-primary)'}
           onMouseLeave={e => e.currentTarget.style.color = 'var(--text-secondary)'}>
           <ArrowLeft size={15} /> {isMobile ? 'Back' : 'Back to Domains'}
         </button>
         <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-          <button
+          <button className="btn-press"
             onClick={toggleShowLinked}
             style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '7px 14px', borderRadius: 8, border: '1px solid var(--border-strong)', background: showLinked ? 'none' : 'var(--bg-overlay)', color: showLinked ? 'var(--text-secondary)' : 'var(--text-muted)', fontSize: 13, cursor: 'pointer', transition: 'all 0.15s' }}
             onMouseEnter={e => { e.currentTarget.style.borderColor = 'var(--accent-purple)'; e.currentTarget.style.color = 'var(--accent-purple)' }}
@@ -1242,7 +1242,7 @@ export default function DomainDetailPage({
             {showLinked ? <EyeOff size={13} /> : <Eye size={13} />}
             {isMobile ? (showLinked ? 'Hide linked' : 'Show linked') : (showLinked ? 'Hide sessions & notes' : 'Show sessions & notes')}
           </button>
-          <button onClick={() => setShowEdit(true)}
+          <button className="btn-press" onClick={() => setShowEdit(true)}
             style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '7px 14px', borderRadius: 8, border: '1px solid var(--border-strong)', background: 'none', color: 'var(--text-secondary)', fontSize: 13, cursor: 'pointer', transition: 'all 0.15s' }}
             onMouseEnter={e => { e.currentTarget.style.borderColor = domain.color; e.currentTarget.style.color = domain.color }}
             onMouseLeave={e => { e.currentTarget.style.borderColor = 'var(--border-strong)'; e.currentTarget.style.color = 'var(--text-secondary)' }}>
@@ -1259,7 +1259,7 @@ export default function DomainDetailPage({
       {/* Domain header */}
       <div style={{ background: 'var(--bg-surface)', border: '1px solid var(--border)', borderTop: `2px solid ${domain.color}`, borderRadius: 16, padding: isMobile ? '20px 18px' : '26px 30px', marginBottom: 22, position: 'relative', overflow: 'hidden' }}>
         {/* 3-dot menu */}
-        <button
+        <button className="btn-press"
           ref={menuBtnRef}
           onClick={openContextMenu}
           style={{
@@ -1283,7 +1283,7 @@ export default function DomainDetailPage({
               borderRadius: 9, boxShadow: 'var(--shadow-modal)', overflow: 'hidden', minWidth: 190,
             }}
           >
-            <button
+            <button className="btn-press"
               onClick={() => { onUpdateDomain?.(domain.id, { isPast: !domain.isPast }); setShowMenu(false) }}
               style={{
                 display: 'flex', alignItems: 'center', gap: 9, width: '100%',
@@ -1298,7 +1298,7 @@ export default function DomainDetailPage({
               {domain.isPast ? 'Mark as active' : 'Mark as past module'}
             </button>
             <div style={{ height: 1, background: 'var(--border)', margin: '0 10px' }} />
-            <button
+            <button className="btn-press"
               onClick={() => { onUpdateDomain?.(domain.id, { excludeFromGrade: !domain.excludeFromGrade }); setShowMenu(false) }}
               style={{
                 display: 'flex', alignItems: 'center', gap: 9, width: '100%',
@@ -1313,7 +1313,7 @@ export default function DomainDetailPage({
               {domain.excludeFromGrade ? 'Include in grade avg' : 'Exclude from grade avg'}
             </button>
             <div style={{ height: 1, background: 'var(--border)', margin: '0 10px' }} />
-            <button
+            <button className="btn-press"
               onClick={() => { setShowMenu(false); setShowDeleteConfirm(true) }}
               style={{
                 display: 'flex', alignItems: 'center', gap: 9, width: '100%',

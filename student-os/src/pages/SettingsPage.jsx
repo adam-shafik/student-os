@@ -185,7 +185,7 @@ export default function SettingsPage({ userProfile, userEmail, theme, onThemeCha
   }
 
   const SaveBtn = ({ saving, saved, onClick, color = 'var(--accent-blue)', label, savedLabel = 'Saved' }) => (
-    <button
+    <button className="btn-press"
       onClick={onClick}
       disabled={saving}
       style={{
@@ -273,7 +273,7 @@ export default function SettingsPage({ userProfile, userEmail, theme, onThemeCha
           <Field label="New Password">
             <div style={{ position: 'relative' }}>
               <TextInput type={showNew ? 'text' : 'password'} value={newPassword} onChange={e => setNewPassword(e.target.value)} placeholder="At least 6 characters" />
-              <button onClick={() => setShowNew(v => !v)} style={{ position: 'absolute', right: 10, top: '50%', transform: 'translateY(-50%)', background: 'none', border: 'none', cursor: 'pointer', color: 'var(--text-muted)', display: 'flex', padding: 0 }}>
+              <button className="btn-press" onClick={() => setShowNew(v => !v)} style={{ position: 'absolute', right: 10, top: '50%', transform: 'translateY(-50%)', background: 'none', border: 'none', cursor: 'pointer', color: 'var(--text-muted)', display: 'flex', padding: 0 }}>
                 {showNew ? <EyeOff size={14} /> : <Eye size={14} />}
               </button>
             </div>
@@ -281,7 +281,7 @@ export default function SettingsPage({ userProfile, userEmail, theme, onThemeCha
           <Field label="Confirm New Password">
             <div style={{ position: 'relative' }}>
               <TextInput type={showConfirm ? 'text' : 'password'} value={confirmPassword} onChange={e => setConfirmPassword(e.target.value)} placeholder="Repeat password" />
-              <button onClick={() => setShowConfirm(v => !v)} style={{ position: 'absolute', right: 10, top: '50%', transform: 'translateY(-50%)', background: 'none', border: 'none', cursor: 'pointer', color: 'var(--text-muted)', display: 'flex', padding: 0 }}>
+              <button className="btn-press" onClick={() => setShowConfirm(v => !v)} style={{ position: 'absolute', right: 10, top: '50%', transform: 'translateY(-50%)', background: 'none', border: 'none', cursor: 'pointer', color: 'var(--text-muted)', display: 'flex', padding: 0 }}>
                 {showConfirm ? <EyeOff size={14} /> : <Eye size={14} />}
               </button>
             </div>
@@ -315,7 +315,7 @@ export default function SettingsPage({ userProfile, userEmail, theme, onThemeCha
                   Get push notifications before upcoming exams and assignments, even when the app is closed.
                 </div>
               </div>
-              <button
+              <button className="btn-press"
                 onClick={notifStatus === 'granted' ? onDisableNotifications : onEnableNotifications}
                 style={{ width: 44, height: 24, borderRadius: 12, border: 'none', cursor: 'pointer', background: notifStatus === 'granted' ? 'var(--accent-blue)' : 'var(--border-strong)', position: 'relative', flexShrink: 0, transition: 'background 0.2s' }}
               >
@@ -340,7 +340,7 @@ export default function SettingsPage({ userProfile, userEmail, theme, onThemeCha
               Add, remove, or rearrange your recurring lecture slots, labs, and tutorials. Changes take effect immediately on your calendar.
             </div>
           </div>
-          <button
+          <button className="btn-press"
             onClick={onEditSchedule}
             style={{ display: 'flex', alignItems: 'center', gap: 7, padding: '10px 20px', borderRadius: 9, border: 'none', background: 'var(--accent-blue)', color: 'var(--btn-primary-text, #fff)', fontSize: 13, fontWeight: 600, cursor: 'pointer', flexShrink: 0, fontFamily: 'inherit', transition: 'all 0.15s' }}
             onMouseEnter={e => { e.currentTarget.style.filter = 'brightness(1.12)'; e.currentTarget.style.transform = 'translateY(-1px)' }}
@@ -358,7 +358,7 @@ export default function SettingsPage({ userProfile, userEmail, theme, onThemeCha
           <Field label="Number of semesters">
             <div style={{ display: 'flex', gap: 8 }}>
               {[{ v: 1, label: 'One semester' }, { v: 2, label: 'Two semesters' }].map(o => (
-                <button key={o.v} onClick={() => setNumSemesters(o.v)} style={{
+                <button className="btn-press" key={o.v} onClick={() => setNumSemesters(o.v)} style={{
                   flex: 1, padding: '9px 0', borderRadius: 8, cursor: 'pointer', fontFamily: 'inherit', fontSize: 13,
                   fontWeight: numSemesters === o.v ? 600 : 400,
                   border: `1px solid ${numSemesters === o.v ? 'var(--accent-amber)' : 'var(--border-strong)'}`,
@@ -418,7 +418,7 @@ export default function SettingsPage({ userProfile, userEmail, theme, onThemeCha
           <div>
             <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 10 }}>
               <span style={{ fontSize: 11, fontWeight: 600, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.6px' }}>Breaks</span>
-              <button onClick={addBreak} style={{ display: 'flex', alignItems: 'center', gap: 5, padding: '4px 10px', borderRadius: 6, border: '1px solid var(--border-strong)', background: 'none', color: 'var(--text-secondary)', fontSize: 12, cursor: 'pointer', fontFamily: 'inherit' }}>
+              <button className="btn-press" onClick={addBreak} style={{ display: 'flex', alignItems: 'center', gap: 5, padding: '4px 10px', borderRadius: 6, border: '1px solid var(--border-strong)', background: 'none', color: 'var(--text-secondary)', fontSize: 12, cursor: 'pointer', fontFamily: 'inherit' }}>
                 <Plus size={11} /> Add break
               </button>
             </div>
@@ -441,7 +441,7 @@ export default function SettingsPage({ userProfile, userEmail, theme, onThemeCha
                       {b.returnMonday && (() => { const ok = getDow(b.returnMonday) === breakDay; return <span style={{ fontSize: 11, fontWeight: 600, padding: '3px 7px', borderRadius: 5, flexShrink: 0, background: ok ? 'rgba(52,211,153,0.12)' : 'rgba(251,113,133,0.12)', color: ok ? '#34d399' : '#fb7185', border: `1px solid ${ok ? 'rgba(52,211,153,0.25)' : 'rgba(251,113,133,0.25)'}` }}>{dowName(b.returnMonday)}</span> })()}
                     </div>
                   </Field>
-                  <button onClick={() => removeBreak(b.id)} style={{ width: 32, height: 36, borderRadius: 7, border: 'none', background: 'var(--bg-overlay)', color: 'var(--text-muted)', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}
+                  <button className="btn-press" onClick={() => removeBreak(b.id)} style={{ width: 32, height: 36, borderRadius: 7, border: 'none', background: 'var(--bg-overlay)', color: 'var(--text-muted)', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}
                     onMouseEnter={e => { e.currentTarget.style.background = 'rgba(251,113,133,0.12)'; e.currentTarget.style.color = '#fb7185' }}
                     onMouseLeave={e => { e.currentTarget.style.background = 'var(--bg-overlay)'; e.currentTarget.style.color = 'var(--text-muted)' }}>
                     <Trash2 size={12} />
@@ -464,7 +464,7 @@ export default function SettingsPage({ userProfile, userEmail, theme, onThemeCha
           {THEMES.map(t => {
             const isActive = theme === t.id
             return (
-              <button
+              <button className="btn-press"
                 key={t.id}
                 onClick={() => onThemeChange(t.id)}
                 style={{
@@ -506,7 +506,7 @@ export default function SettingsPage({ userProfile, userEmail, theme, onThemeCha
               <div style={{ fontSize: 13, fontWeight: 600, color: 'var(--text-primary)', marginBottom: 2 }}>Background photo</div>
               <div style={{ fontSize: 12, color: 'var(--text-muted)' }}>Show the wallpaper for this theme, or use solid colors only</div>
             </div>
-            <button
+            <button className="btn-press"
               onClick={() => onToggleWallpaper?.(!wallpaperEnabled)}
               style={{ width: 44, height: 24, borderRadius: 12, border: 'none', cursor: 'pointer', background: wallpaperEnabled ? 'var(--accent-purple)' : 'var(--border-strong)', position: 'relative', flexShrink: 0, transition: 'background 0.2s' }}
             >
@@ -525,7 +525,7 @@ export default function SettingsPage({ userProfile, userEmail, theme, onThemeCha
               Download a JSON file of all your domains, assessments, notes, todos, and study sessions.
             </div>
           </div>
-          <button
+          <button className="btn-press"
             onClick={onExportData}
             style={{ display: 'flex', alignItems: 'center', gap: 7, padding: '10px 20px', borderRadius: 9, border: 'none', background: 'var(--accent-green)', color: '#030a06', fontSize: 13, fontWeight: 600, cursor: 'pointer', flexShrink: 0, fontFamily: 'inherit', transition: 'all 0.15s' }}
             onMouseEnter={e => { e.currentTarget.style.filter = 'brightness(1.1)'; e.currentTarget.style.transform = 'translateY(-1px)' }}
@@ -545,7 +545,7 @@ export default function SettingsPage({ userProfile, userEmail, theme, onThemeCha
               Wipes all your data: domains, schedule, assessments, notes, todos, and study sessions. This cannot be undone.
             </div>
           </div>
-          <button
+          <button className="btn-press"
             onClick={() => setResetConfirm(true)}
             style={{ padding: '9px 16px', borderRadius: 8, border: '1px solid rgba(251,113,133,0.3)', background: 'rgba(251,113,133,0.06)', color: '#fb7185', fontSize: 13, fontWeight: 600, cursor: 'pointer', flexShrink: 0, transition: 'all 0.15s', whiteSpace: 'nowrap', fontFamily: 'inherit' }}
             onMouseEnter={e => { e.currentTarget.style.background = 'rgba(251,113,133,0.14)'; e.currentTarget.style.borderColor = 'rgba(251,113,133,0.5)' }}

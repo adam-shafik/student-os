@@ -105,7 +105,7 @@ export default function EventDetailModal({ event, onClose, onViewDomain, note, o
             <h2 style={{ margin: 0, fontSize: 16, fontWeight: 600, color: 'var(--text-primary)', lineHeight: 1.4 }}>{event.title}</h2>
             {event.domainName && <p style={{ margin: '4px 0 0', fontSize: 12, color: 'var(--text-secondary)' }}>{event.domainName}</p>}
           </div>
-          <button onClick={onClose} style={{ width: 28, height: 28, borderRadius: 7, border: 'none', background: 'var(--bg-overlay)', color: 'var(--text-secondary)', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+          <button className="btn-press" onClick={onClose} style={{ width: 28, height: 28, borderRadius: 7, border: 'none', background: 'var(--bg-overlay)', color: 'var(--text-secondary)', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
             <X size={14} />
           </button>
         </div>
@@ -196,7 +196,7 @@ export default function EventDetailModal({ event, onClose, onViewDomain, note, o
                   {[{ d: 0, label: 'Day of' }, { d: 1, label: '1 day before' }, { d: 3, label: '3 days before' }].map(({ d, label }) => {
                     const on = reminderDays.includes(d)
                     return (
-                      <button key={d} onClick={() => toggleReminder(d)} style={{
+                      <button className="btn-press" key={d} onClick={() => toggleReminder(d)} style={{
                         padding: '5px 12px', borderRadius: 20, fontSize: 12, cursor: 'pointer',
                         border: `1px solid ${on ? 'var(--accent-blue)' : 'var(--border-strong)'}`,
                         background: on ? 'rgba(91,140,255,0.12)' : 'none',
@@ -241,13 +241,13 @@ export default function EventDetailModal({ event, onClose, onViewDomain, note, o
             {onDelete ? (
               confirmDelete ? (
                 <div style={{ display: 'flex', gap: 8 }}>
-                  <button onClick={() => setConfirmDelete(false)} style={{ padding: '8px 14px', borderRadius: 8, border: '1px solid var(--border-strong)', background: 'transparent', color: 'var(--text-secondary)', fontSize: 13, cursor: 'pointer', fontFamily: 'inherit' }}>Cancel</button>
-                  <button onClick={onDelete} style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '8px 14px', borderRadius: 8, border: '1px solid rgba(251,113,133,0.4)', background: 'rgba(251,113,133,0.14)', color: '#fb7185', fontSize: 13, fontWeight: 600, cursor: 'pointer', fontFamily: 'inherit' }}>
+                  <button className="btn-press" onClick={() => setConfirmDelete(false)} style={{ padding: '8px 14px', borderRadius: 8, border: '1px solid var(--border-strong)', background: 'transparent', color: 'var(--text-secondary)', fontSize: 13, cursor: 'pointer', fontFamily: 'inherit' }}>Cancel</button>
+                  <button className="btn-press" onClick={onDelete} style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '8px 14px', borderRadius: 8, border: '1px solid rgba(251,113,133,0.4)', background: 'rgba(251,113,133,0.14)', color: '#fb7185', fontSize: 13, fontWeight: 600, cursor: 'pointer', fontFamily: 'inherit' }}>
                     <Trash2 size={13} /> Confirm Delete
                   </button>
                 </div>
               ) : (
-                <button
+                <button className="btn-press"
                   onClick={isTutorial ? undefined : () => setConfirmDelete(true)}
                   style={{ display: 'flex', alignItems: 'center', gap: 6, background: 'rgba(251,113,133,0.08)', border: '1px solid rgba(251,113,133,0.2)', borderRadius: 8, padding: '8px 14px', cursor: isTutorial ? 'not-allowed' : 'pointer', color: '#fb7185', fontSize: 13, transition: 'all 0.15s', opacity: isTutorial ? 0.4 : 1 }}
                   onMouseEnter={e => { if (!isTutorial) { e.currentTarget.style.background = 'rgba(251,113,133,0.16)'; e.currentTarget.style.borderColor = 'rgba(251,113,133,0.4)' } }}
@@ -258,7 +258,7 @@ export default function EventDetailModal({ event, onClose, onViewDomain, note, o
               )
             ) : <div />}
             {onViewDomain && event.domainId && (
-              <button
+              <button className="btn-press"
                 onClick={isTutorial ? undefined : () => { onViewDomain(event.domainId); onClose() }}
                 style={{ display: 'flex', alignItems: 'center', gap: 7, background: 'none', border: '1px solid var(--border-strong)', borderRadius: 8, padding: '8px 14px', cursor: isTutorial ? 'not-allowed' : 'pointer', color: 'var(--text-secondary)', fontSize: 13, transition: 'all 0.15s', opacity: isTutorial ? 0.4 : 1 }}
                 onMouseEnter={e => { if (!isTutorial) { e.currentTarget.style.borderColor = 'var(--accent-blue)'; e.currentTarget.style.color = 'var(--accent-blue)' } }}

@@ -152,7 +152,7 @@ function DayCell({ day, events, isToday, onEventClick, onAddClick, eventNotes, i
         </span>
 
         {hovered && day.isCurrentMonth && (
-          <button
+          <button className="btn-press"
             onClick={() => onAddClick(day.date)}
             style={{ width: 18, height: 18, borderRadius: 4, border: 'none', background: 'var(--bg-overlay)', color: 'var(--text-secondary)', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center' }}
           >
@@ -166,7 +166,7 @@ function DayCell({ day, events, isToday, onEventClick, onAddClick, eventNotes, i
       ))}
 
       {overflow > 0 && (
-        <button
+        <button className="btn-press"
           onClick={e => { e.stopPropagation(); setExpanded(v => !v) }}
           style={{
             marginTop: 1, fontSize: 10, fontWeight: 600,
@@ -267,7 +267,7 @@ function AddEventModal({ initialDate, initialTime, domains, onClose, onSave }) {
             <Plus size={16} color={activeColor} />
             <span style={{ fontSize: 15, fontWeight: 600, color: 'var(--text-primary)' }}>Add Event</span>
           </div>
-          <button onClick={onClose} style={{ width: 28, height: 28, borderRadius: 7, border: 'none', background: 'var(--bg-overlay)', color: 'var(--text-secondary)', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+          <button className="btn-press" onClick={onClose} style={{ width: 28, height: 28, borderRadius: 7, border: 'none', background: 'var(--bg-overlay)', color: 'var(--text-secondary)', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
             <X size={14} />
           </button>
         </div>
@@ -316,7 +316,7 @@ function AddEventModal({ initialDate, initialTime, domains, onClose, onSave }) {
             <Label>Event Type</Label>
             <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 6 }}>
               {PRESET_TYPES.map(t => (
-                <button key={t.id} onClick={() => set('type', t.id)}
+                <button className="btn-press" key={t.id} onClick={() => set('type', t.id)}
                   style={{ padding: '7px 4px', borderRadius: 7, border: 'none', cursor: 'pointer', fontSize: 11, fontWeight: 600, background: form.type === t.id ? `${t.color}22` : 'var(--bg-overlay)', color: form.type === t.id ? t.color : 'var(--text-secondary)', outline: form.type === t.id ? `1.5px solid ${t.color}55` : '1.5px solid transparent', transition: 'all 0.12s' }}
                   onMouseEnter={e => { if (form.type !== t.id) e.currentTarget.style.background = 'var(--bg-overlay-hover)' }}
                   onMouseLeave={e => { if (form.type !== t.id) e.currentTarget.style.background = 'var(--bg-overlay)' }}
@@ -335,7 +335,7 @@ function AddEventModal({ initialDate, initialTime, domains, onClose, onSave }) {
 
           <div>
             <Label>Link to Domain (optional)</Label>
-            <button
+            <button className="btn-press"
               onClick={() => setDomainPickerOpen(v => !v)}
               style={{
                 width: '100%', padding: '9px 12px', borderRadius: 8,
@@ -395,7 +395,7 @@ function AddEventModal({ initialDate, initialTime, domains, onClose, onSave }) {
               {[{ d: 0, label: 'Day of' }, { d: 1, label: '1 day before' }, { d: 3, label: '3 days before' }].map(({ d, label }) => {
                 const on = form.reminderDays.includes(d)
                 return (
-                  <button key={d} type="button" onClick={() => toggleReminder(d)} style={{
+                  <button className="btn-press" key={d} type="button" onClick={() => toggleReminder(d)} style={{
                     padding: '5px 12px', borderRadius: 20, fontSize: 12, cursor: 'pointer',
                     border: `1px solid ${on ? 'var(--accent-blue)' : 'var(--border-strong)'}`,
                     background: on ? 'rgba(91,140,255,0.12)' : 'none',
@@ -417,8 +417,8 @@ function AddEventModal({ initialDate, initialTime, domains, onClose, onSave }) {
         </div>
 
         <div style={{ padding: '14px 22px', borderTop: '1px solid var(--border)', display: 'flex', justifyContent: 'flex-end', gap: 8, flexShrink: 0 }}>
-          <button onClick={onClose} style={{ padding: '8px 16px', borderRadius: 8, border: '1px solid var(--border-strong)', background: 'none', color: 'var(--text-secondary)', cursor: 'pointer', fontSize: 13 }}>Cancel</button>
-          <button onClick={handleSave} disabled={!canSave} style={{ padding: '8px 18px', borderRadius: 8, border: 'none', fontSize: 13, fontWeight: 600, background: canSave ? activeColor : 'var(--border)', color: canSave ? '#fff' : 'var(--text-muted)', cursor: canSave ? 'pointer' : 'default', transition: 'all 0.15s' }}>Add Event</button>
+          <button className="btn-press" onClick={onClose} style={{ padding: '8px 16px', borderRadius: 8, border: '1px solid var(--border-strong)', background: 'none', color: 'var(--text-secondary)', cursor: 'pointer', fontSize: 13 }}>Cancel</button>
+          <button className="btn-press" onClick={handleSave} disabled={!canSave} style={{ padding: '8px 18px', borderRadius: 8, border: 'none', fontSize: 13, fontWeight: 600, background: canSave ? activeColor : 'var(--border)', color: canSave ? '#fff' : 'var(--text-muted)', cursor: canSave ? 'pointer' : 'default', transition: 'all 0.15s' }}>Add Event</button>
         </div>
       </div>
     </div>
@@ -474,7 +474,7 @@ function TypeColorPicker({ type, currentColor, defaultColor, onSelect, onReset, 
       </div>
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(8, 1fr)', gap: 5 }}>
         {COLOR_SWATCHES.map(c => (
-          <button
+          <button className="btn-press"
             key={c}
             onClick={() => { onSelect(c); onClose() }}
             style={{
@@ -489,7 +489,7 @@ function TypeColorPicker({ type, currentColor, defaultColor, onSelect, onReset, 
         ))}
       </div>
       {currentColor !== defaultColor && (
-        <button
+        <button className="btn-press"
           onClick={() => { onReset(); onClose() }}
           style={{
             marginTop: 8, display: 'flex', alignItems: 'center', gap: 4,
@@ -801,7 +801,7 @@ export default function CalendarPage({ domains = [], domainEvents = [], customEv
           const color = getTypeColor(key, eventTypeColors)
           return (
             <div key={key} style={{ position: 'relative' }}>
-              <button
+              <button className="btn-press"
                 onClick={() => setOpenColorPicker(p => p === key ? null : key)}
                 title="Click to change color"
                 style={{

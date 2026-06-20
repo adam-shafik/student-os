@@ -421,7 +421,7 @@ export default function TutorialOverlay({ userName, hasDomains, stepIndex, curre
       </>}
 
       {/* Skip button */}
-      <button
+      <button className="btn-press"
         onClick={onClose}
         style={{
           position: 'fixed', bottom: 'max(20px, calc(env(safe-area-inset-bottom) + 8px))',

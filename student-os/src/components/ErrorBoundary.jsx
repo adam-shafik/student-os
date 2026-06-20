@@ -22,7 +22,7 @@ export default class ErrorBoundary extends Component {
         <p style={{ fontSize: 12, color: 'var(--text-muted)', margin: '8px 0 0', wordBreak: 'break-word' }}>
           {String(this.state.error?.message || this.state.error)}
         </p>
-        <button onClick={this.reset} style={{
+        <button className="btn-press" onClick={this.reset} style={{
           marginTop: 16, padding: '8px 18px', borderRadius: 8, border: '1px solid var(--border-strong)',
           background: 'var(--bg-surface)', color: 'var(--text-primary)', cursor: 'pointer', fontFamily: 'inherit', fontSize: 13,
         }}>Try again</button>

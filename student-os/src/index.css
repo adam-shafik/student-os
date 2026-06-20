@@ -609,6 +609,80 @@ aside, main { text-shadow: var(--text-shadow); }
    Cards are unaffected because they have their own opaque --bg-surface background. */
 .page-scroll { background: var(--content-scrim); }
 
+/* ── Interactive button feedback (app-wide) ────────────────────────────────────
+   Opt-in via className="btn-press" on any plain <button>. Pure CSS so it never
+   conflicts with framer-driven transforms on <motion.button>. */
+.btn-press {
+  transition: transform .15s cubic-bezier(.22,1,.36,1), filter .15s ease,
+              box-shadow .15s ease, background-color .15s ease, border-color .15s ease;
+}
+.btn-press:hover:not(:disabled) { filter: brightness(1.09); transform: translateY(-1px); }
+.btn-press:active:not(:disabled) { transform: translateY(0) scale(.97); transition-duration: .06s; }
+@media (prefers-reduced-motion: reduce) {
+  .btn-press { transition: filter .12s ease, background-color .12s ease, border-color .12s ease; }
+  .btn-press:hover, .btn-press:active { transform: none; filter: none; }
+}
+
+/* ── "Generate with AI" button (special) ──────────────────────────────────────
+   Gradient-tinted surface + border, glow + sheen sweep on hover, sparkle flourish.
+   Reusable: add className="btn-press ai-btn" with .ai-glow/.ai-icon/.ai-sheen spans. */
+.ai-btn {
+  position: relative; overflow: hidden; isolation: isolate;
+  border: 1px solid transparent;
+  background: linear-gradient(180deg, color-mix(in srgb, var(--accent-purple) 18%, transparent), color-mix(in srgb, var(--accent-purple) 6%, transparent)) padding-box,
+              linear-gradient(135deg, color-mix(in srgb, var(--accent-purple) 72%, transparent), color-mix(in srgb, var(--accent-purple) 20%, transparent)) border-box;
+  color: color-mix(in srgb, var(--accent-purple) 58%, var(--text-primary));
+  box-shadow: inset 0 0 12px color-mix(in srgb, var(--accent-purple) 13%, transparent);
+}
+.ai-btn:hover:not(:disabled) {
+  box-shadow: inset 0 0 16px color-mix(in srgb, var(--accent-purple) 24%, transparent),
+              0 6px 22px -8px color-mix(in srgb, var(--accent-purple) 55%, transparent);
+}
+.ai-glow {
+  position: absolute; inset: 0; z-index: 0; pointer-events: none; border-radius: inherit;
+  background: linear-gradient(90deg, transparent, color-mix(in srgb, var(--accent-purple) 22%, transparent), transparent);
+  opacity: 0; transition: opacity .3s ease;
+}
+.ai-btn:hover:not(:disabled) .ai-glow { opacity: 1; }
+.ai-sheen {
+  position: absolute; inset: 0; z-index: 1; pointer-events: none;
+  background: linear-gradient(110deg, transparent 32%, color-mix(in srgb, var(--accent-purple) 34%, transparent) 50%, transparent 68%);
+  transform: translateX(-120%); transition: transform .6s cubic-bezier(.22,1,.36,1);
+}
+.ai-btn:hover:not(:disabled) .ai-sheen { transform: translateX(120%); }
+.ai-icon { transition: transform .3s cubic-bezier(.22,1,.36,1); }
+.ai-btn:hover:not(:disabled) .ai-icon { transform: scale(1.12) rotate(-8deg); }
+.ai-btn:active:not(:disabled) .ai-icon { transform: scale(.95); }
+
+/* ── Start Session (special): a blue→purple comet traces the border on hover ────
+   Uses an SVG <rect pathLength="100">, so the comet moves at an even speed on every
+   side — a conic gradient (like the domain cards) races along a wide button's
+   long sides because it sweeps by angle, not by perimeter. */
+.start-btn { position: relative; transition: box-shadow .3s ease, transform .12s ease; }
+.start-btn:hover:not(:disabled) {
+  box-shadow: 0 0 0 1px color-mix(in srgb, var(--accent-blue) 45%, transparent),
+              0 8px 28px -8px color-mix(in srgb, var(--accent-blue) 85%, transparent);
+}
+.start-btn:active:not(:disabled) { transform: scale(.985); }
+.charge-ring rect {
+  opacity: 0; transition: opacity .25s ease;
+  filter: drop-shadow(0 0 3px color-mix(in srgb, var(--accent-purple) 55%, transparent));
+}
+.start-btn:hover:not(:disabled) .charge-ring rect { opacity: 1; animation: trace 1.6s linear infinite; }
+@keyframes trace { from { stroke-dashoffset: 0; } to { stroke-dashoffset: -100; } }
+
+/* ── Skip phase (special): icon nudges forward ────────────────────────────────── */
+.skip-icon { transition: transform .25s cubic-bezier(.22,1,.36,1); }
+.skip-btn:hover:not(:disabled) .skip-icon { transform: translateX(3px); }
+.skip-btn:active:not(:disabled) .skip-icon { transform: translateX(5px); }
+
+@media (prefers-reduced-motion: reduce) {
+  .ai-sheen { display: none; }
+  .ai-glow { transition: none; }
+  .ai-icon, .skip-icon { transform: none !important; }
+  .charge-ring rect { animation: none !important; opacity: 0; }
+}
+
 /* ── Global resets ───────────────────────────────────────────────────────────── */
 * { box-sizing: border-box; }
 

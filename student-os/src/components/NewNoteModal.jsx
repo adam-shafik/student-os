@@ -185,7 +185,7 @@ export default function NewNoteModal({ domains = [], defaultDomainId = null, def
         {/* Header */}
         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '18px 22px 16px', borderBottom: '1px solid var(--border)' }}>
           <span style={{ fontSize: 15, fontWeight: 700, color: 'var(--text-primary)' }}>New note</span>
-          <button onClick={onCancel} style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--text-muted)', padding: 4, display: 'flex', borderRadius: 6 }}>
+          <button className="btn-press" onClick={onCancel} style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--text-muted)', padding: 4, display: 'flex', borderRadius: 6 }}>
             <X size={16} />
           </button>
         </div>
@@ -244,7 +244,7 @@ export default function NewNoteModal({ domains = [], defaultDomainId = null, def
                   onChange={e => { const f = e.target.files?.[0]; if (f) setPdfFile(f) }}
                   style={{ display: 'none' }}
                 />
-                <button
+                <button className="btn-press"
                   onClick={() => pdfInputRef.current?.click()}
                   style={{
                     width: '100%', boxSizing: 'border-box', padding: '16px',
@@ -289,7 +289,7 @@ export default function NewNoteModal({ domains = [], defaultDomainId = null, def
                   <label style={lbl}>Template</label>
                   <div style={{ display: 'flex', gap: 8 }}>
                     {TEMPLATES.map(t => (
-                      <button
+                      <button className="btn-press"
                         key={t.id}
                         onClick={() => setTemplate(t.id)}
                         style={{
@@ -313,7 +313,7 @@ export default function NewNoteModal({ domains = [], defaultDomainId = null, def
                   <label style={lbl}>Page color</label>
                   <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
                     {BG_PRESETS.map(p => (
-                      <button
+                      <button className="btn-press"
                         key={p.hex} title={p.label} onClick={() => setBgColor(p.hex)}
                         style={{
                           width: 28, height: 28, borderRadius: 7, flexShrink: 0, background: p.hex,
@@ -335,7 +335,7 @@ export default function NewNoteModal({ domains = [], defaultDomainId = null, def
                     <label style={lbl}>{template === 'dotted' ? 'Dot spacing' : 'Line spacing'}</label>
                     <div style={{ display: 'flex', gap: 6 }}>
                       {SPACING_OPTIONS.map(opt => (
-                        <button key={opt.value} onClick={() => setLineSpacing(opt.value)} style={segBtn(lineSpacing === opt.value)}>
+                        <button className="btn-press" key={opt.value} onClick={() => setLineSpacing(opt.value)} style={segBtn(lineSpacing === opt.value)}>
                           {opt.label}
                         </button>
                       ))}
@@ -347,7 +347,7 @@ export default function NewNoteModal({ domains = [], defaultDomainId = null, def
                   <label style={lbl}>Orientation</label>
                   <div style={{ display: 'flex', gap: 6 }}>
                     {['portrait', 'landscape'].map(o => (
-                      <button key={o} onClick={() => setOrientation(o)} style={segBtn(orientation === o)}>{o}</button>
+                      <button className="btn-press" key={o} onClick={() => setOrientation(o)} style={segBtn(orientation === o)}>{o}</button>
                     ))}
                   </div>
                 </div>
@@ -398,13 +398,13 @@ export default function NewNoteModal({ domains = [], defaultDomainId = null, def
 
         {/* Footer */}
         <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 9, padding: '14px 22px', borderTop: '1px solid var(--border)' }}>
-          <button
+          <button className="btn-press"
             onClick={onCancel}
             style={{ padding: '9px 18px', borderRadius: 9, border: '1px solid var(--border)', background: 'none', color: 'var(--text-muted)', fontSize: 14, fontWeight: 500, cursor: 'pointer', fontFamily: 'inherit' }}
           >
             Cancel
           </button>
-          <button
+          <button className="btn-press"
             onClick={handleConfirm}
             disabled={!canConfirm}
             style={{

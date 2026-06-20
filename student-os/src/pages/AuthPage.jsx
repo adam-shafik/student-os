@@ -413,7 +413,7 @@ function ConfirmationScreen({ email, type, onBack }) {
           {sending ? 'Sending...' : cooldown > 0 ? `Resend in ${cooldown}s` : `Resend ${isReset ? 'reset link' : 'confirmation email'}`}
         </motion.button>
 
-        <button
+        <button className="btn-press"
           onClick={onBack}
           style={{
             background: 'none', border: 'none',
@@ -636,7 +636,7 @@ export default function AuthPage() {
                       style={{ overflow: 'hidden', marginTop: -6 }}
                     >
                       <div style={{ textAlign: 'right' }}>
-                        <button
+                        <button className="btn-press"
                           type="button"
                           onClick={handleForgotPassword}
                           disabled={loading}

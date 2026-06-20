@@ -131,7 +131,7 @@ function ContinueBtn({ disabled, onClick, label = 'Continue', loading = false })
 
 function BackBtn({ onClick }) {
   return (
-    <button onClick={onClick} style={{
+    <button className="btn-press" onClick={onClick} style={{
       padding: '13px 20px', borderRadius: 11,
       border: `1px solid ${C.border}`,
       background: 'transparent', color: C.muted,
@@ -431,7 +431,7 @@ export default function OnboardingPage({ userId, onComplete }) {
                 <label style={labelStyle(false)}>Year of study</label>
                 <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8 }}>
                   {YEAR_OPTIONS.map(y => (
-                    <button key={y} onClick={() => setYearOfStudy(y)} style={{
+                    <button className="btn-press" key={y} onClick={() => setYearOfStudy(y)} style={{
                       padding: '8px 16px', borderRadius: 20, cursor: 'pointer', fontSize: 13,
                       border: `1px solid ${yearOfStudy === y ? C.accent : C.border}`,
                       background: yearOfStudy === y ? 'rgba(91,140,255,0.14)' : 'transparent',
@@ -461,7 +461,7 @@ export default function OnboardingPage({ userId, onComplete }) {
                     { id: 'monday', label: 'Monday – Friday',   sub: 'Standard week'      },
                     { id: 'sunday', label: 'Sunday – Thursday', sub: 'Middle East / Gulf'  },
                   ].map(opt => (
-                    <button key={opt.id} onClick={() => setWeekStart(opt.id)} style={{
+                    <button className="btn-press" key={opt.id} onClick={() => setWeekStart(opt.id)} style={{
                       flex: 1, padding: '12px 16px', borderRadius: 10, cursor: 'pointer', textAlign: 'left',
                       border: `1px solid ${weekStart === opt.id ? C.accent : C.border}`,
                       background: weekStart === opt.id ? 'rgba(91,140,255,0.1)' : 'transparent',
@@ -495,7 +495,7 @@ export default function OnboardingPage({ userId, onComplete }) {
               { v: 1, label: 'One semester', sub: 'Just this term' },
               { v: 2, label: 'Two semesters', sub: 'Whole academic year' },
             ].map(opt => (
-              <button key={opt.v} onClick={() => setNumSemesters(opt.v)} style={{
+              <button className="btn-press" key={opt.v} onClick={() => setNumSemesters(opt.v)} style={{
                 flex: 1, textAlign: 'left', padding: '12px 14px', borderRadius: 12, cursor: 'pointer',
                 fontFamily: FONT,
                 border: `1px solid ${numSemesters === opt.v ? C.accent : C.border}`,
@@ -578,7 +578,7 @@ export default function OnboardingPage({ userId, onComplete }) {
               Breaks{' '}
               <span style={{ fontWeight: 400, textTransform: 'none', letterSpacing: 0, fontSize: 11 }}>(optional)</span>
             </label>
-            <button onClick={addBreak} style={{
+            <button className="btn-press" onClick={addBreak} style={{
               display: 'flex', alignItems: 'center', gap: 5,
               padding: '5px 11px', borderRadius: 20, border: `1px solid ${C.border}`,
               background: 'transparent', color: C.muted, fontSize: 12, cursor: 'pointer',
@@ -606,7 +606,7 @@ export default function OnboardingPage({ userId, onComplete }) {
                     <div style={{ padding: 16, borderRadius: 12, border: `1px solid ${C.border}`, background: 'rgba(255,255,255,0.015)', display: 'flex', flexDirection: 'column', gap: 12 }}>
                       <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
                         <span style={{ fontSize: 13, fontWeight: 600, color: C.text, fontFamily: FONT }}>Break {i + 1}</span>
-                        <button onClick={() => delBreak(b.id)} style={{ background: 'none', border: 'none', cursor: 'pointer', color: C.muted, display: 'flex', padding: 2 }}><X size={14} /></button>
+                        <button className="btn-press" onClick={() => delBreak(b.id)} style={{ background: 'none', border: 'none', cursor: 'pointer', color: C.muted, display: 'flex', padding: 2 }}><X size={14} /></button>
                       </div>
                       <div>
                         <label style={labelStyle(false)}>Break name</label>
@@ -672,8 +672,8 @@ export default function OnboardingPage({ userId, onComplete }) {
                     </div>
                     {m.code && <div style={{ fontSize: 12, color: C.muted, marginTop: 1 }}>{m.code}</div>}
                   </div>
-                  <button onClick={() => editModule(m)} style={{ background: 'none', border: 'none', cursor: 'pointer', color: C.muted, display: 'flex', padding: 4 }}><Pencil size={13} /></button>
-                  <button onClick={() => delModule(m.id)} style={{ background: 'none', border: 'none', cursor: 'pointer', color: C.muted, display: 'flex', padding: 4 }}><Trash2 size={14} /></button>
+                  <button className="btn-press" onClick={() => editModule(m)} style={{ background: 'none', border: 'none', cursor: 'pointer', color: C.muted, display: 'flex', padding: 4 }}><Pencil size={13} /></button>
+                  <button className="btn-press" onClick={() => delModule(m.id)} style={{ background: 'none', border: 'none', cursor: 'pointer', color: C.muted, display: 'flex', padding: 4 }}><Trash2 size={14} /></button>
                 </div>
               </motion.div>
             ))}
@@ -700,7 +700,7 @@ export default function OnboardingPage({ userId, onComplete }) {
                 <label style={labelStyle(false)}>Category</label>
                 <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}>
                   {CATEGORY_OPTS.map(c => (
-                    <button key={c.id} onClick={() => setNewMod(p => ({ ...p, category: c.id }))} style={{
+                    <button className="btn-press" key={c.id} onClick={() => setNewMod(p => ({ ...p, category: c.id }))} style={{
                       padding: '6px 12px', borderRadius: 20, fontFamily: FONT,
                       border: `1px solid ${newMod.category === c.id ? C.accent : C.border}`,
                       background: newMod.category === c.id ? 'rgba(91,140,255,0.12)' : 'transparent',
@@ -719,7 +719,7 @@ export default function OnboardingPage({ userId, onComplete }) {
                       { v: 2, label: 'Semester 2' },
                       { v: 0, label: 'Full year' },
                     ].map(o => (
-                      <button key={o.v} onClick={() => setNewMod(p => ({ ...p, semesterNumber: o.v }))} style={{
+                      <button className="btn-press" key={o.v} onClick={() => setNewMod(p => ({ ...p, semesterNumber: o.v }))} style={{
                         padding: '6px 12px', borderRadius: 20, fontFamily: FONT,
                         border: `1px solid ${newMod.semesterNumber === o.v ? C.accent : C.border}`,
                         background: newMod.semesterNumber === o.v ? 'rgba(91,140,255,0.12)' : 'transparent',
@@ -734,7 +734,7 @@ export default function OnboardingPage({ userId, onComplete }) {
                 <label style={labelStyle(false)}>Colour</label>
                 <div style={{ display: 'flex', flexWrap: 'wrap', gap: 7 }}>
                   {DOMAIN_COLORS.map(col => (
-                    <button key={col} onClick={() => setNewMod(p => ({ ...p, color: col }))} style={{
+                    <button className="btn-press" key={col} onClick={() => setNewMod(p => ({ ...p, color: col }))} style={{
                       width: 24, height: 24, borderRadius: '50%', background: col, border: 'none',
                       cursor: 'pointer', outline: newMod.color === col ? `2px solid ${col}` : 'none',
                       outlineOffset: 2, transition: 'outline 0.1s',
@@ -743,14 +743,14 @@ export default function OnboardingPage({ userId, onComplete }) {
                 </div>
               </div>
               <div style={{ display: 'flex', gap: 8 }}>
-                <button onClick={confirmAddModule} disabled={!newMod.name.trim()} style={{
+                <button className="btn-press" onClick={confirmAddModule} disabled={!newMod.name.trim()} style={{
                   flex: 1, padding: '10px 0', borderRadius: 9, border: 'none',
                   background: newMod.name.trim() ? C.accent : C.border,
                   color: newMod.name.trim() ? 'white' : C.muted,
                   fontSize: 13, fontWeight: 600, cursor: newMod.name.trim() ? 'pointer' : 'not-allowed',
                   fontFamily: FONT,
                 }}>{editingModId ? 'Save changes' : 'Add module'}</button>
-                <button onClick={() => { setShowAddMod(false); setEditingModId(null) }} style={{
+                <button className="btn-press" onClick={() => { setShowAddMod(false); setEditingModId(null) }} style={{
                   padding: '10px 16px', borderRadius: 9, border: `1px solid ${C.border}`,
                   background: 'transparent', color: C.muted, fontSize: 13, cursor: 'pointer', fontFamily: FONT,
                 }}>Cancel</button>

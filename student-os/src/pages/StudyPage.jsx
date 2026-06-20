@@ -1,10 +1,32 @@
 import { useState, useEffect, useRef } from 'react'
+import { motion, AnimatePresence, useReducedMotion } from 'framer-motion'
 import AppSelect, { AppSelectItem } from '../components/AppSelect'
 import { useIsMobile } from '../utils/useIsMobile'
 import {
   Play, Pause, SkipForward, Square, Volume2, VolumeX,
   Eye, EyeOff, BookOpen, Timer, X, Minus, Maximize2, Check, Trash2,
 } from 'lucide-react'
+
+// Play/Pause icon that morphs (quick scale crossfade) when the session toggles,
+// instead of a hard swap. Used by both the full timer and the floating widget.
+function PlayPauseIcon({ running, size }) {
+  const reduce = useReducedMotion()
+  if (reduce) return running ? <Pause size={size} /> : <Play size={size} />
+  return (
+    <AnimatePresence mode="wait" initial={false}>
+      <motion.span
+        key={running ? 'pause' : 'play'}
+        initial={{ opacity: 0, scale: 0.55 }}
+        animate={{ opacity: 1, scale: 1 }}
+        exit={{ opacity: 0, scale: 0.55 }}
+        transition={{ duration: 0.15, ease: [0.22, 1, 0.36, 1] }}
+        style={{ display: 'flex' }}
+      >
+        {running ? <Pause size={size} /> : <Play size={size} />}
+      </motion.span>
+    </AnimatePresence>
+  )
+}
 
 // ─── Audio ─────────────────────────────────────────────────────────────────────
 let _audioCtx = null
@@ -102,6 +124,42 @@ function RoundDots({ total, completed, currentRound, phase }) {
   )
 }
 
+// Blue→purple comet that traces the Start button's border at an even speed.
+// An SVG rect with pathLength="100" keeps the comet uniform on every side.
+function ChargeRing() {
+  const ref = useRef()
+  const [size, setSize] = useState({ w: 0, h: 0 })
+  useEffect(() => {
+    const el = ref.current?.parentElement
+    if (!el) return
+    const measure = () => setSize({ w: el.clientWidth, h: el.clientHeight })
+    measure()
+    const obs = new ResizeObserver(measure)
+    obs.observe(el)
+    return () => obs.disconnect()
+  }, [])
+  const { w, h } = size
+  return (
+    <svg ref={ref} className="charge-ring" aria-hidden width={w} height={h}
+      viewBox={w > 0 ? `0 0 ${w} ${h}` : undefined}
+      style={{ position: 'absolute', inset: 0, pointerEvents: 'none', overflow: 'visible' }}>
+      {w > 0 && (
+        <>
+          <defs>
+            <linearGradient id="start-charge-grad" x1="0" y1="0" x2="1" y2="1">
+              <stop offset="0%" stopColor="var(--accent-blue)" />
+              <stop offset="100%" stopColor="var(--accent-purple)" />
+            </linearGradient>
+          </defs>
+          <rect x="1.5" y="1.5" width={w - 3} height={h - 3} rx="9" ry="9" fill="none"
+            stroke="url(#start-charge-grad)" strokeWidth="2" strokeLinecap="round"
+            pathLength="100" strokeDasharray="26 74" />
+        </>
+      )}
+    </svg>
+  )
+}
+
 // ─── Active timer (full tab) ──────────────────────────────────────────────────
 function ActiveTimerView({ session, domain, onPauseResume, onSkipPhase, onEndSession, soundEnabled, onToggleSound, onOpenNote }) {
   const { phase, currentRound, totalRounds, roundsCompleted, secondsLeft, isRunning, topic, academicWeek, noteId, pomodoroWork, pomodoroBreak } = session
@@ -117,6 +175,17 @@ function ActiveTimerView({ session, domain, onPauseResume, onSkipPhase, onEndSes
   const ringPct = isDone ? 0 : Math.max(0, (totalSec - secondsLeft) / totalSec)
   const ringOffset = CIRCUMFERENCE * ringPct
   const [confirmingEnd, setConfirmingEnd] = useState(false)
+
+  // Wind-up: the progress line draws itself in (from empty to full) when the
+  // session first starts, then the live offset takes over.
+  const reduce = useReducedMotion()
+  const [intro, setIntro] = useState(!reduce)
+  useEffect(() => {
+    if (reduce) return
+    const id = requestAnimationFrame(() => setIntro(false))
+    return () => cancelAnimationFrame(id)
+  }, [reduce])
+  const drawOffset = intro ? CIRCUMFERENCE : ringOffset
 
   return (
     <div style={{
@@ -171,10 +240,10 @@ function ActiveTimerView({ session, domain, onPauseResume, onSkipPhase, onEndSes
           <circle
             cx={RING_SIZE / 2} cy={RING_SIZE / 2} r={RING_R}
             fill="none" stroke={phaseColor} strokeWidth={3} strokeLinecap="round"
-            strokeDasharray={CIRCUMFERENCE} strokeDashoffset={ringOffset}
+            strokeDasharray={CIRCUMFERENCE} strokeDashoffset={drawOffset}
             transform={`rotate(-90 ${RING_SIZE / 2} ${RING_SIZE / 2})`}
             style={{
-              transition: 'stroke-dashoffset 1s linear, stroke 0.6s ease',
+              transition: intro ? 'none' : 'stroke-dashoffset 1s linear, stroke 0.6s ease',
               filter: `drop-shadow(0 0 10px ${phaseColor}99)`,
             }}
           />
@@ -225,34 +294,34 @@ function ActiveTimerView({ session, domain, onPauseResume, onSkipPhase, onEndSes
               boxShadow: isRunning ? `0 0 24px ${color}44` : 'none',
               transition: 'box-shadow 0.4s ease',
             }}>
-              {isRunning ? <Pause size={21} /> : <Play size={21} />}
+              <PlayPauseIcon running={isRunning} size={21} />
             </button>
-            <button onClick={onSkipPhase} title="Skip phase" aria-label="Skip phase" style={{
+            <button className="skip-btn" onClick={onSkipPhase} title="Skip phase" aria-label="Skip phase" style={{
               display: 'flex', alignItems: 'center', justifyContent: 'center',
               width: 38, height: 38, borderRadius: '50%',
               background: 'none', border: '1px solid var(--border)',
               cursor: 'pointer', color: 'var(--text-muted)',
             }}>
-              <SkipForward size={16} />
+              <span className="skip-icon" style={{ display: 'flex' }}><SkipForward size={16} /></span>
             </button>
           </>
         )}
         {confirmingEnd ? (
           <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
             <span style={{ fontSize: 12, color: 'var(--text-muted)' }}>End session?</span>
-            <button onClick={onEndSession} style={{
+            <button className="btn-press" onClick={onEndSession} style={{
               padding: '6px 14px', borderRadius: 6, border: '1px solid rgba(251,113,133,0.4)',
               background: 'rgba(251,113,133,0.12)', color: '#fb7185',
               fontSize: 12, fontWeight: 600, cursor: 'pointer', fontFamily: 'inherit',
             }}>Yes</button>
-            <button onClick={() => setConfirmingEnd(false)} style={{
+            <button className="btn-press" onClick={() => setConfirmingEnd(false)} style={{
               padding: '6px 14px', borderRadius: 6, border: '1px solid var(--border)',
               background: 'none', color: 'var(--text-muted)',
               fontSize: 12, cursor: 'pointer', fontFamily: 'inherit',
             }}>No</button>
           </div>
         ) : (
-          <button
+          <button className="btn-press"
             onClick={isDone ? onEndSession : () => { setConfirmingEnd(true); setTimeout(() => setConfirmingEnd(false), 4000) }}
             style={{
               display: 'flex', alignItems: 'center', gap: 7, padding: '9px 18px', borderRadius: 9,
@@ -269,7 +338,7 @@ function ActiveTimerView({ session, domain, onPauseResume, onSkipPhase, onEndSes
       {/* Bottom row */}
       <div style={{ display: 'flex', alignItems: 'center', gap: 16, position: 'absolute', bottom: 24 }}>
         {noteId && (
-          <button onClick={onOpenNote} style={{
+          <button className="btn-press" onClick={onOpenNote} style={{
             display: 'flex', alignItems: 'center', gap: 6,
             background: 'none', border: '1px solid var(--border)',
             borderRadius: 6, padding: '6px 12px', cursor: 'pointer',
@@ -278,7 +347,7 @@ function ActiveTimerView({ session, domain, onPauseResume, onSkipPhase, onEndSes
             <BookOpen size={13} /> Open note
           </button>
         )}
-        <button onClick={onToggleSound} style={{
+        <button className="btn-press" onClick={onToggleSound} style={{
           display: 'flex', alignItems: 'center', gap: 6, background: 'none', border: 'none',
           cursor: 'pointer', fontSize: 12, padding: '6px 8px',
           color: soundEnabled ? 'var(--text-muted)' : 'var(--text-faint)',
@@ -386,7 +455,7 @@ function StartSessionModal({ initialDomain, domains, onClose, onStart, isTutoria
             <Timer size={17} color="var(--accent-blue)" />
             <span style={{ fontSize: 16, fontWeight: 600, color: 'var(--text-primary)' }}>New Study Session</span>
           </div>
-          <button onClick={onClose} style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--text-muted)', padding: 4 }}>
+          <button className="btn-press" onClick={onClose} style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--text-muted)', padding: 4 }}>
             <X size={17} />
           </button>
         </div>
@@ -430,7 +499,7 @@ function StartSessionModal({ initialDomain, domains, onClose, onStart, isTutoria
             {POMODORO_PRESETS.map((p, i) => {
               const active = !custom && presetIdx === i
               return (
-                <button key={i} onClick={() => { setPresetIdx(i); setCustom(false) }} style={{
+                <button className="btn-press" key={i} onClick={() => { setPresetIdx(i); setCustom(false) }} style={{
                   padding: '5px 11px', borderRadius: 6, cursor: 'pointer', fontSize: 12,
                   border: '1px solid transparent',
                   background: active ? 'var(--accent-blue)22' : 'var(--bg-surface)',
@@ -441,7 +510,7 @@ function StartSessionModal({ initialDomain, domains, onClose, onStart, isTutoria
                 </button>
               )
             })}
-            <button onClick={() => setCustom(true)} style={{
+            <button className="btn-press" onClick={() => setCustom(true)} style={{
               padding: '5px 11px', borderRadius: 6, cursor: 'pointer', fontSize: 12,
               border: '1px solid transparent',
               background: custom ? 'var(--accent-blue)22' : 'var(--bg-surface)',
@@ -456,7 +525,7 @@ function StartSessionModal({ initialDomain, domains, onClose, onStart, isTutoria
                 <div key={label} style={{ display: 'flex', flexDirection: 'column', gap: 4, alignItems: 'center' }}>
                   <span style={{ fontSize: 10, color: 'var(--text-muted)' }}>{label}</span>
                   <input type="number" min={min} max={max} value={val}
-                    onChange={e => set(+e.target.value)} style={numInp} />
+                    onChange={e => set(Math.max(min, Math.min(max, Math.round(Number(e.target.value) || min))))} style={numInp} />
                 </div>
               ))}
             </div>
@@ -468,7 +537,7 @@ function StartSessionModal({ initialDomain, domains, onClose, onStart, isTutoria
         </div>
 
         {/* Start button */}
-        <button onClick={handleStart} disabled={!topic.trim() || isTutorial} style={{
+        <button onClick={handleStart} disabled={!topic.trim() || isTutorial} className="start-btn" style={{
           background: topic.trim() && !isTutorial ? 'var(--accent-blue)' : 'var(--bg-surface)',
           color: topic.trim() && !isTutorial ? 'var(--btn-primary-text)' : 'var(--text-muted)',
           border: 'none', borderRadius: 9, padding: '12px',
@@ -476,6 +545,7 @@ function StartSessionModal({ initialDomain, domains, onClose, onStart, isTutoria
           fontSize: 14, fontWeight: 600,
           display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8,
         }}>
+          <ChargeRing />
           <Play size={15} /> Start Session
         </button>
 
@@ -501,7 +571,7 @@ function StartSessionModal({ initialDomain, domains, onClose, onStart, isTutoria
                   <div style={{ fontSize: 10, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.5px', color: 'var(--text-muted)', marginBottom: 5 }}>Template</div>
                   <div style={{ display: 'flex', gap: 5 }}>
                     {[{id:'blank',label:'Blank'},{id:'lined',label:'Lined'},{id:'grid',label:'Grid'}].map(t => (
-                      <button key={t.id} onClick={() => setNoteTemplate(t.id)} style={{
+                      <button className="btn-press" key={t.id} onClick={() => setNoteTemplate(t.id)} style={{
                         flex: 1, padding: '5px 0', borderRadius: 6, cursor: 'pointer', fontSize: 11, fontFamily: 'inherit',
                         border: '1px solid transparent',
                         background: noteTemplate === t.id ? 'var(--accent-blue)22' : 'var(--bg-surface)',
@@ -515,7 +585,7 @@ function StartSessionModal({ initialDomain, domains, onClose, onStart, isTutoria
                   <div style={{ fontSize: 10, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.5px', color: 'var(--text-muted)', marginBottom: 5 }}>Color</div>
                   <div style={{ display: 'flex', gap: 6 }}>
                     {NOTE_BG_PRESETS.map(hex => (
-                      <button
+                      <button className="btn-press"
                         key={hex} title={hex} onClick={() => setNoteBgColor(hex)}
                         style={{
                           width: 22, height: 22, borderRadius: 5, background: hex,
@@ -647,10 +717,10 @@ export function FloatingTimerWidget({ session, domain, onPauseResume, onSkipPhas
           </span>
         </div>
         <div style={{ display: 'flex', gap: 4 }}>
-          <button onMouseDown={e => e.stopPropagation()} onClick={onToggleBlurred} title={widgetBlurred ? 'Show time' : 'Hide time'} aria-label={widgetBlurred ? 'Show time' : 'Hide time'} style={wbtn()}>
+          <button className="btn-press" onMouseDown={e => e.stopPropagation()} onClick={onToggleBlurred} title={widgetBlurred ? 'Show time' : 'Hide time'} aria-label={widgetBlurred ? 'Show time' : 'Hide time'} style={wbtn()}>
             {widgetBlurred ? <Eye size={12} /> : <EyeOff size={12} />}
           </button>
-          <button onMouseDown={e => e.stopPropagation()} onClick={onToggleHidden} title="Minimise to a small pill" aria-label="Minimise timer" style={wbtn()}>
+          <button className="btn-press" onMouseDown={e => e.stopPropagation()} onClick={onToggleHidden} title="Minimise to a small pill" aria-label="Minimise timer" style={wbtn()}>
             <Minus size={13} />
           </button>
         </div>
@@ -697,15 +767,15 @@ export function FloatingTimerWidget({ session, domain, onPauseResume, onSkipPhas
             <button onClick={onPauseResume} title={isRunning ? 'Pause' : 'Resume'} aria-label={isRunning ? 'Pause session' : 'Resume session'} style={{
               ...wbtn({ flex: 1, height: 30, borderRadius: 6, gap: 6, background: color + '22', borderColor: color + '44', color, fontSize: 11, fontWeight: 700 }),
             }}>
-              {isRunning ? <Pause size={13} /> : <Play size={13} />}
+              <PlayPauseIcon running={isRunning} size={13} />
               {isRunning ? 'Pause' : 'Resume'}
             </button>
-            <button onClick={onSkipPhase} title={phase === 'work' ? 'Skip to break' : 'Skip to focus'} aria-label="Skip phase" style={wbtn({ height: 30, borderRadius: 6 })}>
-              <SkipForward size={13} />
+            <button className="skip-btn" onClick={onSkipPhase} title={phase === 'work' ? 'Skip to break' : 'Skip to focus'} aria-label="Skip phase" style={wbtn({ height: 30, borderRadius: 6 })}>
+              <span className="skip-icon" style={{ display: 'flex' }}><SkipForward size={13} /></span>
             </button>
           </>
         )}
-        <button onClick={onGoToStudy} title="Open full timer" aria-label="Open full timer" style={wbtn({ height: 30, borderRadius: 6, ...(isDone ? { flex: 1, gap: 6, fontSize: 11, fontWeight: 700 } : {}) })}>
+        <button className="btn-press" onClick={onGoToStudy} title="Open full timer" aria-label="Open full timer" style={wbtn({ height: 30, borderRadius: 6, ...(isDone ? { flex: 1, gap: 6, fontSize: 11, fontWeight: 700 } : {}) })}>
           <Maximize2 size={13} />
           {isDone && 'Open timer'}
         </button>
@@ -844,7 +914,7 @@ function SessionRow({ session, domain, onOpenNote, onDelete }) {
         </div>
       </div>
       {session.noteId && (
-        <button onClick={() => onOpenNote(session.noteId)} aria-label="Open linked note" style={{
+        <button className="btn-press" onClick={() => onOpenNote(session.noteId)} aria-label="Open linked note" style={{
           display: 'flex', alignItems: 'center', gap: 5, flexShrink: 0,
           background: 'none', border: '1px solid var(--border)',
           borderRadius: 6, padding: '4px 10px', cursor: 'pointer',
@@ -856,19 +926,19 @@ function SessionRow({ session, domain, onOpenNote, onDelete }) {
       {confirming ? (
         <div style={{ display: 'flex', alignItems: 'center', gap: 6, flexShrink: 0 }}>
           <span style={{ fontSize: 11, color: 'var(--text-muted)' }}>Delete?</span>
-          <button onClick={() => onDelete(session.id)} style={{
+          <button className="btn-press" onClick={() => onDelete(session.id)} style={{
             padding: '3px 8px', borderRadius: 6, border: '1px solid rgba(251,113,133,0.4)',
             background: 'rgba(251,113,133,0.12)', color: '#fb7185',
             fontSize: 11, fontWeight: 600, cursor: 'pointer', fontFamily: 'inherit',
           }}>Yes</button>
-          <button onClick={() => setConfirming(false)} style={{
+          <button className="btn-press" onClick={() => setConfirming(false)} style={{
             padding: '3px 8px', borderRadius: 6, border: '1px solid var(--border)',
             background: 'none', color: 'var(--text-muted)',
             fontSize: 11, cursor: 'pointer', fontFamily: 'inherit',
           }}>No</button>
         </div>
       ) : (
-        <button onClick={() => setConfirming(true)} aria-label="Delete session" style={{
+        <button className="btn-press" onClick={() => setConfirming(true)} aria-label="Delete session" style={{
           display: 'flex', alignItems: 'center', flexShrink: 0,
           background: 'none', border: 'none', padding: '4px',
           borderRadius: 6, cursor: 'pointer', color: 'var(--text-muted)',
@@ -927,7 +997,7 @@ export default function StudyPage({ domains, studySessions, activeSession, onSta
               </div>
             )}
           </div>
-          <button data-tutorial-id="study-new-btn" onClick={() => { setModalDomain(null); setShowModal(true) }} style={{
+          <button className="btn-press" data-tutorial-id="study-new-btn" onClick={() => { setModalDomain(null); setShowModal(true) }} style={{
             display: 'flex', alignItems: 'center', gap: 7,
             background: 'var(--accent-blue)', color: 'var(--btn-primary-text)', border: 'none',
             borderRadius: 9, padding: '10px 18px', cursor: 'pointer', fontSize: 13, fontWeight: 600,
@@ -946,7 +1016,7 @@ export default function StudyPage({ domains, studySessions, activeSession, onSta
 
               const count = studySessions.filter(s => s.domainId === domain.id).length
               return (
-                <button
+                <button className="btn-press"
                   key={domain.id}
                   className="domain-card"
                   onClick={() => { setModalDomain(domain); setShowModal(true) }}

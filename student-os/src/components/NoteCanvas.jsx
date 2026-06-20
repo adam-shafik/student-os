@@ -1197,11 +1197,11 @@ function PageCanvas({ page, pageH, maxW, pageIdx, totalPages, onStrokesChange, o
             border: '1px solid rgba(255,255,255,0.12)', borderRadius: 12,
             padding: '4px 6px', boxShadow: '0 4px 20px rgba(0,0,0,0.55)',
           }}>
-            <button onClick={handleDuplicate} style={{ ...cmBtn, color: 'rgba(255,255,255,0.82)' }}>Duplicate</button>
+            <button className="btn-press" onClick={handleDuplicate} style={{ ...cmBtn, color: 'rgba(255,255,255,0.82)' }}>Duplicate</button>
             <div style={{ width: 1, height: 16, background: 'rgba(255,255,255,0.1)', margin: '0 2px' }} />
-            <button onClick={handleCopySelected} style={{ ...cmBtn, color: 'rgba(255,255,255,0.82)' }}>Copy</button>
+            <button className="btn-press" onClick={handleCopySelected} style={{ ...cmBtn, color: 'rgba(255,255,255,0.82)' }}>Copy</button>
             <div style={{ width: 1, height: 16, background: 'rgba(255,255,255,0.1)', margin: '0 2px' }} />
-            <button onClick={() => { onStrokesChange(strokes.filter((_, i) => !selectedIndices.has(i))); setSelectedIndices(new Set()); showActionToast('Deleted') }}
+            <button className="btn-press" onClick={() => { onStrokesChange(strokes.filter((_, i) => !selectedIndices.has(i))); setSelectedIndices(new Set()); showActionToast('Deleted') }}
               style={{ ...cmBtn, color: '#fb7185' }}>Delete</button>
           </div>
         )
@@ -1236,7 +1236,7 @@ function PageCanvas({ page, pageH, maxW, pageIdx, totalPages, onStrokesChange, o
             border: '1px solid rgba(255,255,255,0.12)', borderRadius: 12,
             padding: '4px 6px', boxShadow: '0 4px 20px rgba(0,0,0,0.55)',
           }}>
-            <button onClick={() => handlePaste(pasteMenu.x, pasteMenu.y)}
+            <button className="btn-press" onClick={() => handlePaste(pasteMenu.x, pasteMenu.y)}
               style={{ background: 'none', border: 'none', cursor: 'pointer', fontSize: 12, fontWeight: 500, padding: '4px 8px', borderRadius: 6, color: 'rgba(255,255,255,0.82)' }}>Paste</button>
           </div>
         </>
@@ -1666,7 +1666,7 @@ const NoteCanvas = forwardRef(function NoteCanvas({
             borderBottom: '1px solid var(--border)', flexShrink: 0,
             background: 'var(--bg-elevated)',
           }}>
-            <button onClick={handleUndo} style={{
+            <button className="btn-press" onClick={handleUndo} style={{
               display: 'flex', alignItems: 'center', gap: 5, padding: '5px 11px',
               borderRadius: 7, border: '1px solid var(--border)', background: 'none',
               color: undoStackRef.current.length === 0 ? 'var(--text-muted)' : 'var(--text-secondary)',
@@ -1674,7 +1674,7 @@ const NoteCanvas = forwardRef(function NoteCanvas({
             }}>
               <Undo2 size={12} /> Undo
             </button>
-            <button onClick={handleRedo} style={{
+            <button className="btn-press" onClick={handleRedo} style={{
               display: 'flex', alignItems: 'center', gap: 5, padding: '5px 11px',
               borderRadius: 7, border: '1px solid var(--border)', background: 'none',
               color: redoStackRef.current.length === 0 ? 'var(--text-muted)' : 'var(--text-secondary)',
@@ -1682,7 +1682,7 @@ const NoteCanvas = forwardRef(function NoteCanvas({
             }}>
               <Redo2 size={12} /> Redo
             </button>
-            <button onClick={() => totalStrokes > 0 && onPagesChange(pages.map(p => ({ ...p, strokes: [] })))} style={{
+            <button className="btn-press" onClick={() => totalStrokes > 0 && onPagesChange(pages.map(p => ({ ...p, strokes: [] })))} style={{
               display: 'flex', alignItems: 'center', gap: 5, padding: '5px 11px',
               borderRadius: 7, border: '1px solid var(--border)', background: 'none',
               color: totalStrokes === 0 ? 'var(--text-muted)' : 'var(--accent-red)',
@@ -1692,17 +1692,17 @@ const NoteCanvas = forwardRef(function NoteCanvas({
             </button>
             <div style={{ flex: 1 }} />
             {zoom !== 1 && (
-              <button onClick={() => setZoom(1)} title="Reset zoom" style={{
+              <button className="btn-press" onClick={() => setZoom(1)} title="Reset zoom" style={{
                 padding: '3px 8px', borderRadius: 6, border: '1px solid var(--border)',
                 background: 'none', color: 'var(--text-secondary)', cursor: 'pointer', fontSize: 11,
               }}>
                 {Math.round(zoom * 100)}%
               </button>
             )}
-            <button title={isFullscreen ? 'Exit fullscreen' : 'Fullscreen'} onClick={() => setIsFullscreen(v => !v)} style={tbtn(isFullscreen)}>
+            <button className="btn-press" title={isFullscreen ? 'Exit fullscreen' : 'Fullscreen'} onClick={() => setIsFullscreen(v => !v)} style={tbtn(isFullscreen)}>
               {isFullscreen ? <Minimize2 size={13} /> : <Maximize2 size={13} />}
             </button>
-            <button title="Page settings" onClick={() => setShowSettings(v => !v)} style={tbtn(showSettings)}>
+            <button className="btn-press" title="Page settings" onClick={() => setShowSettings(v => !v)} style={tbtn(showSettings)}>
               <SlidersHorizontal size={13} />
             </button>
           </div>
@@ -1721,7 +1721,7 @@ const NoteCanvas = forwardRef(function NoteCanvas({
                       <div style={{ display: 'flex', alignItems: 'center', gap: 7 }}>
                         <span style={{ fontSize: 10, fontWeight: 700, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.5px' }}>Orientation</span>
                         {['portrait', 'landscape'].map(o => (
-                          <button key={o} onClick={() => onSettingsChange({ orientation: o })} style={{
+                          <button className="btn-press" key={o} onClick={() => onSettingsChange({ orientation: o })} style={{
                             padding: '4px 9px', borderRadius: 6, border: '1px solid transparent',
                             cursor: 'pointer', fontSize: 11, textTransform: 'capitalize',
                             background: orientation === o ? 'rgba(91,140,255,0.15)' : 'none',
@@ -1736,7 +1736,7 @@ const NoteCanvas = forwardRef(function NoteCanvas({
                   <div style={{ display: 'flex', alignItems: 'center', gap: 7 }}>
                     <span style={{ fontSize: 10, fontWeight: 700, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.5px' }}>Template</span>
                     {TEMPLATES.map(t => (
-                      <button key={t} onClick={() => onSettingsChange({ template: t })} style={{
+                      <button className="btn-press" key={t} onClick={() => onSettingsChange({ template: t })} style={{
                         padding: '4px 9px', borderRadius: 6, border: '1px solid transparent',
                         cursor: 'pointer', fontSize: 11, textTransform: 'capitalize',
                         background: template === t ? 'rgba(91,140,255,0.15)' : 'none',
@@ -1749,7 +1749,7 @@ const NoteCanvas = forwardRef(function NoteCanvas({
                   <div style={{ display: 'flex', alignItems: 'center', gap: 7 }}>
                     <span style={{ fontSize: 10, fontWeight: 700, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.5px' }}>Background</span>
                     {BG_COLORS.map(c => (
-                      <button key={c} onClick={() => onSettingsChange({ bgColor: c })} title={c} style={{
+                      <button className="btn-press" key={c} onClick={() => onSettingsChange({ bgColor: c })} title={c} style={{
                         width: 18, height: 18, borderRadius: 4, background: c, cursor: 'pointer', padding: 0, flexShrink: 0,
                         border: bgColor === c ? '2px solid var(--accent-blue)' : '1px solid var(--border-strong)',
                       }} />
@@ -1771,7 +1771,7 @@ const NoteCanvas = forwardRef(function NoteCanvas({
                       <div style={{ display: 'flex', alignItems: 'center', gap: 7 }}>
                         <span style={{ fontSize: 10, fontWeight: 700, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.5px' }}>Spacing</span>
                         {SPACINGS.map(([val, label]) => (
-                          <button key={val} onClick={() => onSettingsChange({ lineSpacing: val })} style={{
+                          <button className="btn-press" key={val} onClick={() => onSettingsChange({ lineSpacing: val })} style={{
                             padding: '4px 8px', borderRadius: 6, border: '1px solid transparent',
                             cursor: 'pointer', fontSize: 11,
                             background: lineSpacing === val ? 'rgba(91,140,255,0.15)' : 'none',
@@ -1884,7 +1884,7 @@ const NoteCanvas = forwardRef(function NoteCanvas({
                     const dotD       = 11 + idx * 3.5
                     return (
                       <div key={idx} style={{ position: 'relative', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
-                        <button
+                        <button className="btn-press"
                           onPointerDown={e => e.stopPropagation()}
                           onClick={() => {
                             if (isActive) setActiveSlider(prev => prev === idx ? null : idx)
@@ -1934,7 +1934,7 @@ const NoteCanvas = forwardRef(function NoteCanvas({
                 {sep}
                 <div style={{ display: 'flex', gap: 3 }}>
                   {ERASER_MODES.map(([m, label]) => (
-                    <button key={m} onClick={() => setEraserMode(m)} style={{
+                    <button className="btn-press" key={m} onClick={() => setEraserMode(m)} style={{
                       padding: '4px 9px', borderRadius: 6, border: '1px solid transparent',
                       cursor: 'pointer', fontSize: 11, pointerEvents: 'auto',
                       background: eraserMode === m ? 'rgba(255,255,255,0.1)' : 'none',
@@ -1950,7 +1950,7 @@ const NoteCanvas = forwardRef(function NoteCanvas({
             {tool === 'shape' && (
               <div style={{ display: 'flex', gap: 3 }}>
                 {SHAPE_TYPES.map(([t, Icon, label]) => (
-                  <button key={t} title={label} onClick={() => setShapeType(t)} style={tbtn(shapeType === t)}>
+                  <button className="btn-press" key={t} title={label} onClick={() => setShapeType(t)} style={tbtn(shapeType === t)}>
                     <Icon size={13} />
                   </button>
                 ))}
@@ -1965,7 +1965,7 @@ const NoteCanvas = forwardRef(function NoteCanvas({
                   {PRESETS.map(c => {
                     const active = penColor === c
                     return (
-                      <button key={c} onClick={() => setPenColor(c)} style={{
+                      <button className="btn-press" key={c} onClick={() => setPenColor(c)} style={{
                         width: 18, height: 18, borderRadius: '50%', background: c, border: 'none',
                         cursor: 'pointer', padding: 0, flexShrink: 0, pointerEvents: 'auto',
                         outline: active ? `2.5px solid ${c}` : '2px solid transparent',
@@ -2002,7 +2002,7 @@ const NoteCanvas = forwardRef(function NoteCanvas({
                     const dotD       = 11 + idx * 3.5
                     return (
                       <div key={idx} style={{ position: 'relative', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
-                        <button
+                        <button className="btn-press"
                           onPointerDown={e => e.stopPropagation()}
                           onClick={() => {
                             if (isActive) setActiveSlider(prev => prev === idx ? null : idx)
@@ -2147,7 +2147,7 @@ const NoteCanvas = forwardRef(function NoteCanvas({
                   <div style={{ paddingTop: 4, display: 'flex', alignItems: 'center', gap: 10, transform: `scale(${zoom})`, transformOrigin: 'top center' }}>
                     <span style={{ fontSize: 10, color: 'rgba(255,255,255,0.15)', letterSpacing: '0.5px' }}>{pageIdx + 1}</span>
                     {!readonly && pages.length > 1 && (
-                      <button onClick={() => deletePage(pageIdx)} title="Delete page" style={{
+                      <button className="btn-press" onClick={() => deletePage(pageIdx)} title="Delete page" style={{
                         background: 'none', border: 'none', cursor: 'pointer', padding: 2,
                         color: 'rgba(255,255,255,0.15)', display: 'flex', alignItems: 'center',
                       }}>
@@ -2155,7 +2155,7 @@ const NoteCanvas = forwardRef(function NoteCanvas({
                       </button>
                     )}
                     {!readonly && pages.length - pageIdx - 1 > 1 && (
-                      <button
+                      <button className="btn-press"
                         onClick={() => onPagesChange(pages.slice(0, pageIdx + 1))}
                         title={`Delete pages ${pageIdx + 2}–${pages.length}`}
                         style={{ background: 'none', border: 'none', cursor: 'pointer', padding: 2, color: 'rgba(255,255,255,0.15)', fontSize: 9 }}
@@ -2169,7 +2169,7 @@ const NoteCanvas = forwardRef(function NoteCanvas({
             )})}
 
             {!readonly && (
-              <button
+              <button className="btn-press"
                 onClick={addPage}
                 style={{
                   display: 'flex', alignItems: 'center', gap: 6, padding: '8px 18px',

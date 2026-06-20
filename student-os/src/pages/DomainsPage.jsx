@@ -285,7 +285,7 @@ function CreateDomainModal({ onClose, onSave }) {
             </div>
             <span style={{ fontSize: 15, fontWeight: 600, color: 'var(--text-primary)' }}>New Domain</span>
           </div>
-          <button onClick={onClose} style={{ width: 28, height: 28, borderRadius: 7, border: 'none', background: 'var(--bg-overlay)', color: 'var(--text-secondary)', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+          <button className="btn-press" onClick={onClose} style={{ width: 28, height: 28, borderRadius: 7, border: 'none', background: 'var(--bg-overlay)', color: 'var(--text-secondary)', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
             <X size={14} />
           </button>
         </div>
@@ -317,7 +317,7 @@ function CreateDomainModal({ onClose, onSave }) {
                   <div style={{ fontSize: 10, fontWeight: 600, color: 'var(--text-secondary)', textTransform: 'uppercase', letterSpacing: '0.5px', marginBottom: 5 }}>{group.label}</div>
                   <div style={{ display: 'flex', flexWrap: 'wrap', gap: 5 }}>
                     {group.icons.map(name => (
-                      <button key={name} onClick={() => set('icon', name)} title={name}
+                      <button className="btn-press" key={name} onClick={() => set('icon', name)} title={name}
                         style={{
                           width: 32, height: 32, borderRadius: 7, border: 'none', cursor: 'pointer',
                           display: 'flex', alignItems: 'center', justifyContent: 'center',
@@ -341,7 +341,7 @@ function CreateDomainModal({ onClose, onSave }) {
             <FieldLabel>Category</FieldLabel>
             <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 6 }}>
               {Object.entries(DOMAIN_CATEGORIES).map(([key, cfg]) => (
-                <button
+                <button className="btn-press"
                   key={key}
                   onClick={() => set('category', key)}
                   style={{
@@ -365,7 +365,7 @@ function CreateDomainModal({ onClose, onSave }) {
             <FieldLabel>Colour</FieldLabel>
             <div style={{ display: 'flex', gap: 7, flexWrap: 'wrap' }}>
               {DOMAIN_COLORS.map(c => (
-                <button
+                <button className="btn-press"
                   key={c}
                   onClick={() => set('color', c)}
                   style={{
@@ -402,7 +402,7 @@ function CreateDomainModal({ onClose, onSave }) {
                   <FieldLabel>Teaching semester</FieldLabel>
                   <div style={{ display: 'flex', gap: 6 }}>
                     {[{ v: 1, label: 'Sem 1' }, { v: 2, label: 'Sem 2' }, { v: 0, label: 'Full year' }].map(o => (
-                      <button key={o.v} onClick={() => set('semesterNumber', o.v)} style={{
+                      <button className="btn-press" key={o.v} onClick={() => set('semesterNumber', o.v)} style={{
                         flex: 1, padding: '7px 0', borderRadius: 7, cursor: 'pointer', fontFamily: 'inherit', fontSize: 12,
                         fontWeight: form.semesterNumber === o.v ? 600 : 400,
                         border: `1px solid ${form.semesterNumber === o.v ? 'var(--accent-blue)' : 'var(--border-strong)'}`,
@@ -429,7 +429,7 @@ function CreateDomainModal({ onClose, onSave }) {
         </div>
 
         <div style={{ padding: '14px 22px', borderTop: '1px solid var(--border)', display: 'flex', justifyContent: 'flex-end', gap: 8, flexShrink: 0 }}>
-          <button onClick={onClose} style={{ padding: '8px 16px', borderRadius: 8, border: '1px solid var(--border-strong)', background: 'none', color: 'var(--text-secondary)', cursor: 'pointer', fontSize: 13, fontFamily: 'inherit' }}>Cancel</button>
+          <button className="btn-press" onClick={onClose} style={{ padding: '8px 16px', borderRadius: 8, border: '1px solid var(--border-strong)', background: 'none', color: 'var(--text-secondary)', cursor: 'pointer', fontSize: 13, fontFamily: 'inherit' }}>Cancel</button>
           <motion.button
             onClick={handleSave}
             disabled={!canSave}

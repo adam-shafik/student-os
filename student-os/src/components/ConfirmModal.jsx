@@ -11,13 +11,13 @@ export default function ConfirmModal({ message, confirmLabel = 'Delete', onConfi
       }}>
         <p style={{ margin: '0 0 20px', fontSize: 14, color: 'var(--text-primary)', lineHeight: 1.55 }}>{message}</p>
         <div style={{ display: 'flex', gap: 10, justifyContent: 'flex-end' }}>
-          <button
+          <button className="btn-press"
             onClick={onCancel}
             style={{ padding: '8px 16px', borderRadius: 8, border: '1px solid var(--border-strong)', background: 'transparent', color: 'var(--text-secondary)', fontSize: 13, cursor: 'pointer', fontFamily: 'inherit' }}
           >
             Cancel
           </button>
-          <button
+          <button className="btn-press"
             onClick={onConfirm}
             style={{ padding: '8px 16px', borderRadius: 8, border: '1px solid rgba(251,113,133,0.4)', background: 'rgba(251,113,133,0.14)', color: '#fb7185', fontSize: 13, fontWeight: 600, cursor: 'pointer', fontFamily: 'inherit' }}
           >

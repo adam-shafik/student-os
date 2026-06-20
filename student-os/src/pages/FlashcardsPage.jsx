@@ -14,33 +14,6 @@ const GRADES = [
   { key: 'easy',  label: 'Easy',  color: '#34d399', hotkey: '3' },
 ]
 
-// Shared button motion. `fc-btn` lifts + brightens text/action buttons; `fc-icon`
-// scales square icon buttons. Pure CSS so it never fights framer's transform on the
-// few buttons that animate via JS, and it's fully suppressed under reduced motion.
-const FC_MOTION_CSS = `
-.fc-btn{transition:transform .15s cubic-bezier(.22,1,.36,1),filter .15s ease,background-color .15s ease,border-color .15s ease,box-shadow .15s ease;}
-.fc-btn:hover:not(:disabled){filter:brightness(1.09);transform:translateY(-1px);}
-.fc-btn:active:not(:disabled){transform:translateY(0) scale(.97);transition-duration:.06s;}
-.fc-icon{transition:transform .15s cubic-bezier(.22,1,.36,1),color .15s ease,background-color .15s ease,border-color .15s ease;}
-.fc-icon:hover:not(:disabled){transform:scale(1.13);}
-.fc-icon:active:not(:disabled){transform:scale(.9);}
-.fc-ai-btn{box-shadow:inset 0 0 12px color-mix(in srgb, var(--accent-purple) 13%, transparent);}
-.fc-ai-btn:hover:not(:disabled){box-shadow:inset 0 0 16px color-mix(in srgb, var(--accent-purple) 24%, transparent),0 6px 22px -8px color-mix(in srgb, var(--accent-purple) 55%, transparent);}
-.fc-ai-glow{position:absolute;top:0;left:0;right:0;bottom:0;z-index:0;pointer-events:none;border-radius:inherit;background:linear-gradient(90deg,transparent,color-mix(in srgb, var(--accent-purple) 22%, transparent),transparent);opacity:0;transition:opacity .3s ease;}
-.fc-ai-btn:hover:not(:disabled) .fc-ai-glow{opacity:1;}
-.fc-ai-sheen{position:absolute;top:0;left:0;right:0;bottom:0;z-index:1;pointer-events:none;background:linear-gradient(110deg,transparent 32%,color-mix(in srgb, var(--accent-purple) 34%, transparent) 50%,transparent 68%);transform:translateX(-120%);transition:transform .6s cubic-bezier(.22,1,.36,1);}
-.fc-ai-btn:hover:not(:disabled) .fc-ai-sheen{transform:translateX(120%);}
-.fc-ai-icon{transition:transform .3s cubic-bezier(.22,1,.36,1);}
-.fc-ai-btn:hover:not(:disabled) .fc-ai-icon{transform:scale(1.12) rotate(-8deg);}
-.fc-ai-btn:active:not(:disabled) .fc-ai-icon{transform:scale(.95);}
-@media (prefers-reduced-motion: reduce){
-.fc-btn,.fc-icon{transition:color .12s ease,background-color .12s ease,border-color .12s ease!important;}
-.fc-btn:hover,.fc-btn:active,.fc-icon:hover,.fc-icon:active{transform:none!important;filter:none!important;}
-.fc-ai-sheen{display:none!important;}
-.fc-ai-glow{transition:none!important;}
-.fc-ai-icon{transform:none!important;}
-}`
-
 function todayStr() {
   const d = new Date()
   return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`
@@ -217,22 +190,19 @@ function ParticleButton({ children, onClick, disabled, style }) {
 }
 
 // Single source for the "Generate with AI" action so it looks identical on the home
-// page and inside a deck. Sheen sweep + sparkle flourish on hover (driven by FC_MOTION_CSS).
+// page and inside a deck. Sheen sweep + sparkle flourish on hover (.ai-btn in index.css).
 function GenerateAIButton({ onClick, style }) {
   return (
-    <button onClick={onClick} className="fc-btn fc-ai-btn" style={{
-      position: 'relative', overflow: 'hidden', isolation: 'isolate',
+    <button onClick={onClick} className="btn-press ai-btn" style={{
       display: 'inline-flex', alignItems: 'center', gap: 7, flexShrink: 0,
-      padding: '9px 16px', borderRadius: 9, border: '1px solid transparent',
-      background: 'linear-gradient(180deg, color-mix(in srgb, var(--accent-purple) 18%, transparent), color-mix(in srgb, var(--accent-purple) 6%, transparent)) padding-box, linear-gradient(135deg, color-mix(in srgb, var(--accent-purple) 72%, transparent), color-mix(in srgb, var(--accent-purple) 20%, transparent)) border-box',
-      color: 'color-mix(in srgb, var(--accent-purple) 58%, var(--text-primary))',
+      padding: '9px 16px', borderRadius: 9,
       fontSize: 13, fontWeight: 600, cursor: 'pointer', fontFamily: 'inherit',
       ...style,
     }}>
-      <span className="fc-ai-glow" aria-hidden />
-      <span className="fc-ai-icon" style={{ display: 'flex', position: 'relative', zIndex: 2 }}><Sparkles size={14} /></span>
+      <span className="ai-glow" aria-hidden />
+      <span className="ai-icon" style={{ display: 'flex', position: 'relative', zIndex: 2 }}><Sparkles size={14} /></span>
       <span style={{ position: 'relative', zIndex: 2 }}>Generate with AI</span>
-      <span className="fc-ai-sheen" aria-hidden />
+      <span className="ai-sheen" aria-hidden />
     </button>
   )
 }
@@ -312,7 +282,7 @@ function DeckModal({ deck, domains, notes, studySessions, domainMap, onClose, on
 
         <div style={{ padding: '18px 22px', borderBottom: '1px solid var(--border)', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
           <span style={{ fontSize: 15, fontWeight: 600, color: 'var(--text-primary)' }}>{deck ? 'Edit Deck' : 'New Deck'}</span>
-          <button onClick={onClose} className="fc-icon" style={{ width: 28, height: 28, borderRadius: 7, border: 'none', background: 'var(--bg-overlay)', color: 'var(--text-secondary)', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+          <button onClick={onClose} className="btn-press" style={{ width: 28, height: 28, borderRadius: 7, border: 'none', background: 'var(--bg-overlay)', color: 'var(--text-secondary)', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
             <X size={14} />
           </button>
         </div>
@@ -380,20 +350,20 @@ function DeckModal({ deck, domains, notes, studySessions, domainMap, onClose, on
         <div style={{ padding: '14px 22px', borderTop: '1px solid var(--border)', display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 8 }}>
           <div>
             {deck && onDelete && !confirmingDelete && (
-              <button onClick={() => setConfirmingDelete(true)} className="fc-btn" style={{ padding: '8px 12px', borderRadius: 8, border: 'none', background: 'none', color: 'var(--accent-red)', cursor: 'pointer', fontSize: 13, fontFamily: 'inherit' }}>
+              <button onClick={() => setConfirmingDelete(true)} className="btn-press" style={{ padding: '8px 12px', borderRadius: 8, border: 'none', background: 'none', color: 'var(--accent-red)', cursor: 'pointer', fontSize: 13, fontFamily: 'inherit' }}>
                 Delete deck
               </button>
             )}
             {confirmingDelete && (
               <div style={{ display: 'flex', gap: 6 }}>
-                <button onClick={() => setConfirmingDelete(false)} className="fc-btn" style={{ padding: '6px 10px', borderRadius: 6, border: '1px solid var(--border-strong)', background: 'transparent', color: 'var(--text-muted)', fontSize: 11, cursor: 'pointer', fontFamily: 'inherit' }}>Cancel</button>
-                <button onClick={() => { onDelete(deck.id); onClose() }} className="fc-btn" style={{ padding: '6px 10px', borderRadius: 6, border: '1px solid rgba(251,113,133,0.4)', background: 'rgba(251,113,133,0.14)', color: '#fb7185', fontSize: 11, fontWeight: 600, cursor: 'pointer', fontFamily: 'inherit' }}>Confirm delete</button>
+                <button onClick={() => setConfirmingDelete(false)} className="btn-press" style={{ padding: '6px 10px', borderRadius: 6, border: '1px solid var(--border-strong)', background: 'transparent', color: 'var(--text-muted)', fontSize: 11, cursor: 'pointer', fontFamily: 'inherit' }}>Cancel</button>
+                <button onClick={() => { onDelete(deck.id); onClose() }} className="btn-press" style={{ padding: '6px 10px', borderRadius: 6, border: '1px solid rgba(251,113,133,0.4)', background: 'rgba(251,113,133,0.14)', color: '#fb7185', fontSize: 11, fontWeight: 600, cursor: 'pointer', fontFamily: 'inherit' }}>Confirm delete</button>
               </div>
             )}
           </div>
           <div style={{ display: 'flex', gap: 8 }}>
-            <button onClick={onClose} className="fc-btn" style={{ padding: '8px 16px', borderRadius: 8, border: '1px solid var(--border-strong)', background: 'none', color: 'var(--text-secondary)', cursor: 'pointer', fontSize: 13 }}>Cancel</button>
-            <button onClick={handleSave} disabled={!canSave} className="fc-btn" style={{
+            <button onClick={onClose} className="btn-press" style={{ padding: '8px 16px', borderRadius: 8, border: '1px solid var(--border-strong)', background: 'none', color: 'var(--text-secondary)', cursor: 'pointer', fontSize: 13 }}>Cancel</button>
+            <button onClick={handleSave} disabled={!canSave} className="btn-press" style={{
               padding: '8px 18px', borderRadius: 8, border: 'none', fontSize: 13, fontWeight: 600,
               background: canSave ? 'var(--accent-blue)' : 'var(--border)',
               color: canSave ? 'var(--btn-primary-text)' : 'var(--text-muted)',
@@ -432,7 +402,7 @@ function CardModal({ card, onClose, onSave, onDelete }) {
 
         <div style={{ padding: '18px 22px', borderBottom: '1px solid var(--border)', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
           <span style={{ fontSize: 15, fontWeight: 600, color: 'var(--text-primary)' }}>Edit Card</span>
-          <button onClick={onClose} className="fc-icon" style={{ width: 28, height: 28, borderRadius: 7, border: 'none', background: 'var(--bg-overlay)', color: 'var(--text-secondary)', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+          <button onClick={onClose} className="btn-press" style={{ width: 28, height: 28, borderRadius: 7, border: 'none', background: 'var(--bg-overlay)', color: 'var(--text-secondary)', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
             <X size={14} />
           </button>
         </div>
@@ -455,20 +425,20 @@ function CardModal({ card, onClose, onSave, onDelete }) {
         <div style={{ padding: '14px 22px', borderTop: '1px solid var(--border)', display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 8 }}>
           <div>
             {!confirmingDelete && (
-              <button onClick={() => setConfirmingDelete(true)} className="fc-btn" style={{ padding: '8px 12px', borderRadius: 8, border: 'none', background: 'none', color: 'var(--accent-red)', cursor: 'pointer', fontSize: 13, fontFamily: 'inherit' }}>
+              <button onClick={() => setConfirmingDelete(true)} className="btn-press" style={{ padding: '8px 12px', borderRadius: 8, border: 'none', background: 'none', color: 'var(--accent-red)', cursor: 'pointer', fontSize: 13, fontFamily: 'inherit' }}>
                 Delete
               </button>
             )}
             {confirmingDelete && (
               <div style={{ display: 'flex', gap: 6 }}>
-                <button onClick={() => setConfirmingDelete(false)} className="fc-btn" style={{ padding: '6px 10px', borderRadius: 6, border: '1px solid var(--border-strong)', background: 'transparent', color: 'var(--text-muted)', fontSize: 11, cursor: 'pointer', fontFamily: 'inherit' }}>Cancel</button>
-                <button onClick={() => { onDelete(); onClose() }} className="fc-btn" style={{ padding: '6px 10px', borderRadius: 6, border: '1px solid rgba(251,113,133,0.4)', background: 'rgba(251,113,133,0.14)', color: '#fb7185', fontSize: 11, fontWeight: 600, cursor: 'pointer', fontFamily: 'inherit' }}>Confirm delete</button>
+                <button onClick={() => setConfirmingDelete(false)} className="btn-press" style={{ padding: '6px 10px', borderRadius: 6, border: '1px solid var(--border-strong)', background: 'transparent', color: 'var(--text-muted)', fontSize: 11, cursor: 'pointer', fontFamily: 'inherit' }}>Cancel</button>
+                <button onClick={() => { onDelete(); onClose() }} className="btn-press" style={{ padding: '6px 10px', borderRadius: 6, border: '1px solid rgba(251,113,133,0.4)', background: 'rgba(251,113,133,0.14)', color: '#fb7185', fontSize: 11, fontWeight: 600, cursor: 'pointer', fontFamily: 'inherit' }}>Confirm delete</button>
               </div>
             )}
           </div>
           <div style={{ display: 'flex', gap: 8 }}>
-            <button onClick={onClose} className="fc-btn" style={{ padding: '8px 16px', borderRadius: 8, border: '1px solid var(--border-strong)', background: 'none', color: 'var(--text-secondary)', cursor: 'pointer', fontSize: 13 }}>Cancel</button>
-            <button onClick={handleSave} disabled={!canSave} className="fc-btn" style={{
+            <button onClick={onClose} className="btn-press" style={{ padding: '8px 16px', borderRadius: 8, border: '1px solid var(--border-strong)', background: 'none', color: 'var(--text-secondary)', cursor: 'pointer', fontSize: 13 }}>Cancel</button>
+            <button onClick={handleSave} disabled={!canSave} className="btn-press" style={{
               padding: '8px 18px', borderRadius: 8, border: 'none', fontSize: 13, fontWeight: 600,
               background: canSave ? 'var(--accent-blue)' : 'var(--border)',
               color: canSave ? 'var(--btn-primary-text)' : 'var(--text-muted)',
@@ -628,7 +598,7 @@ function GenerateCardsModal({ fixedDeck, decks, notes, domainMap, sourceNote, on
             {step === 'review' ? `Review ${results.length} cards` : 'Generate Flashcards'}
           </span>
           {step !== 'loading' && (
-            <button onClick={onClose} className="fc-icon" style={{ width: 28, height: 28, borderRadius: 7, border: 'none', background: 'var(--bg-overlay)', color: 'var(--text-secondary)', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+            <button onClick={onClose} className="btn-press" style={{ width: 28, height: 28, borderRadius: 7, border: 'none', background: 'var(--bg-overlay)', color: 'var(--text-secondary)', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
               <X size={14} />
             </button>
           )}
@@ -650,7 +620,7 @@ function GenerateCardsModal({ fixedDeck, decks, notes, domainMap, sourceNote, on
                       {SOURCES.map(([key, label]) => {
                         const disabled = key === 'existing' && existingNotes.length === 0
                         return (
-                          <button key={key} onClick={() => !disabled && setSource(key)} disabled={disabled} className="fc-btn"
+                          <button key={key} onClick={() => !disabled && setSource(key)} disabled={disabled} className="btn-press"
                             title={disabled ? 'You have no notes yet' : undefined}
                             style={{
                               flex: 1, padding: '9px 4px', borderRadius: 7, border: 'none', cursor: disabled ? 'default' : 'pointer',
@@ -768,7 +738,7 @@ function GenerateCardsModal({ fixedDeck, decks, notes, domainMap, sourceNote, on
                   {error && <div style={{ fontSize: 12, color: 'var(--accent-red)' }}>{error}</div>}
 
                   {import.meta.env.DEV && (
-                    <button onClick={toggleMock} className="fc-btn" style={{
+                    <button onClick={toggleMock} className="btn-press" style={{
                       display: 'flex', alignItems: 'center', gap: 8, padding: '8px 10px', borderRadius: 8,
                       border: `1px solid ${mock ? 'rgba(52,211,153,0.4)' : 'var(--border)'}`,
                       background: mock ? 'rgba(52,211,153,0.1)' : 'transparent',
@@ -803,7 +773,7 @@ function GenerateCardsModal({ fixedDeck, decks, notes, domainMap, sourceNote, on
               </div>
               {results.map((r, i) => (
                 <div key={i} style={{ display: 'flex', gap: 10, alignItems: 'flex-start', opacity: r.checked ? 1 : 0.45, transition: 'opacity 0.12s' }}>
-                  <button onClick={() => setResult(i, { checked: !r.checked })} className="fc-icon" style={{ background: 'none', border: 'none', cursor: 'pointer', padding: 0, marginTop: 9, color: r.checked ? 'var(--accent-purple)' : 'var(--text-muted)', display: 'flex', flexShrink: 0 }}>
+                  <button onClick={() => setResult(i, { checked: !r.checked })} className="btn-press" style={{ background: 'none', border: 'none', cursor: 'pointer', padding: 0, marginTop: 9, color: r.checked ? 'var(--accent-purple)' : 'var(--text-muted)', display: 'flex', flexShrink: 0 }}>
                     {r.checked ? <CheckSquare size={16} /> : <Square size={16} />}
                   </button>
                   <div style={{ flex: 1, display: 'flex', flexDirection: 'column', gap: 6 }}>
@@ -821,7 +791,7 @@ function GenerateCardsModal({ fixedDeck, decks, notes, domainMap, sourceNote, on
         <div style={{ padding: '14px 22px', borderTop: '1px solid var(--border)', display: 'flex', justifyContent: 'flex-end', gap: 8, flexShrink: 0 }}>
           {step === 'input' && (
             <>
-              <button onClick={onClose} className="fc-btn" style={{ padding: '8px 16px', borderRadius: 8, border: '1px solid var(--border-strong)', background: 'none', color: 'var(--text-secondary)', cursor: 'pointer', fontSize: 13 }}>Cancel</button>
+              <button onClick={onClose} className="btn-press" style={{ padding: '8px 16px', borderRadius: 8, border: '1px solid var(--border-strong)', background: 'none', color: 'var(--text-secondary)', cursor: 'pointer', fontSize: 13 }}>Cancel</button>
               {(() => {
                 const ready = canGenerate && !(!fixedDeck && deckChoice === '__new__' && !newDeckTitle.trim())
                 return (
@@ -837,12 +807,12 @@ function GenerateCardsModal({ fixedDeck, decks, notes, domainMap, sourceNote, on
             </>
           )}
           {step === 'unsuitable' && (
-            <button onClick={() => setStep('input')} className="fc-btn" style={{ padding: '8px 18px', borderRadius: 8, border: '1px solid var(--border-strong)', background: 'none', color: 'var(--text-secondary)', cursor: 'pointer', fontSize: 13 }}>Try different material</button>
+            <button onClick={() => setStep('input')} className="btn-press" style={{ padding: '8px 18px', borderRadius: 8, border: '1px solid var(--border-strong)', background: 'none', color: 'var(--text-secondary)', cursor: 'pointer', fontSize: 13 }}>Try different material</button>
           )}
           {step === 'review' && (
             <>
-              <button onClick={() => setStep('input')} className="fc-btn" style={{ padding: '8px 16px', borderRadius: 8, border: '1px solid var(--border-strong)', background: 'none', color: 'var(--text-secondary)', cursor: 'pointer', fontSize: 13 }}>Back</button>
-              <button onClick={handleSave} disabled={checkedCount === 0 || saving} className="fc-btn" style={{
+              <button onClick={() => setStep('input')} className="btn-press" style={{ padding: '8px 16px', borderRadius: 8, border: '1px solid var(--border-strong)', background: 'none', color: 'var(--text-secondary)', cursor: 'pointer', fontSize: 13 }}>Back</button>
+              <button onClick={handleSave} disabled={checkedCount === 0 || saving} className="btn-press" style={{
                 padding: '8px 18px', borderRadius: 8, border: 'none', fontSize: 13, fontWeight: 600,
                 background: checkedCount > 0 && !saving ? 'var(--accent-blue)' : 'var(--border)',
                 color: checkedCount > 0 && !saving ? 'var(--btn-primary-text)' : 'var(--text-muted)',
@@ -894,7 +864,7 @@ function QuickAddCard({ onAdd }) {
         onFocus={e => e.target.style.borderColor = 'var(--border-focus)'}
         onBlur={e => e.target.style.borderColor = 'var(--border-strong)'}
       />
-      <button onClick={add} disabled={!canAdd} className="fc-btn" style={{
+      <button onClick={add} disabled={!canAdd} className="btn-press" style={{
         display: 'flex', alignItems: 'center', gap: 5, padding: '9px 14px', borderRadius: 8,
         border: 'none', fontSize: 13, fontWeight: 600,
         background: canAdd ? 'var(--accent-blue)' : 'var(--border)',
@@ -935,7 +905,7 @@ function CardRow({ card, onEdit, onDelete, isLast }) {
         </span>
       )}
       {hovered && !confirming && (
-        <button onClick={e => { e.stopPropagation(); setConfirming(true) }} className="fc-icon" style={{ background: 'none', border: 'none', cursor: 'pointer', padding: 2, color: 'var(--text-muted)', flexShrink: 0, display: 'flex' }}
+        <button onClick={e => { e.stopPropagation(); setConfirming(true) }} className="btn-press" style={{ background: 'none', border: 'none', cursor: 'pointer', padding: 2, color: 'var(--text-muted)', flexShrink: 0, display: 'flex' }}
           onMouseEnter={e => e.currentTarget.style.color = 'var(--accent-red)'}
           onMouseLeave={e => e.currentTarget.style.color = 'var(--text-muted)'}>
           <Trash2 size={13} />
@@ -943,8 +913,8 @@ function CardRow({ card, onEdit, onDelete, isLast }) {
       )}
       {confirming && (
         <div style={{ display: 'flex', gap: 6, flexShrink: 0 }}>
-          <button onClick={() => setConfirming(false)} className="fc-btn" style={{ padding: '3px 9px', borderRadius: 6, border: '1px solid var(--border-strong)', background: 'transparent', color: 'var(--text-muted)', fontSize: 11, cursor: 'pointer', fontFamily: 'inherit' }}>Cancel</button>
-          <button onClick={onDelete} className="fc-btn" style={{ padding: '3px 9px', borderRadius: 6, border: '1px solid rgba(251,113,133,0.4)', background: 'rgba(251,113,133,0.14)', color: '#fb7185', fontSize: 11, fontWeight: 600, cursor: 'pointer', fontFamily: 'inherit' }}>Delete</button>
+          <button onClick={() => setConfirming(false)} className="btn-press" style={{ padding: '3px 9px', borderRadius: 6, border: '1px solid var(--border-strong)', background: 'transparent', color: 'var(--text-muted)', fontSize: 11, cursor: 'pointer', fontFamily: 'inherit' }}>Cancel</button>
+          <button onClick={onDelete} className="btn-press" style={{ padding: '3px 9px', borderRadius: 6, border: '1px solid rgba(251,113,133,0.4)', background: 'rgba(251,113,133,0.14)', color: '#fb7185', fontSize: 11, fontWeight: 600, cursor: 'pointer', fontFamily: 'inherit' }}>Delete</button>
         </div>
       )}
     </div>
@@ -1028,7 +998,7 @@ function ReviewView({ cards, shuffle: shuffleInit, reverse: reverseInit, onGrade
         <Layers size={36} style={{ marginBottom: 12, color: 'var(--accent-green)' }} />
         <p style={{ fontSize: 16, fontWeight: 600, margin: 0, color: 'var(--text-primary)' }}>Review complete</p>
         <p style={{ fontSize: 13, margin: '6px 0 18px' }}>{graded} card{graded !== 1 ? 's' : ''} reviewed</p>
-        <button onClick={onExit} className="fc-btn" style={{
+        <button onClick={onExit} className="btn-press" style={{
           padding: '9px 18px', borderRadius: 9, border: 'none', fontSize: 13, fontWeight: 600,
           background: 'var(--accent-blue)', color: 'var(--btn-primary-text)', cursor: 'pointer',
         }}>{exitLabel}</button>
@@ -1049,15 +1019,15 @@ function ReviewView({ cards, shuffle: shuffleInit, reverse: reverseInit, onGrade
           {index + 1} / {queue.length}
         </span>
         <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-          <button onClick={reshuffle} className="fc-icon" title="Shuffle the remaining cards" style={chip(false)}>
+          <button onClick={reshuffle} className="btn-press" title="Shuffle the remaining cards" style={chip(false)}>
             <Shuffle size={13} />
           </button>
-          <button onClick={toggleReverse} className="fc-icon" title="Reverse (show the answer side first)" style={chip(reverse)}>
+          <button onClick={toggleReverse} className="btn-press" title="Reverse (show the answer side first)" style={chip(reverse)}>
             <motion.span animate={{ rotate: reverse ? 180 : 0 }} transition={{ duration: reduce ? 0 : 0.25, ease: [0.22, 1, 0.36, 1] }} style={{ display: 'flex' }}>
               <ArrowLeftRight size={13} />
             </motion.span>
           </button>
-          <button onClick={onExit} className="fc-btn" style={{ display: 'flex', alignItems: 'center', gap: 5, padding: '5px 12px', borderRadius: 7, border: '1px solid var(--border-strong)', background: 'none', color: 'var(--text-secondary)', cursor: 'pointer', fontSize: 12, fontFamily: 'inherit' }}>
+          <button onClick={onExit} className="btn-press" style={{ display: 'flex', alignItems: 'center', gap: 5, padding: '5px 12px', borderRadius: 7, border: '1px solid var(--border-strong)', background: 'none', color: 'var(--text-secondary)', cursor: 'pointer', fontSize: 12, fontFamily: 'inherit' }}>
             <X size={12} /> End
           </button>
         </div>
@@ -1170,8 +1140,8 @@ function DeckCard({ deck, domain, onOpen, onDelete }) {
         }}>
           <span style={{ fontSize: 13, color: 'var(--text-primary)' }}>Delete <strong>{deck.title}</strong> and its {deck.cards.length} card{deck.cards.length !== 1 ? 's' : ''}?</span>
           <div style={{ display: 'flex', gap: 8 }}>
-            <button onClick={() => setConfirming(false)} className="fc-btn" style={{ padding: '6px 14px', borderRadius: 7, border: '1px solid var(--border-strong)', background: 'transparent', color: 'var(--text-secondary)', fontSize: 12, cursor: 'pointer', fontFamily: 'inherit' }}>Cancel</button>
-            <button onClick={() => onDelete(deck.id)} className="fc-btn" style={{ padding: '6px 14px', borderRadius: 7, border: '1px solid rgba(251,113,133,0.4)', background: 'rgba(251,113,133,0.14)', color: '#fb7185', fontSize: 12, fontWeight: 600, cursor: 'pointer', fontFamily: 'inherit' }}>Delete</button>
+            <button onClick={() => setConfirming(false)} className="btn-press" style={{ padding: '6px 14px', borderRadius: 7, border: '1px solid var(--border-strong)', background: 'transparent', color: 'var(--text-secondary)', fontSize: 12, cursor: 'pointer', fontFamily: 'inherit' }}>Cancel</button>
+            <button onClick={() => onDelete(deck.id)} className="btn-press" style={{ padding: '6px 14px', borderRadius: 7, border: '1px solid rgba(251,113,133,0.4)', background: 'rgba(251,113,133,0.14)', color: '#fb7185', fontSize: 12, fontWeight: 600, cursor: 'pointer', fontFamily: 'inherit' }}>Delete</button>
           </div>
         </div>
       )}
@@ -1181,7 +1151,7 @@ function DeckCard({ deck, domain, onOpen, onDelete }) {
           <button
             onClick={e => { e.stopPropagation(); setConfirming(true) }}
             title="Delete deck"
-            className="fc-icon"
+            className="btn-press"
             style={{ background: 'none', border: 'none', cursor: 'pointer', padding: 0, color: 'var(--text-muted)', flexShrink: 0, marginTop: 1, display: 'flex' }}
             onMouseEnter={e => e.currentTarget.style.color = 'var(--accent-red)'}
             onMouseLeave={e => e.currentTarget.style.color = 'var(--text-muted)'}
@@ -1217,13 +1187,6 @@ export default function FlashcardsPage({
   generateSourceNote, onClearGenerateSource,
 }) {
   const isMobile = useIsMobile()
-  useEffect(() => {
-    if (document.getElementById('fc-motion-styles')) return
-    const el = document.createElement('style')
-    el.id = 'fc-motion-styles'
-    el.textContent = FC_MOTION_CSS
-    document.head.appendChild(el)
-  }, [])
   const [openDeckId,  setOpenDeckId]  = useState(null)
   const [showNewDeck, setShowNewDeck] = useState(false)
   const [editingDeck, setEditingDeck] = useState(false)
@@ -1265,7 +1228,7 @@ export default function FlashcardsPage({
     return (
       <div style={{ padding: isMobile ? '22px 16px 28px' : '36px 40px', maxWidth: 860 }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 6 }}>
-          <button onClick={reviewing ? () => setReviewing(null) : closeDeck} className="fc-icon" style={{
+          <button onClick={reviewing ? () => setReviewing(null) : closeDeck} className="btn-press" style={{
             width: 30, height: 30, borderRadius: 8, border: '1px solid var(--border-strong)',
             background: 'var(--bg-surface)', color: 'var(--text-secondary)', cursor: 'pointer',
             display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0,
@@ -1276,7 +1239,7 @@ export default function FlashcardsPage({
             {openDeck.title}
           </h1>
           {!reviewing && (
-            <button onClick={() => setEditingDeck(true)} title="Edit deck" className="fc-icon" style={{
+            <button onClick={() => setEditingDeck(true)} title="Edit deck" className="btn-press" style={{
               width: 32, height: 32, borderRadius: 8, border: '1px solid var(--border-strong)',
               background: 'var(--bg-surface)', color: 'var(--text-secondary)', cursor: 'pointer',
               display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0,
@@ -1294,7 +1257,7 @@ export default function FlashcardsPage({
           )}
           <WeekBadge week={openDeck.academicWeek} />
           {openDeck.noteId && onOpenNote && (
-            <button onClick={() => onOpenNote(openDeck.noteId)} className="fc-btn" style={{ display: 'flex', alignItems: 'center', gap: 4, background: 'none', border: 'none', cursor: 'pointer', padding: 0, color: 'var(--accent-purple)', fontSize: 11, fontWeight: 600, fontFamily: 'inherit' }}>
+            <button onClick={() => onOpenNote(openDeck.noteId)} className="btn-press" style={{ display: 'flex', alignItems: 'center', gap: 4, background: 'none', border: 'none', cursor: 'pointer', padding: 0, color: 'var(--accent-purple)', fontSize: 11, fontWeight: 600, fontFamily: 'inherit' }}>
               <FileText size={11} /> Open linked note
             </button>
           )}
@@ -1305,7 +1268,7 @@ export default function FlashcardsPage({
 
         {!reviewing && (
           <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 22, marginLeft: 40, flexWrap: 'wrap' }}>
-            <button onClick={() => setReviewing('practice')} disabled={openDeck.cards.length === 0} className="fc-btn" style={{
+            <button onClick={() => setReviewing('practice')} disabled={openDeck.cards.length === 0} className="btn-press" style={{
               display: 'flex', alignItems: 'center', gap: 6, padding: '8px 16px', borderRadius: 9,
               border: 'none', fontSize: 13, fontWeight: 600, flexShrink: 0,
               background: openDeck.cards.length ? 'var(--accent-blue)' : 'var(--border)',
@@ -1315,7 +1278,7 @@ export default function FlashcardsPage({
             }}>
               <Play size={13} /> Practice
             </button>
-            <button onClick={() => setReviewing('study')} disabled={dueCount === 0} className="fc-btn"
+            <button onClick={() => setReviewing('study')} disabled={dueCount === 0} className="btn-press"
               title={dueCount === 0 ? 'No cards due for review right now' : 'Spaced-repetition review of due cards'} style={{
                 display: 'flex', alignItems: 'center', gap: 6, padding: '8px 14px', borderRadius: 9,
                 border: '1px solid var(--border-strong)', fontSize: 13, fontWeight: 600, flexShrink: 0,
@@ -1324,10 +1287,10 @@ export default function FlashcardsPage({
               }}>
               <RotateCcw size={13} /> Study{dueCount ? ` (${dueCount})` : ''}
             </button>
-            <button onClick={() => setShuffle(v => !v)} className="fc-icon" title="Shuffle card order" style={toggleChip(shuffle)}>
+            <button onClick={() => setShuffle(v => !v)} className="btn-press" title="Shuffle card order" style={toggleChip(shuffle)}>
               <Shuffle size={14} />
             </button>
-            <button onClick={() => setReverse(v => !v)} className="fc-icon" title="Reverse — show the answer side first" style={toggleChip(reverse)}>
+            <button onClick={() => setReverse(v => !v)} className="btn-press" title="Reverse — show the answer side first" style={toggleChip(reverse)}>
               <motion.span animate={{ rotate: reverse ? 180 : 0 }} transition={{ duration: 0.25, ease: [0.22, 1, 0.36, 1] }} style={{ display: 'flex' }}>
                 <ArrowLeftRight size={14} />
               </motion.span>
@@ -1413,7 +1376,7 @@ export default function FlashcardsPage({
     return (
       <div style={{ padding: isMobile ? '22px 16px 28px' : '36px 40px', maxWidth: 860 }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 24 }}>
-          <button onClick={() => setCrossDue(false)} className="fc-icon" style={{
+          <button onClick={() => setCrossDue(false)} className="btn-press" style={{
             width: 30, height: 30, borderRadius: 8, border: '1px solid var(--border-strong)',
             background: 'var(--bg-surface)', color: 'var(--text-secondary)', cursor: 'pointer',
             display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0,
@@ -1447,7 +1410,7 @@ export default function FlashcardsPage({
             {decks.length === 0 ? 'Create a deck to start' : `${decks.length} deck${decks.length !== 1 ? 's' : ''} · ${totalCards} card${totalCards !== 1 ? 's' : ''}`}
           </p>
           {totalDue > 0 && (
-            <button onClick={() => setCrossDue(true)} className="fc-btn" style={{
+            <button onClick={() => setCrossDue(true)} className="btn-press" style={{
               display: 'flex', alignItems: 'center', gap: 6, marginTop: 10, padding: '6px 12px', borderRadius: 8,
               border: '1px solid var(--border-strong)', background: 'var(--bg-surface)',
               color: 'var(--text-secondary)', fontSize: 12, fontWeight: 600, cursor: 'pointer', fontFamily: 'inherit',
@@ -1458,7 +1421,7 @@ export default function FlashcardsPage({
         </div>
         <div style={{ display: 'flex', gap: 8, flexShrink: 0, flexWrap: 'wrap', justifyContent: 'flex-end' }}>
           <GenerateAIButton onClick={() => setShowGenerate(true)} />
-          <button data-tutorial-id="flashcards-new-btn" onClick={() => setShowNewDeck(true)} className="fc-btn" style={{
+          <button data-tutorial-id="flashcards-new-btn" onClick={() => setShowNewDeck(true)} className="btn-press" style={{
             display: 'flex', alignItems: 'center', gap: 6, padding: '9px 16px', borderRadius: 9,
             border: '1px solid var(--border-strong)', background: 'var(--bg-surface)', color: 'var(--text-secondary)',
             fontSize: 13, fontWeight: 600, cursor: 'pointer', fontFamily: 'inherit',

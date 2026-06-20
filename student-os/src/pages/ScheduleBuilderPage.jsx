@@ -121,7 +121,7 @@ export default function ScheduleBuilderPage({ domains, scheduleSlots: initialSlo
 
       {/* Header */}
       <div style={{ display: 'flex', alignItems: 'center', gap: 14 }}>
-        <button
+        <button className="btn-press"
           onClick={onCancel}
           style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '7px 13px', borderRadius: 8, border: '1px solid var(--border-strong)', background: 'var(--bg-elevated)', color: 'var(--text-secondary)', fontSize: 13, cursor: 'pointer', fontFamily: 'inherit' }}
         >
@@ -239,13 +239,13 @@ export default function ScheduleBuilderPage({ domains, scheduleSlots: initialSlo
           {slots.length} session{slots.length !== 1 ? 's' : ''} in your weekly timetable
         </span>
         <div style={{ display: 'flex', gap: 10 }}>
-          <button
+          <button className="btn-press"
             onClick={onCancel}
             style={{ padding: '8px 16px', borderRadius: 8, border: '1px solid var(--border-strong)', background: 'transparent', color: 'var(--text-secondary)', fontSize: 13, cursor: 'pointer', fontFamily: 'inherit' }}
           >
             Cancel
           </button>
-          <button
+          <button className="btn-press"
             onClick={handleSave}
             disabled={saving}
             style={{ display: 'flex', alignItems: 'center', gap: 7, padding: '9px 18px', borderRadius: 9, border: 'none', background: 'var(--accent-blue)', color: 'var(--btn-primary-text, #fff)', fontSize: 13, fontWeight: 600, cursor: saving ? 'default' : 'pointer', opacity: saving ? 0.7 : 1, fontFamily: 'inherit' }}
@@ -285,7 +285,7 @@ export default function ScheduleBuilderPage({ domains, scheduleSlots: initialSlo
                 {label('Session type')}
                 <div style={{ display: 'flex', flexWrap: 'wrap', gap: 7 }}>
                   {allTypes.map(t => (
-                    <button key={t.id} onClick={() => setPickType(t.id)} style={{
+                    <button className="btn-press" key={t.id} onClick={() => setPickType(t.id)} style={{
                       padding: '7px 13px', borderRadius: 20,
                       border: `1px solid ${pickType === t.id ? t.color : 'var(--border-strong)'}`,
                       background: pickType === t.id ? `${t.color}20` : 'transparent',
@@ -300,7 +300,7 @@ export default function ScheduleBuilderPage({ domains, scheduleSlots: initialSlo
                 {label('Duration')}
                 <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 7 }}>
                   {DURATION_OPTS.map(o => (
-                    <button key={o.v} onClick={() => setPickDuration(o.v)} style={{
+                    <button className="btn-press" key={o.v} onClick={() => setPickDuration(o.v)} style={{
                       padding: '8px 0', borderRadius: 8,
                       border: `1px solid ${pickDuration === o.v ? 'var(--accent-blue)' : 'var(--border-strong)'}`,
                       background: pickDuration === o.v ? 'rgba(91,140,255,0.12)' : 'transparent',
@@ -328,7 +328,7 @@ export default function ScheduleBuilderPage({ domains, scheduleSlots: initialSlo
                     style={{ width: 64, padding: '8px 10px', background: 'var(--bg-elevated)', border: '1px solid var(--border-strong)', borderRadius: 8, color: 'var(--text-primary)', fontSize: 13, outline: 'none', boxSizing: 'border-box', fontFamily: 'inherit' }}
                   />
                   {(pickWeekFrom || pickWeekTo) && (
-                    <button onClick={() => { setPickWeekFrom(null); setPickWeekTo(null) }} style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--text-muted)', padding: 4, display: 'flex' }}>
+                    <button className="btn-press" onClick={() => { setPickWeekFrom(null); setPickWeekTo(null) }} style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--text-muted)', padding: 4, display: 'flex' }}>
                       <X size={13} />
                     </button>
                   )}
@@ -345,12 +345,12 @@ export default function ScheduleBuilderPage({ domains, scheduleSlots: initialSlo
               </div>
 
               <div style={{ display: 'flex', gap: 8, marginTop: 2 }}>
-                <button onClick={confirmSlot} style={{
+                <button className="btn-press" onClick={confirmSlot} style={{
                   flex: 1, padding: '10px 0', borderRadius: 9, border: 'none',
                   background: 'linear-gradient(135deg, var(--accent-blue), var(--accent-purple))',
                   color: 'white', fontSize: 13, fontWeight: 600, cursor: 'pointer', fontFamily: 'inherit',
                 }}>Add session</button>
-                <button onClick={() => setPendingSlot(null)} style={{
+                <button className="btn-press" onClick={() => setPendingSlot(null)} style={{
                   padding: '10px 16px', borderRadius: 9, border: '1px solid var(--border-strong)',
                   background: 'transparent', color: 'var(--text-muted)', fontSize: 13, cursor: 'pointer', fontFamily: 'inherit',
                 }}>Cancel</button>
