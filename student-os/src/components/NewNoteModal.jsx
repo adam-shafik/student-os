@@ -1,6 +1,7 @@
 import { useState, useRef, useEffect } from 'react'
 import { X, PenLine, Type, FileText, Upload } from 'lucide-react'
 import AppSelect, { AppSelectItem } from './AppSelect'
+import { useIsMobile } from '../utils/useIsMobile'
 
 const BG_PRESETS = [
   { label: 'White',      hex: '#ffffff' },
@@ -105,6 +106,7 @@ export default function NewNoteModal({ domains = [], defaultDomainId = null, def
   const [week,        setWeek]        = useState(defaultWeek != null ? String(defaultWeek) : '')
   const [pdfFile,     setPdfFile]     = useState(null)
   const pdfInputRef = useRef()
+  const isMobile = useIsMobile()
   // Don't auto-focus the name field on touch devices — it pops the keyboard the moment the modal opens
   const isTouch = typeof window !== 'undefined' && (('ontouchstart' in window) || navigator.maxTouchPoints > 0)
 
@@ -177,7 +179,7 @@ export default function NewNoteModal({ domains = [], defaultDomainId = null, def
         @keyframes _nm-in { from { opacity: 0; transform: translateY(5px); } to { opacity: 1; transform: none; } }
       `}</style>
       <div style={{
-        width: 640, maxWidth: '95vw',
+        width: 640, maxWidth: '95vw', maxHeight: '92dvh',
         background: 'var(--bg-surface)', border: '1px solid var(--border)',
         borderRadius: 20, boxShadow: '0 24px 72px rgba(0,0,0,0.44)',
         overflow: 'hidden', display: 'flex', flexDirection: 'column',
@@ -229,11 +231,19 @@ export default function NewNoteModal({ domains = [], defaultDomainId = null, def
           </div>
         </div>
 
-        {/* Body — outer div animates height, inner div is naturally sized */}
-        <div style={{ overflow: 'hidden', height: bodyH ?? 'auto', transition: 'height 0.28s cubic-bezier(0.32,0.72,0,1)' }}>
-          <div ref={bodyRef} style={{ display: 'flex' }}>
+        {/* Body — on desktop the outer div animates height between note types;
+            on mobile it becomes the single scroll region so a tall form never
+            overflows the viewport. */}
+        <div style={{
+          overflow: isMobile ? 'auto' : 'hidden',
+          height: isMobile ? 'auto' : (bodyH ?? 'auto'),
+          flex: isMobile ? 1 : undefined,
+          minHeight: 0,
+          transition: 'height 0.28s cubic-bezier(0.32,0.72,0,1)',
+        }}>
+          <div ref={bodyRef} style={{ display: 'flex', flexDirection: isMobile ? 'column' : 'row' }}>
           {/* Form column — re-keyed per type so entry animation fires on switch */}
-          <div key={noteType} style={{ flex: 1, padding: '16px 22px 20px', display: 'flex', flexDirection: 'column', gap: 16, overflowY: 'auto', animation: '_nm-in 0.18s ease' }}>
+          <div key={noteType} style={{ flex: 1, padding: '16px 22px 20px', display: 'flex', flexDirection: 'column', gap: 16, overflowY: isMobile ? 'visible' : 'auto', animation: '_nm-in 0.18s ease' }}>
 
             {/* PDF file picker */}
             {isPDF && (
@@ -375,13 +385,15 @@ export default function NewNoteModal({ domains = [], defaultDomainId = null, def
             </div>
           </div>
 
-          {/* Right preview (handwritten only) */}
+          {/* Preview (handwritten only) — beside the form on desktop, stacked below on mobile */}
           {isHW && (
             <div style={{
-              width: 220, flexShrink: 0, borderLeft: '1px solid var(--border)',
+              width: isMobile ? 'auto' : 220, flexShrink: 0,
+              borderLeft: isMobile ? 'none' : '1px solid var(--border)',
+              borderTop: isMobile ? '1px solid var(--border)' : 'none',
               background: 'rgba(0,0,0,0.14)',
               display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center',
-              gap: 14, padding: 24,
+              gap: 14, padding: isMobile ? '18px 18px 22px' : 24,
             }}>
               <NotePreview template={template} bgColor={bgColor} lineSpacing={lineSpacing} orientation={orientation} />
               <div style={{ fontSize: 11, color: 'var(--text-muted)', textAlign: 'center', lineHeight: 1.65 }}>

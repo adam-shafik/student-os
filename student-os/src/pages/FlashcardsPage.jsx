@@ -1139,7 +1139,7 @@ function DeckCard({ deck, domain, onOpen, onDelete }) {
           display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: 12, padding: 16, textAlign: 'center',
         }}>
           <span style={{ fontSize: 13, color: 'var(--text-primary)' }}>Delete <strong>{deck.title}</strong> and its {deck.cards.length} card{deck.cards.length !== 1 ? 's' : ''}?</span>
-          <div style={{ display: 'flex', gap: 8 }}>
+          <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', justifyContent: 'center' }}>
             <button onClick={() => setConfirming(false)} className="btn-press" style={{ padding: '6px 14px', borderRadius: 7, border: '1px solid var(--border-strong)', background: 'transparent', color: 'var(--text-secondary)', fontSize: 12, cursor: 'pointer', fontFamily: 'inherit' }}>Cancel</button>
             <button onClick={() => onDelete(deck.id)} className="btn-press" style={{ padding: '6px 14px', borderRadius: 7, border: '1px solid rgba(251,113,133,0.4)', background: 'rgba(251,113,133,0.14)', color: '#fb7185', fontSize: 12, fontWeight: 600, cursor: 'pointer', fontFamily: 'inherit' }}>Delete</button>
           </div>
@@ -1438,7 +1438,7 @@ export default function FlashcardsPage({
         </div>
       ) : (
         <>
-          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(230px, 1fr))', gap: 14 }}>
+          <div style={{ display: 'grid', gridTemplateColumns: isMobile ? 'repeat(2, 1fr)' : 'repeat(auto-fill, minmax(230px, 1fr))', gap: isMobile ? 10 : 14 }}>
             {decks.map(deck => (
               <DeckCard
                 key={deck.id}

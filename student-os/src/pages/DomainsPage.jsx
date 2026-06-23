@@ -43,7 +43,7 @@ function CategoryBadge({ category }) {
 }
 
 // ─── Academic domain card ─────────────────────────────────────────────────────
-function AcademicCard({ domain, pendingTasks, domainEvents = [], assessments = [], onClick, muted = false }) {
+function AcademicCard({ domain, pendingTasks, domainEvents = [], assessments = [], onClick, muted = false, compact = false }) {
   const today = new Date()
   const schedEvs = domainEvents.filter(e => e.type !== 'exam' && e.type !== 'assignment')
   const lectures = schedEvs.filter(e => e.type === 'lecture')
@@ -53,20 +53,27 @@ function AcademicCard({ domain, pendingTasks, domainEvents = [], assessments = [
   const pendingAssignments = assessments.filter(a => a.grade == null).length
   const calculatedProgress = schedEvs.length > 0 ? Math.round(schedEvs.filter(e => e.date < today).length / schedEvs.length * 100) : (domain.progress || 0)
 
+  const stats = [
+    { icon: <BookOpen size={11} />, val: `${completedLectures}/${lectures.length}`, label: 'Lectures' },
+    { icon: <FileCheck size={11} />, val: pendingAssignments, label: 'Pending', warn: pendingAssignments > 0 },
+    { icon: <CheckSquare size={11} />, val: pendingTasks || 0, label: 'Tasks', warn: pendingTasks > 0 },
+    ...(labs.length > 0 ? [{ icon: <FlaskConical size={11} />, val: `${completedLabs}/${labs.length}`, label: 'Labs' }] : []),
+  ]
+
   return (
     <div
       className="domain-card"
       onClick={onClick}
       style={{
-        borderRadius: 14, padding: '22px 22px 18px',
+        borderRadius: 14, padding: compact ? '14px 14px 13px' : '22px 22px 18px',
         cursor: 'pointer', position: 'relative', overflow: 'hidden',
         opacity: muted ? 0.65 : 1,
         height: '100%', display: 'flex', flexDirection: 'column', boxSizing: 'border-box',
       }}
     >
-      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 12 }}>
-        <div>
-          <div style={{ display: 'flex', alignItems: 'center', gap: 7, marginBottom: 8 }}>
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: compact ? 9 : 12 }}>
+        <div style={{ minWidth: 0 }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 7, marginBottom: compact ? 6 : 8, flexWrap: 'wrap' }}>
             <span style={{ fontSize: 11, fontWeight: 700, color: domain.color, background: domain.colorMuted, padding: '3px 8px', borderRadius: 5 }}>{domain.code}</span>
             <DomainIcon name={domain.icon} size={14} color={domain.color} />
             {getSemesterCount() > 1 && domain.semesterNumber != null && (
@@ -75,17 +82,19 @@ function AcademicCard({ domain, pendingTasks, domainEvents = [], assessments = [
               </span>
             )}
           </div>
-          <h3 style={{ margin: 0, fontSize: 15, fontWeight: 600, color: 'var(--text-primary)', lineHeight: 1.35, letterSpacing: '-0.2px' }}>{domain.name}</h3>
+          <h3 style={{ margin: 0, fontSize: compact ? 13.5 : 15, fontWeight: 600, color: 'var(--text-primary)', lineHeight: 1.3, letterSpacing: '-0.2px' }}>{domain.name}</h3>
         </div>
-        <ChevronRight size={15} color="var(--text-muted)" style={{ marginTop: 2, flexShrink: 0 }} />
+        {!compact && <ChevronRight size={15} color="var(--text-muted)" style={{ marginTop: 2, flexShrink: 0 }} />}
       </div>
 
-      <div style={{ display: 'flex', gap: 12, marginBottom: 14 }}>
-        <span style={{ fontSize: 11, color: 'var(--text-secondary)', display: 'flex', alignItems: 'center', gap: 4 }}><User size={11} color="var(--text-muted)" />{domain.professor}</span>
-        <span style={{ fontSize: 11, color: 'var(--text-secondary)', display: 'flex', alignItems: 'center', gap: 4 }}><Award size={11} color="var(--text-muted)" />{domain.credits} cr</span>
-      </div>
+      {!compact && (
+        <div style={{ display: 'flex', gap: 12, marginBottom: 14 }}>
+          <span style={{ fontSize: 11, color: 'var(--text-secondary)', display: 'flex', alignItems: 'center', gap: 4, minWidth: 0 }}><User size={11} color="var(--text-muted)" style={{ flexShrink: 0 }} /><span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{domain.professor}</span></span>
+          <span style={{ fontSize: 11, color: 'var(--text-secondary)', display: 'flex', alignItems: 'center', gap: 4, flexShrink: 0 }}><Award size={11} color="var(--text-muted)" />{domain.credits} cr</span>
+        </div>
+      )}
 
-      <div style={{ marginBottom: 16 }}>
+      <div style={{ marginBottom: compact ? 11 : 16 }}>
         <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 5 }}>
           <span style={{ fontSize: 11, color: 'var(--text-muted)' }}>Progress</span>
           <span style={{ fontSize: 11, fontWeight: 600, color: domain.color }}>{calculatedProgress}%</span>
@@ -93,56 +102,64 @@ function AcademicCard({ domain, pendingTasks, domainEvents = [], assessments = [
         <ProgressBar progress={calculatedProgress} color={domain.color} />
       </div>
 
-      <div style={{ display: 'flex', borderTop: '1px solid var(--border)', paddingTop: 12, gap: 0, marginTop: 'auto' }}>
-        {[
-          { icon: <BookOpen size={11} />, val: `${completedLectures}/${lectures.length}`, label: 'Lectures' },
-          { icon: <FileCheck size={11} />, val: pendingAssignments, label: 'Pending', warn: pendingAssignments > 0 },
-          { icon: <CheckSquare size={11} />, val: pendingTasks || 0, label: 'Tasks', warn: pendingTasks > 0 },
-          ...(labs.length > 0 ? [{ icon: <FlaskConical size={11} />, val: `${completedLabs}/${labs.length}`, label: 'Labs' }] : []),
-        ].map(s => (
-          <div key={s.label} style={{ flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 3 }}>
-            <div style={{ display: 'flex', alignItems: 'center', gap: 3, color: s.warn ? 'var(--accent-amber)' : 'var(--text-secondary)' }}>
+      {compact ? (
+        <div style={{ display: 'flex', flexWrap: 'wrap', gap: '7px 14px', borderTop: '1px solid var(--border)', paddingTop: 11, marginTop: 'auto' }}>
+          {stats.map(s => (
+            <div key={s.label} title={s.label} style={{ display: 'flex', alignItems: 'center', gap: 4, color: s.warn ? 'var(--accent-amber)' : 'var(--text-secondary)' }}>
               {s.icon}
               <span style={{ fontSize: 12, fontWeight: 600, color: s.warn ? 'var(--accent-amber)' : 'var(--text-primary)' }}>{s.val}</span>
             </div>
-            <span style={{ fontSize: 10, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.3px' }}>{s.label}</span>
-          </div>
-        ))}
-      </div>
+          ))}
+        </div>
+      ) : (
+        <div style={{ display: 'flex', borderTop: '1px solid var(--border)', paddingTop: 12, gap: 0, marginTop: 'auto' }}>
+          {stats.map(s => (
+            <div key={s.label} style={{ flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 3 }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 3, color: s.warn ? 'var(--accent-amber)' : 'var(--text-secondary)' }}>
+                {s.icon}
+                <span style={{ fontSize: 12, fontWeight: 600, color: s.warn ? 'var(--accent-amber)' : 'var(--text-primary)' }}>{s.val}</span>
+              </div>
+              <span style={{ fontSize: 10, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.3px' }}>{s.label}</span>
+            </div>
+          ))}
+        </div>
+      )}
     </div>
   )
 }
 
 // ─── General (non-academic) domain card ───────────────────────────────────────
-function GeneralCard({ domain, linkedEventCount, onClick }) {
+function GeneralCard({ domain, linkedEventCount, onClick, compact = false }) {
   return (
     <div
       className="domain-card"
       onClick={onClick}
       style={{
-        borderRadius: 14, padding: '22px 22px 18px',
+        borderRadius: 14, padding: compact ? '14px 14px 13px' : '22px 22px 18px',
         cursor: 'pointer', position: 'relative', overflow: 'hidden',
         height: '100%', display: 'flex', flexDirection: 'column', boxSizing: 'border-box',
       }}
     >
-      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 12 }}>
-        <div>
-          <div style={{ display: 'flex', alignItems: 'center', gap: 7, marginBottom: 8 }}>
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: compact ? 9 : 12 }}>
+        <div style={{ minWidth: 0 }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 7, marginBottom: compact ? 6 : 8, flexWrap: 'wrap' }}>
             <CategoryBadge category={domain.category} />
             <DomainIcon name={domain.icon} size={14} color={domain.color} />
           </div>
-          <h3 style={{ margin: 0, fontSize: 15, fontWeight: 600, color: 'var(--text-primary)', lineHeight: 1.3 }}>{domain.name}</h3>
+          <h3 style={{ margin: 0, fontSize: compact ? 13.5 : 15, fontWeight: 600, color: 'var(--text-primary)', lineHeight: 1.3 }}>{domain.name}</h3>
         </div>
-        <ChevronRight size={15} color="var(--text-muted)" style={{ marginTop: 2, flexShrink: 0 }} />
+        {!compact && <ChevronRight size={15} color="var(--text-muted)" style={{ marginTop: 2, flexShrink: 0 }} />}
       </div>
 
-      <p style={{ margin: '0 0 14px', fontSize: 12, color: 'var(--text-secondary)', lineHeight: 1.55,
-        display: '-webkit-box', WebkitLineClamp: 2, WebkitBoxOrient: 'vertical', overflow: 'hidden',
-      }}>
-        {domain.description}
-      </p>
+      {domain.description && (
+        <p style={{ margin: compact ? '0 0 11px' : '0 0 14px', fontSize: 12, color: 'var(--text-secondary)', lineHeight: 1.55,
+          display: '-webkit-box', WebkitLineClamp: 2, WebkitBoxOrient: 'vertical', overflow: 'hidden',
+        }}>
+          {domain.description}
+        </p>
+      )}
 
-      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', borderTop: '1px solid var(--border)', paddingTop: 12, marginTop: 'auto' }}>
+      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: 6, borderTop: '1px solid var(--border)', paddingTop: compact ? 11 : 12, marginTop: 'auto' }}>
         {domain.role && (
           <span style={{ fontSize: 11, color: 'var(--text-muted)' }}>Role: <span style={{ color: 'var(--text-secondary)' }}>{domain.role}</span></span>
         )}
@@ -188,13 +205,18 @@ function SectionHeader({ label, count, collapsed, onToggle }) {
 }
 
 // ─── Staggered card grid ──────────────────────────────────────────────────────
-function CardGrid({ children, style }) {
+function CardGrid({ children, style, isMobile }) {
   return (
     <motion.div
       variants={{ visible: { transition: { staggerChildren: 0.05, delayChildren: 0 } } }}
       initial="hidden"
       animate="visible"
-      style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(min(280px, 100%), 1fr))', gap: 14, ...style }}
+      style={{
+        display: 'grid',
+        gridTemplateColumns: isMobile ? 'repeat(2, 1fr)' : 'repeat(auto-fill, minmax(min(280px, 100%), 1fr))',
+        gap: isMobile ? 10 : 14,
+        ...style,
+      }}
     >
       {children}
     </motion.div>
@@ -557,7 +579,7 @@ export default function DomainsPage({ domains, customCalendarEvents, todos, asse
                 transition={{ duration: 0.22, ease: EASE }}
                 style={{ overflow: 'hidden' }}
               >
-                <CardGrid>
+                <CardGrid isMobile={isMobile}>
                   {academic.map(d => (
                     <CardItem key={d.id}>
                       <AcademicCard
@@ -566,6 +588,7 @@ export default function DomainsPage({ domains, customCalendarEvents, todos, asse
                         domainEvents={domainEvents.filter(e => e.domainId === d.id)}
                         assessments={assessments.filter(a => a.domainId === d.id)}
                         onClick={() => onOpenDomain(d)}
+                        compact={isMobile}
                       />
                     </CardItem>
                   ))}
@@ -607,7 +630,7 @@ export default function DomainsPage({ domains, customCalendarEvents, todos, asse
                 transition={{ duration: 0.22, ease: EASE }}
                 style={{ overflow: 'hidden' }}
               >
-                <CardGrid>
+                <CardGrid isMobile={isMobile}>
                   {pastAcademic.map(d => (
                     <CardItem key={d.id}>
                       <AcademicCard
@@ -616,6 +639,7 @@ export default function DomainsPage({ domains, customCalendarEvents, todos, asse
                         domainEvents={domainEvents.filter(e => e.domainId === d.id)}
                         assessments={assessments.filter(a => a.domainId === d.id)}
                         onClick={() => onOpenDomain(d)}
+                        compact={isMobile}
                         muted
                       />
                     </CardItem>
@@ -641,10 +665,10 @@ export default function DomainsPage({ domains, customCalendarEvents, todos, asse
                 transition={{ duration: 0.22, ease: EASE }}
                 style={{ overflow: 'hidden' }}
               >
-                <CardGrid>
+                <CardGrid isMobile={isMobile}>
                   {other.map(d => (
                     <CardItem key={d.id}>
-                      <GeneralCard domain={d} linkedEventCount={linkedCount(d.id)} onClick={() => onOpenDomain(d)} />
+                      <GeneralCard domain={d} linkedEventCount={linkedCount(d.id)} onClick={() => onOpenDomain(d)} compact={isMobile} />
                     </CardItem>
                   ))}
                 </CardGrid>

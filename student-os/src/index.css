@@ -686,6 +686,11 @@ aside, main { text-shadow: var(--text-shadow); }
 /* ── Global resets ───────────────────────────────────────────────────────────── */
 * { box-sizing: border-box; }
 
+html, body {
+  max-width: 100%;
+  overflow-x: hidden;        /* the app never scrolls sideways; wide views scroll inside their own container */
+}
+
 body {
   margin: 0;
   background: var(--bg-page);
@@ -702,6 +707,17 @@ body {
   margin: 0;
   text-align: left;
   min-height: 100vh;
+}
+
+/* A scroll container with overflow-y:auto makes overflow-x compute to `auto` too,
+   so any too-wide child silently produces a horizontal scrollbar. Pin it to hidden
+   so the page can only ever scroll vertically. */
+.page-scroll { overflow-x: hidden; }
+
+/* iOS Safari zooms the page when a focused field's text is below 16px. Bump form
+   controls to 16px on touch devices only — desktop keeps its tighter sizing. */
+@media (pointer: coarse) {
+  input, textarea, select { font-size: 16px !important; }
 }
 
 /* ── Scrollbar ───────────────────────────────────────────────────────────────── */
