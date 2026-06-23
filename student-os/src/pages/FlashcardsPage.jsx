@@ -1403,8 +1403,8 @@ export default function FlashcardsPage({
   const totalCards = decks.reduce((n, d) => n + d.cards.length, 0)
   return (
     <div style={{ padding: isMobile ? '22px 16px 28px' : '36px 40px', maxWidth: 1100 }}>
-      <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', marginBottom: isMobile ? 18 : 24, gap: 12 }}>
-        <div>
+      <div style={{ display: 'flex', flexDirection: isMobile ? 'column' : 'row', alignItems: isMobile ? 'stretch' : 'flex-start', justifyContent: 'space-between', marginBottom: isMobile ? 18 : 24, gap: 12 }}>
+        <div style={{ minWidth: 0 }}>
           <h1 style={{ margin: 0, fontSize: isMobile ? 30 : 40, fontWeight: 800, color: 'var(--text-primary)', letterSpacing: '-1px' }}>Flashcards</h1>
           <p style={{ margin: '4px 0 0', fontSize: 14, color: 'var(--text-secondary)' }}>
             {decks.length === 0 ? 'Create a deck to start' : `${decks.length} deck${decks.length !== 1 ? 's' : ''} · ${totalCards} card${totalCards !== 1 ? 's' : ''}`}
@@ -1419,7 +1419,7 @@ export default function FlashcardsPage({
             </button>
           )}
         </div>
-        <div style={{ display: 'flex', gap: 8, flexShrink: 0, flexWrap: 'wrap', justifyContent: 'flex-end' }}>
+        <div style={{ display: 'flex', gap: 8, flexShrink: 0, flexWrap: 'wrap', justifyContent: isMobile ? 'flex-start' : 'flex-end' }}>
           <GenerateAIButton onClick={() => setShowGenerate(true)} />
           <button data-tutorial-id="flashcards-new-btn" onClick={() => setShowNewDeck(true)} className="btn-press" style={{
             display: 'flex', alignItems: 'center', gap: 6, padding: '9px 16px', borderRadius: 9,
