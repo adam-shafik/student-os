@@ -5,7 +5,7 @@ import AppSelect, { AppSelectItem } from '../components/AppSelect'
 import {
   PenLine, Plus, Trash2, ChevronRight, ChevronDown,
   Pencil, Check, X, MapPin, Type, FileText, Share2, Maximize2, Minimize2, FolderOpen,
-  ArrowUpDown, ListFilter, ChevronUp, Sparkles,
+  ArrowUpDown, ListFilter, ChevronUp, Sparkles, Folder, FolderPlus,
 } from 'lucide-react'
 import NoteCanvas from '../components/NoteCanvas'
 import { totalTeachingWeeks } from '../utils/semester'
@@ -31,10 +31,10 @@ function FolderItem({ label, count, active, depth = 0, onClick, children, defaul
       <button className="btn-press"
         onClick={() => { onClick?.(); if (hasChildren) setOpen(v => !v) }}
         style={{
-          width: '100%', display: 'flex', alignItems: 'center', gap: 6,
-          padding: `7px ${10 + depth * 14}px`, border: 'none', background: active ? 'var(--nav-active)' : 'transparent',
+          width: '100%', display: 'flex', alignItems: 'center', gap: 5,
+          padding: `6px ${9 + depth * 12}px`, border: 'none', background: active ? 'var(--nav-active)' : 'transparent',
           color: active ? 'var(--accent-blue)' : 'var(--text-secondary)',
-          cursor: 'pointer', textAlign: 'left', borderRadius: 7, fontSize: 13,
+          cursor: 'pointer', textAlign: 'left', borderRadius: 6, fontSize: 12.5,
           fontWeight: active ? 600 : 400, transition: 'background 0.1s',
         }}
         onMouseEnter={e => { if (!active) e.currentTarget.style.background = 'var(--nav-hover)' }}
@@ -52,6 +52,131 @@ function FolderItem({ label, count, active, depth = 0, onClick, children, defaul
       </button>
       {open && children && <div>{children}</div>}
     </div>
+  )
+}
+
+// ─── Custom folders (General + non-academic domains) ───────────────────────────
+// Count a folder's notes including everything in its descendant folders.
+function countFolderTree(folderId, scopeFolders, notes) {
+  const ids = new Set([folderId])
+  let grew = true
+  while (grew) {
+    grew = false
+    for (const f of scopeFolders) {
+      if (f.parentId && ids.has(f.parentId) && !ids.has(f.id)) { ids.add(f.id); grew = true }
+    }
+  }
+  return notes.filter(n => n.folderId && ids.has(n.folderId)).length
+}
+
+const folderCountBadge = { fontSize: 10, color: 'var(--text-muted)', background: 'var(--bg-overlay)', padding: '1px 6px', borderRadius: 10, flexShrink: 0 }
+const folderIconBtn = { background: 'none', border: 'none', cursor: 'pointer', color: 'var(--text-muted)', display: 'flex', padding: 3, borderRadius: 5 }
+
+function FolderRow({ folder, scopeFolders, depth, notes, shared }) {
+  const { selectedFolderId, onSelect, expanded, onToggle, renamingId, onStartRename, onRename, onAddSub, onDelete } = shared
+  const [draft, setDraft] = useState(folder.name)
+  const [hover, setHover] = useState(false)
+  const [confirmDel, setConfirmDel] = useState(false)
+  useEffect(() => { setDraft(folder.name) }, [folder.name])
+
+  const kids    = scopeFolders.filter(c => c.parentId === folder.id)
+  const isOpen  = expanded.has(folder.id)
+  const active  = selectedFolderId === folder.id
+  const count   = countFolderTree(folder.id, scopeFolders, notes)
+  const renaming = renamingId === folder.id
+
+  if (renaming) {
+    return (
+      <div style={{ padding: `3px ${8 + depth * 12}px` }}>
+        <input
+          autoFocus
+          value={draft}
+          onChange={e => setDraft(e.target.value)}
+          onKeyDown={e => { if (e.key === 'Enter') onRename(folder.id, draft.trim() || folder.name); if (e.key === 'Escape') onRename(folder.id, folder.name) }}
+          onBlur={() => onRename(folder.id, draft.trim() || folder.name)}
+          style={{ width: '100%', boxSizing: 'border-box', fontSize: 12.5, padding: '5px 8px', borderRadius: 6, border: '1px solid var(--accent-blue)', background: 'var(--bg-input)', color: 'var(--text-primary)', outline: 'none', fontFamily: 'inherit' }}
+        />
+      </div>
+    )
+  }
+
+  return (
+    <div>
+      <div
+        onMouseEnter={() => setHover(true)}
+        onMouseLeave={() => { setHover(false); setConfirmDel(false) }}
+        style={{ display: 'flex', alignItems: 'center', gap: 2, paddingRight: 4, borderRadius: 6, background: active ? 'var(--nav-active)' : 'transparent', transition: 'background 0.1s' }}
+      >
+        <button className="btn-press"
+          onClick={() => onSelect(folder.id)}
+          style={{
+            flex: 1, minWidth: 0, display: 'flex', alignItems: 'center', gap: 5,
+            padding: `6px 0 6px ${8 + depth * 12}px`, border: 'none', background: 'transparent',
+            color: active ? 'var(--accent-blue)' : 'var(--text-secondary)', cursor: 'pointer',
+            textAlign: 'left', fontSize: 12.5, fontWeight: active ? 600 : 400, fontFamily: 'inherit',
+          }}
+        >
+          <span
+            onClick={e => { if (kids.length) { e.stopPropagation(); onToggle(folder.id) } }}
+            style={{ width: 13, flexShrink: 0, display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: kids.length ? 'pointer' : 'default' }}
+          >
+            {kids.length
+              ? (isOpen ? <ChevronDown size={12} /> : <ChevronRight size={12} />)
+              : <Folder size={12} style={{ opacity: 0.65 }} />}
+          </span>
+          <span style={{ flex: 1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{folder.name}</span>
+          {count > 0 && !hover && <span style={folderCountBadge}>{count}</span>}
+        </button>
+
+        {hover && !confirmDel && (
+          <div style={{ display: 'flex', alignItems: 'center', gap: 1, flexShrink: 0 }}>
+            <button title="New subfolder" onClick={() => onAddSub(folder)} style={folderIconBtn}
+              onMouseEnter={e => e.currentTarget.style.color = 'var(--accent-blue)'} onMouseLeave={e => e.currentTarget.style.color = 'var(--text-muted)'}><FolderPlus size={12} /></button>
+            <button title="Rename" onClick={() => onStartRename(folder.id)} style={folderIconBtn}
+              onMouseEnter={e => e.currentTarget.style.color = 'var(--text-primary)'} onMouseLeave={e => e.currentTarget.style.color = 'var(--text-muted)'}><Pencil size={11} /></button>
+            <button title="Delete folder" onClick={() => setConfirmDel(true)} style={folderIconBtn}
+              onMouseEnter={e => e.currentTarget.style.color = 'var(--accent-red)'} onMouseLeave={e => e.currentTarget.style.color = 'var(--text-muted)'}><Trash2 size={11} /></button>
+          </div>
+        )}
+        {confirmDel && (
+          <div style={{ display: 'flex', gap: 4, flexShrink: 0, paddingLeft: 4 }} onClick={e => e.stopPropagation()}>
+            <button className="btn-press" onClick={() => setConfirmDel(false)} style={{ padding: '2px 7px', borderRadius: 5, border: '1px solid var(--border-strong)', background: 'var(--bg-surface)', color: 'var(--text-muted)', fontSize: 10, cursor: 'pointer', fontFamily: 'inherit' }}>Cancel</button>
+            <button className="btn-press" onClick={() => onDelete(folder.id)} style={{ padding: '2px 7px', borderRadius: 5, border: '1px solid rgba(251,113,133,0.4)', background: 'rgba(251,113,133,0.14)', color: '#fb7185', fontSize: 10, fontWeight: 600, cursor: 'pointer', fontFamily: 'inherit' }}>Delete</button>
+          </div>
+        )}
+      </div>
+
+      {isOpen && kids.length > 0 && (
+        <FolderTree parentId={folder.id} scopeFolders={scopeFolders} depth={depth + 1} notes={notes} shared={shared} />
+      )}
+    </div>
+  )
+}
+
+function FolderTree({ parentId, scopeFolders, depth, notes, shared }) {
+  const rows = scopeFolders
+    .filter(f => (f.parentId || null) === (parentId || null))
+    .sort((a, b) => (a.position - b.position) || (a.createdAt || '').localeCompare(b.createdAt || ''))
+  return rows.map(f => (
+    <FolderRow key={f.id} folder={f} scopeFolders={scopeFolders} depth={depth} notes={notes} shared={shared} />
+  ))
+}
+
+function NewFolderButton({ depth, onClick }) {
+  return (
+    <button className="btn-press"
+      onClick={onClick}
+      style={{
+        width: '100%', display: 'flex', alignItems: 'center', gap: 5,
+        padding: `5px 0 5px ${8 + depth * 12}px`, border: 'none', background: 'transparent',
+        color: 'var(--text-muted)', cursor: 'pointer', textAlign: 'left',
+        fontSize: 12, fontFamily: 'inherit', borderRadius: 6,
+      }}
+      onMouseEnter={e => e.currentTarget.style.color = 'var(--accent-blue)'}
+      onMouseLeave={e => e.currentTarget.style.color = 'var(--text-muted)'}
+    >
+      <FolderPlus size={12} style={{ flexShrink: 0 }} /> New folder
+    </button>
   )
 }
 
@@ -321,34 +446,51 @@ function NoteTitle({ value, onChange }) {
 }
 
 // ─── Location picker ──────────────────────────────────────────────────────────
-function NoteLocationPicker({ note, domains, onSave }) {
+// Flatten a scope's folders into a depth-ordered list for indented <select> options.
+function flattenFolders(scopeFolders) {
+  const byParent = {}
+  scopeFolders.forEach(f => { const k = f.parentId || 'root'; (byParent[k] ||= []).push(f) })
+  Object.values(byParent).forEach(arr => arr.sort((a, b) => (a.position - b.position) || (a.createdAt || '').localeCompare(b.createdAt || '')))
+  const out = []
+  ;(function walk(parent, depth) {
+    for (const f of (byParent[parent] || [])) { out.push({ ...f, depth }); walk(f.id, depth + 1) }
+  })('root', 0)
+  return out
+}
+
+function NoteLocationPicker({ note, domains, folders = [], onSave }) {
   const [open, setOpen] = useState(false)
   const [domainId, setDomainId] = useState(note.domainId || '')
   const [week, setWeek] = useState(note.academicWeek ? String(note.academicWeek) : '')
+  const [folderId, setFolderId] = useState(note.folderId || '')
   const ref = useRef()
 
   // Sync when note changes (e.g. navigating between notes)
   useEffect(() => {
     setDomainId(note.domainId || '')
     setWeek(note.academicWeek ? String(note.academicWeek) : '')
+    setFolderId(note.folderId || '')
   }, [note.id])
 
   const allDomains = domains || []
   const pickedDomain = allDomains.find(d => d.id === domainId)
   const isAcademic = pickedDomain?.category === 'academic'
+  const scopeFolders = flattenFolders((folders || []).filter(f => (f.domainId || null) === (domainId || null)))
 
   function apply() {
     onSave({
       domainId: domainId || null,
       academicWeek: (isAcademic && week) ? Number(week) : null,
+      folderId: (!isAcademic && folderId) ? folderId : null,
     })
     setOpen(false)
   }
 
   // Label shown on the trigger button
+  const folderName = note.folderId ? (folders || []).find(f => f.id === note.folderId)?.name : null
   const label = note.domainId
-    ? `${allDomains.find(d => d.id === note.domainId)?.code || note.domainId}${note.academicWeek ? ` · W${note.academicWeek}` : ''}`
-    : 'General'
+    ? `${allDomains.find(d => d.id === note.domainId)?.code || note.domainId}${note.academicWeek ? ` · W${note.academicWeek}` : ''}${folderName ? ` · ${folderName}` : ''}`
+    : (folderName || 'General')
 
   const triggerColor = note.domainId
     ? (allDomains.find(d => d.id === note.domainId)?.color || 'var(--text-secondary)')
@@ -392,7 +534,7 @@ function NoteLocationPicker({ note, domains, onSave }) {
               <label style={{ fontSize: 11, color: 'var(--text-muted)', display: 'block', marginBottom: 5 }}>Domain</label>
               <AppSelect
                 value={domainId}
-                onChange={v => { setDomainId(v); setWeek('') }}
+                onChange={v => { setDomainId(v); setWeek(''); setFolderId('') }}
                 style={{ padding: '7px 10px', fontSize: 12 }}
               >
                 <AppSelectItem value="">No domain</AppSelectItem>
@@ -401,6 +543,23 @@ function NoteLocationPicker({ note, domains, onSave }) {
                 ))}
               </AppSelect>
             </div>
+
+            {/* Folder selector — for General + non-academic domains */}
+            {!isAcademic && scopeFolders.length > 0 && (
+              <div>
+                <label style={{ fontSize: 11, color: 'var(--text-muted)', display: 'block', marginBottom: 5 }}>Folder (optional)</label>
+                <AppSelect
+                  value={folderId}
+                  onChange={v => setFolderId(v)}
+                  style={{ padding: '7px 10px', fontSize: 12 }}
+                >
+                  <AppSelectItem value="">No folder</AppSelectItem>
+                  {scopeFolders.map(f => (
+                    <AppSelectItem key={f.id} value={f.id}>{'  '.repeat(f.depth)}{f.name}</AppSelectItem>
+                  ))}
+                </AppSelect>
+              </div>
+            )}
 
             {/* Week selector — only for academic domains */}
             {isAcademic && (
@@ -507,9 +666,11 @@ function HeaderDropdown({ icon: Icon, options, value, onChange, isMobile }) {
 }
 
 // ─── Main page ─────────────────────────────────────────────────────────────────
-export default function NotesPage({ notes, domains, noteToOpen, onClearNoteToOpen, onAddNote, onUpdateNote, onDeleteNote, onSaveNote, onAddPdfNote, onGetSignedPdfUrl, onGenerateFlashcards }) {
+export default function NotesPage({ notes, domains, noteFolders = [], onAddFolder, onRenameFolder, onDeleteFolder, noteToOpen, onClearNoteToOpen, onAddNote, onUpdateNote, onDeleteNote, onSaveNote, onAddPdfNote, onGetSignedPdfUrl, onGenerateFlashcards }) {
   const isMobile = useIsMobile()
   const [mobileFoldersOpen, setMobileFoldersOpen] = useState(false)
+  const [expandedFolders, setExpandedFolders] = useState(() => new Set())
+  const [renamingFolderId, setRenamingFolderId] = useState(null)
   const [sortBy,     setSortBy]     = useState(() => localStorage.getItem('notesSortBy') || 'recent')
   const [typeFilter, setTypeFilter] = useState(() => localStorage.getItem('notesTypeFilter') || 'all')
   useEffect(() => { localStorage.setItem('notesSortBy', sortBy) }, [sortBy])
@@ -680,6 +841,57 @@ export default function NotesPage({ notes, domains, noteToOpen, onClearNoteToOpe
     [domains, hiddenDomainIds]
   )
 
+  // Non-academic domains get custom folders (academic domains keep teaching-week grouping)
+  const generalDomains = useMemo(
+    () => (domains || []).filter(d => d.category !== 'academic' && !d.isPast && !hiddenDomainIds.has(d.id)),
+    [domains, hiddenDomainIds]
+  )
+
+  // Folders scoped to a domain (domainId) or to the General section (domainId null)
+  function foldersForScope(domainId) {
+    return (noteFolders || []).filter(f => (f.domainId || null) === (domainId || null))
+  }
+  const folderMap = useMemo(() => {
+    const m = {}
+    ;(noteFolders || []).forEach(f => { m[f.id] = f })
+    return m
+  }, [noteFolders])
+
+  function toggleFolder(id) {
+    setExpandedFolders(prev => {
+      const next = new Set(prev)
+      next.has(id) ? next.delete(id) : next.add(id)
+      return next
+    })
+  }
+
+  function createFolderInScope(domainId, parentId = null) {
+    const id = onAddFolder?.({ name: 'New Folder', domainId: domainId || null, parentId: parentId || null })
+    if (parentId) setExpandedFolders(prev => new Set(prev).add(parentId))
+    if (id) setRenamingFolderId(id)
+  }
+  function handleAddSubfolder(folder) { createFolderInScope(folder.domainId || null, folder.id) }
+  function handleRenameCommit(id, name) {
+    onRenameFolder?.(id, name)
+    setRenamingFolderId(null)
+  }
+  function handleDeleteFolderClick(id) {
+    onDeleteFolder?.(id)
+    setSelectedFolder(sf => (sf.type === 'folder' && sf.folderId === id) ? { type: 'all' } : sf)
+  }
+
+  const folderShared = {
+    selectedFolderId: selectedFolder.type === 'folder' ? selectedFolder.folderId : null,
+    onSelect: (id) => selectFolder({ type: 'folder', folderId: id }),
+    expanded: expandedFolders,
+    onToggle: toggleFolder,
+    renamingId: renamingFolderId,
+    onStartRename: (id) => setRenamingFolderId(id),
+    onRename: handleRenameCommit,
+    onAddSub: handleAddSubfolder,
+    onDelete: handleDeleteFolderClick,
+  }
+
   const domainMap = useMemo(() => {
     const m = {}
     ;(domains || []).forEach(d => { m[d.id] = d })
@@ -711,6 +923,7 @@ export default function NotesPage({ notes, domains, noteToOpen, onClearNoteToOpe
       if (f.type === 'domain')       return n.domainId === f.domainId
       if (f.type === 'domain-unweek') return n.domainId === f.domainId && !n.academicWeek
       if (f.type === 'week')         return n.domainId === f.domainId && n.academicWeek === f.week
+      if (f.type === 'folder')       return n.folderId === f.folderId
       return true
     }).sort(cmp)
   }, [visibleNotes, selectedFolder, sortBy, typeFilter])
@@ -744,15 +957,33 @@ export default function NotesPage({ notes, domains, noteToOpen, onClearNoteToOpe
       createdAt: new Date().toISOString(),
       updatedAt: new Date().toISOString(),
       domainId: meta.domainId || null,
+      folderId: meta.folderId || null,
       academicWeek: meta.academicWeek || null,
       eventId: null, studySessionId: null,
     })
     setOpenNoteId(id)
   }
 
+  // The folder + domain context implied by the currently selected sidebar item
+  function selectionContext() {
+    const f = selectedFolder
+    if (f.type === 'folder') return { domainId: folderMap[f.folderId]?.domainId || null, folderId: f.folderId }
+    if (f.type === 'week')   return { domainId: f.domainId, academicWeek: f.week }
+    if (f.type === 'domain' || f.type === 'domain-unweek') return { domainId: f.domainId }
+    return {}
+  }
+
+  // Land a freshly created note in the selected folder when its chosen domain still
+  // matches the folder's scope (the modal lets the user override the domain).
+  function withFolderContext(meta) {
+    const ctx = selectionContext()
+    if (ctx.folderId && (meta.domainId || null) === (ctx.domainId || null)) return { ...meta, folderId: ctx.folderId }
+    return meta
+  }
+
   function handleConfirmNewNote(opts) {
     setShowNewNoteModal(false)
-    createNote(opts, opts.type || 'handwritten')
+    createNote(withFolderContext(opts), opts.type || 'handwritten')
   }
 
   async function handleConfirmPdfNote(file, meta) {
@@ -763,7 +994,7 @@ export default function NotesPage({ notes, domains, noteToOpen, onClearNoteToOpe
       const result = await renderPdfToBackgrounds(file)
       const id = noteId()
       setPdfBackgrounds(prev => ({ ...prev, [id]: result }))
-      await onAddPdfNote(id, file, meta, result.images.length)
+      await onAddPdfNote(id, file, withFolderContext(meta), result.images.length)
       setOpenNoteId(id)
     } catch (err) {
       const msg = err?.message || err?.error || String(err) || 'Unknown error'
@@ -775,20 +1006,11 @@ export default function NotesPage({ notes, domains, noteToOpen, onClearNoteToOpe
   }
 
   function handleNewNote(type = 'handwritten') {
-    const f = selectedFolder
-    const meta =
-      f.type === 'general' ? {} :
-      f.type === 'domain'  ? { domainId: f.domainId } :
-      f.type === 'week'    ? { domainId: f.domainId, academicWeek: f.week } : {}
-    createNote(meta, type)
+    createNote(selectionContext(), type)
   }
 
   function triggerPdfPicker() {
-    const f = selectedFolder
-    pendingPdfMeta.current =
-      f.type === 'general' ? {} :
-      f.type === 'domain'  ? { domainId: f.domainId } :
-      f.type === 'week'    ? { domainId: f.domainId, academicWeek: f.week } : {}
+    pendingPdfMeta.current = selectionContext()
     pdfInputRef.current?.click()
   }
 
@@ -868,7 +1090,7 @@ export default function NotesPage({ notes, domains, noteToOpen, onClearNoteToOpe
 
       {/* Sidebar */}
       <aside style={{
-        width: 220, flexShrink: 0, borderRight: '1px solid var(--border)',
+        width: 196, flexShrink: 0, borderRight: '1px solid var(--border)',
         background: 'linear-gradient(to right, var(--bg-elevated) 0%, var(--bg-overlay) 60%, var(--bg-hover) 100%)', display: 'flex', flexDirection: 'column',
         overflow: 'hidden',
         ...(isMobile ? {
@@ -946,12 +1168,28 @@ export default function NotesPage({ notes, domains, noteToOpen, onClearNoteToOpe
             General
           </div>
 
+          {generalDomains.map(d => (
+            <FolderItem
+              key={d.id}
+              label={d.code || d.name}
+              count={countFor(n => n.domainId === d.id)}
+              active={selectedFolder.type === 'domain' && selectedFolder.domainId === d.id}
+              onClick={() => selectFolder({ type: 'domain', domainId: d.id })}
+            >
+              <FolderTree parentId={null} scopeFolders={foldersForScope(d.id)} depth={1} notes={visibleNotes} shared={folderShared} />
+              <NewFolderButton depth={1} onClick={() => createFolderInScope(d.id, null)} />
+            </FolderItem>
+          ))}
+
           <FolderItem
             label="General Notes"
             count={countFor(n => !n.domainId)}
             active={selectedFolder.type === 'general'}
             onClick={() => selectFolder({ type: 'general' })}
-          />
+          >
+            <FolderTree parentId={null} scopeFolders={foldersForScope(null)} depth={1} notes={visibleNotes} shared={folderShared} />
+            <NewFolderButton depth={1} onClick={() => createFolderInScope(null, null)} />
+          </FolderItem>
         </div>
       </aside>
 
@@ -964,7 +1202,8 @@ export default function NotesPage({ notes, domains, noteToOpen, onClearNoteToOpe
             : { display: 'flex', flexDirection: 'column', height: '100%' }
           }>
             <div style={{
-              display: 'flex', alignItems: 'center', gap: isMobile ? 8 : 12, padding: isMobile ? '12px 14px' : '14px 24px',
+              display: 'flex', alignItems: 'center', flexWrap: 'wrap', rowGap: 8,
+              gap: isMobile ? 8 : 12, padding: isMobile ? '12px 14px' : '14px 24px',
               borderBottom: '1px solid var(--border)', flexShrink: 0,
               background: 'var(--bg-surface)',
             }}>
@@ -982,12 +1221,13 @@ export default function NotesPage({ notes, domains, noteToOpen, onClearNoteToOpe
                 onChange={title => onUpdateNote(openNote.id, { title })}
               />
 
-              <div style={{ flex: 1 }} />
+              <div style={{ flex: 1, minWidth: 0 }} />
 
-              <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
+              <div style={{ display: 'flex', gap: 8, alignItems: 'center', flexWrap: 'wrap', justifyContent: 'flex-end' }}>
                 <NoteLocationPicker
                   note={openNote}
                   domains={domains}
+                  folders={noteFolders}
                   onSave={updates => onUpdateNote(openNote.id, updates)}
                 />
                 <span style={{ fontSize: 11, color: 'var(--text-muted)' }}>
@@ -1111,8 +1351,8 @@ export default function NotesPage({ notes, domains, noteToOpen, onClearNoteToOpe
           </div>
         ) : (
           // ── Note grid ──
-          <div style={{ flex: 1, overflowY: 'auto', padding: isMobile ? '18px 16px 24px' : '24px 28px' }}>
-            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 20, gap: 10 }}>
+          <div style={{ flex: 1, overflowY: 'auto', overflowX: 'hidden', padding: isMobile ? '18px 16px 24px' : '24px 28px' }}>
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', rowGap: 10, marginBottom: 20, gap: 10 }}>
               <div style={{ display: 'flex', alignItems: 'center', gap: 10, minWidth: 0 }}>
                 {isMobile && (
                   <button className="btn-press"
@@ -1126,6 +1366,7 @@ export default function NotesPage({ notes, domains, noteToOpen, onClearNoteToOpe
                 <h2 style={{ margin: 0, fontSize: isMobile ? 19 : 22, fontWeight: 800, color: 'var(--text-primary)', letterSpacing: '-0.4px', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
                   {selectedFolder.type === 'all'     ? 'All Notes'
                   : selectedFolder.type === 'general' ? 'General Notes'
+                  : selectedFolder.type === 'folder'  ? (folderMap[selectedFolder.folderId]?.name || 'Folder')
                   : selectedFolder.type === 'week'    ? `${domainMap[selectedFolder.domainId]?.code} · Week ${selectedFolder.week}`
                   : selectedFolder.type === 'domain'  ? domainMap[selectedFolder.domainId]?.name
                   : 'Notes'}
@@ -1187,12 +1428,8 @@ export default function NotesPage({ notes, domains, noteToOpen, onClearNoteToOpe
       {showNewNoteModal && (
         <NewNoteModal
           domains={domains || []}
-          defaultDomainId={
-            selectedFolder.type === 'domain' || selectedFolder.type === 'week'
-              ? selectedFolder.domainId
-              : null
-          }
-          defaultWeek={selectedFolder.type === 'week' ? selectedFolder.week : null}
+          defaultDomainId={selectionContext().domainId || null}
+          defaultWeek={selectionContext().academicWeek || null}
           onConfirm={handleConfirmNewNote}
           onConfirmPdf={handleConfirmPdfNote}
           onCancel={() => setShowNewNoteModal(false)}

@@ -1416,6 +1416,7 @@ const NoteCanvas = forwardRef(function NoteCanvas({
   const committedZoomRef    = useRef(zoom)
   const pagesWrapperRef     = useRef(null)
   const gestureAnchorRef    = useRef(null) // { midInScrollX, midInScrollY, wrapperX, wrapperY }
+  const userZoomedRef       = useRef(false) // true once the user manually zooms; stops auto fit-to-width
 
   useEffect(() => { zoomRef.current = zoom; committedZoomRef.current = zoom }, [zoom])
   useEffect(() => { pagesRef.current = pages }, [pages])
@@ -1533,6 +1534,7 @@ const NoteCanvas = forwardRef(function NoteCanvas({
     }
 
     gestureAnchorRef.current = null
+    userZoomedRef.current = true
     setZoom(zoomRef.current)
     // useEffect on zoom clears the CSS transform and applies pendingScrollTopRef after re-render
   }
@@ -1544,6 +1546,24 @@ const NoteCanvas = forwardRef(function NoteCanvas({
     return { pageH: Math.round(dim.h * w / dim.w), maxW: w }
   }
   const { pageH, maxW } = getPageDims(0)
+
+  // Fit the page to the available panel width so it never scrolls sideways at rest
+  // (the page is a fixed 900px; on a squeezed iPad panel it would overflow). Capped at
+  // 1× so it self-corrects to full size on wide screens and never persists a shrunk zoom.
+  useLayoutEffect(() => {
+    function fitToWidth() {
+      if (readonly || userZoomedRef.current || gestureAnchorRef.current) return
+      const el = scrollRef.current
+      if (!el) return
+      const avail = el.clientWidth - 48 // 24px horizontal padding each side
+      if (avail <= 0) return
+      const target = Math.min(1, Math.max(0.4, avail / maxW))
+      if (Math.abs(target - committedZoomRef.current) > 0.01) setZoom(target)
+    }
+    fitToWidth()
+    window.addEventListener('resize', fitToWidth)
+    return () => window.removeEventListener('resize', fitToWidth)
+  }, [maxW, readonly])
   const opacity      = tool === 'highlighter' ? 0.35 : 1
   const eraserRadius = tool === 'eraser' ? penSize : penSize * 4
   // pages beyond the PDF backgrounds are user-added blank pages
@@ -1692,7 +1712,7 @@ const NoteCanvas = forwardRef(function NoteCanvas({
             </button>
             <div style={{ flex: 1 }} />
             {zoom !== 1 && (
-              <button className="btn-press" onClick={() => setZoom(1)} title="Reset zoom" style={{
+              <button className="btn-press" onClick={() => { userZoomedRef.current = true; setZoom(1) }} title="Reset zoom" style={{
                 padding: '3px 8px', borderRadius: 6, border: '1px solid var(--border)',
                 background: 'none', color: 'var(--text-secondary)', cursor: 'pointer', fontSize: 11,
               }}>

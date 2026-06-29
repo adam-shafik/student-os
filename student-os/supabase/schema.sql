@@ -206,6 +206,32 @@ alter table notes enable row level security;
 create policy "Users manage their own notes"
   on notes for all using (auth.uid() = user_id);
 
+-- ─── Note Folders ─────────────────────────────────────────────────────────────
+-- User-created folders for organizing notes within the General section (domain_id
+-- null) and within non-academic domains. Academic domains keep automatic teaching-
+-- week grouping, so they don't use folders.
+create table note_folders (
+  id          uuid primary key default gen_random_uuid(),
+  user_id     uuid not null references auth.users(id) on delete cascade,
+  domain_id   uuid references domains(id) on delete cascade,        -- null = General scope
+  parent_id   uuid references note_folders(id) on delete cascade,   -- null = top level
+  name        text not null default 'New Folder',
+  position    integer not null default 0,
+  created_at  timestamptz not null default now(),
+  updated_at  timestamptz not null default now()
+);
+
+alter table note_folders enable row level security;
+create policy "Users manage their own note folders"
+  on note_folders for all using (auth.uid() = user_id);
+
+create index note_folders_user_idx   on note_folders(user_id);
+create index note_folders_parent_idx on note_folders(parent_id);
+
+-- A note can live in at most one folder; deleting the folder unfiles the note.
+alter table notes
+  add column folder_id uuid references note_folders(id) on delete set null;
+
 -- ─── Note Pages ───────────────────────────────────────────────────────────────
 create table note_pages (
   id          uuid primary key default gen_random_uuid(),

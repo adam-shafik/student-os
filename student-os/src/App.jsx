@@ -120,6 +120,7 @@ export default function App() {
   const [customCalendarEvents, setCustomCalendarEvents] = useState([])
   const [eventNotes,    setEventNotes]    = useState({})
   const [notes,         setNotes]         = useState([])
+  const [noteFolders,   setNoteFolders]   = useState([])
   const [noteToOpen,    setNoteToOpen]    = useState(null)
   const [decks,         setDecks]         = useState([])
   const [flashcardSourceNote, setFlashcardSourceNote] = useState(null)
@@ -287,6 +288,7 @@ export default function App() {
       .then(({ data }) => {
         if (data) setNotes(data.map(n => ({
           id: n.id, title: n.title, domainId: n.domain_id, academicWeek: n.academic_week,
+          folderId: n.folder_id || null,
           eventId: n.event_id, studySessionId: n.study_session_id,
           type: n.note_type || 'handwritten', content: n.content || '',
           template: n.template, bgColor: n.bg_color, lineSpacing: n.line_spacing,
@@ -303,6 +305,15 @@ export default function App() {
               .sort((a, b) => a.page_order - b.page_order)
               .map(p => ({ id: p.id, strokes: p.strokes || [] }))
           })(),
+        })))
+      })
+
+    supabase.from('note_folders').select('*').eq('user_id', userId).order('position')
+      .then(({ data }) => {
+        if (data) setNoteFolders(data.map(f => ({
+          id: f.id, name: f.name, domainId: f.domain_id || null,
+          parentId: f.parent_id || null, position: f.position ?? 0,
+          createdAt: f.created_at,
         })))
       })
 
@@ -825,6 +836,7 @@ export default function App() {
     setNotes(prev => [...prev, newNote])
     supabase.from('notes').upsert({
       id, user_id: userId, title: newNote.title, domain_id: newNote.domainId || null,
+      folder_id: newNote.folderId || null,
       academic_week: newNote.academicWeek || null, event_id: newNote.eventId || null,
       study_session_id: null, template: newNote.template, bg_color: newNote.bgColor,
       line_spacing: newNote.lineSpacing, orientation: newNote.orientation,
@@ -841,6 +853,7 @@ export default function App() {
     const db = { updated_at: now }
     if ('title'        in updates) db.title         = updates.title        || null
     if ('domainId'     in updates) db.domain_id     = updates.domainId     || null
+    if ('folderId'     in updates) db.folder_id     = updates.folderId     || null
     if ('academicWeek' in updates) db.academic_week = updates.academicWeek || null
     if ('eventId'      in updates) db.event_id      = updates.eventId      || null
     if (Object.keys(db).length > 1)
@@ -860,6 +873,42 @@ export default function App() {
     }
   }
 
+  const handleAddFolder = ({ name, domainId = null, parentId = null }) => {
+    const id  = crypto.randomUUID()
+    const now = new Date().toISOString()
+    const position = noteFolders.filter(f => f.domainId === (domainId || null) && f.parentId === (parentId || null)).length
+    const folder = { id, name: name || 'New Folder', domainId: domainId || null, parentId: parentId || null, position, createdAt: now }
+    setNoteFolders(prev => [...prev, folder])
+    supabase.from('note_folders').insert({
+      id, user_id: userId, name: folder.name, domain_id: folder.domainId,
+      parent_id: folder.parentId, position, created_at: now, updated_at: now,
+    }).then(({ error }) => { if (error) console.error('folder create failed:', error.message) })
+    return id
+  }
+
+  const handleRenameFolder = (id, name) => {
+    setNoteFolders(prev => prev.map(f => f.id === id ? { ...f, name } : f))
+    supabase.from('note_folders').update({ name, updated_at: new Date().toISOString() }).eq('id', id).eq('user_id', userId)
+      .then(({ error }) => { if (error) console.error('folder rename failed:', error.message) })
+  }
+
+  const handleDeleteFolder = (id) => {
+    // Collect this folder + all descendants. DB cascades subfolders via parent_id and
+    // nulls notes.folder_id; mirror that in local state.
+    const toDelete = new Set([id])
+    let grew = true
+    while (grew) {
+      grew = false
+      for (const f of noteFolders) {
+        if (f.parentId && toDelete.has(f.parentId) && !toDelete.has(f.id)) { toDelete.add(f.id); grew = true }
+      }
+    }
+    setNoteFolders(prev => prev.filter(f => !toDelete.has(f.id)))
+    setNotes(prev => prev.map(n => (n.folderId && toDelete.has(n.folderId)) ? { ...n, folderId: null } : n))
+    supabase.from('note_folders').delete().eq('id', id).eq('user_id', userId)
+      .then(({ error }) => { if (error) console.error('folder delete failed:', error.message) })
+  }
+
   const handleAddPdfNote = async (noteId, file, meta, pageCount) => {
     const now  = new Date().toISOString()
     const path = `${userId}/${noteId}.pdf`
@@ -875,6 +924,7 @@ export default function App() {
       template: 'blank', bgColor: '#ffffff', lineSpacing: 48, orientation: 'portrait',
       createdAt: now, updatedAt: now,
       domainId: meta.domainId || null, academicWeek: meta.academicWeek || null,
+      folderId: meta.folderId || null,
       eventId: null, studySessionId: null,
       pdfStoragePath: path,
     }
@@ -883,6 +933,7 @@ export default function App() {
     const { error: noteErr } = await supabase.from('notes').insert({
       id: noteId, user_id: userId, title: newNote.title,
       domain_id: newNote.domainId, academic_week: newNote.academicWeek,
+      folder_id: newNote.folderId || null,
       event_id: null, study_session_id: null,
       template: 'blank', bg_color: '#ffffff', line_spacing: 48, orientation: 'portrait',
       note_type: 'pdf', content: null, pdf_storage_path: path,
@@ -1271,6 +1322,7 @@ export default function App() {
       supabase.from('domain_schedule_slots').delete().eq('user_id', userId),
       supabase.from('semester_breaks').delete().eq('user_id', userId),
       supabase.from('domain_assessments').delete().eq('user_id', userId),
+      supabase.from('note_folders').delete().eq('user_id', userId),
       supabase.from('domains').delete().eq('user_id', userId),
       supabase.from('user_profiles').delete().eq('id', userId),
       supabase.from('user_preferences').delete().eq('user_id', userId),
@@ -1286,6 +1338,7 @@ export default function App() {
     setEventNotes({})
     setWeekConfidence({})
     setNotes([])
+    setNoteFolders([])
     setDecks([])
     setEventTypeColors({})
     setAssessments([])
@@ -1373,6 +1426,10 @@ export default function App() {
         <NotesPage
           notes={notes}
           domains={domains}
+          noteFolders={noteFolders}
+          onAddFolder={handleAddFolder}
+          onRenameFolder={handleRenameFolder}
+          onDeleteFolder={handleDeleteFolder}
           noteToOpen={noteToOpen}
           onClearNoteToOpen={() => setNoteToOpen(null)}
           onAddNote={handleAddNote}
