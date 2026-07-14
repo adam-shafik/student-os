@@ -169,9 +169,16 @@ function erasePolyline(points, cx, cy, radius) {
     }
 
     if (tEnter === null) {
-      // Whole segment outside the eraser — keep it
-      if (cur.length === 0) cur.push(a)
-      cur.push(b)
+      // No boundary crossing: the segment is either wholly outside or wholly inside
+      // the eraser. Wholly inside must be dropped too — otherwise a short segment that
+      // fits entirely within the circle (e.g. the bunched-up points at a stroke's start)
+      // survives as a leftover dot.
+      if (inside(ax, ay)) {
+        flush() // end any run in progress; skip this fully-covered segment
+      } else {
+        if (cur.length === 0) cur.push(a)
+        cur.push(b)
+      }
     } else {
       // Segment crosses the eraser: keep [0, tEnter] and [tExit, 1], drop the middle
       if (tEnter > 0) {
