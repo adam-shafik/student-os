@@ -486,7 +486,8 @@ export default function DomainsPage({ domains, customCalendarEvents, todos, asse
 
   const academic     = domains.filter(d => d.category === 'academic' && !d.isPast)
   const pastAcademic = domains.filter(d => d.category === 'academic' && d.isPast)
-  const other        = domains.filter(d => d.category !== 'academic')
+  const other        = domains.filter(d => d.category !== 'academic' && !d.isPast)
+  const pastOther    = domains.filter(d => d.category !== 'academic' && d.isPast)
   const included     = domains.filter(d => d.category === 'academic' && !d.excludeFromGrade)
 
   const linkedCount  = (domainId) => customCalendarEvents.filter(e => e.domainId === domainId).length
@@ -599,8 +600,8 @@ export default function DomainsPage({ domains, customCalendarEvents, todos, asse
         </div>
       )}
 
-      {/* Past modules */}
-      {pastAcademic.length > 0 && (
+      {/* Past domains */}
+      {(pastAcademic.length > 0 || pastOther.length > 0) && (
         <div style={{ marginBottom: 32 }}>
           <motion.button
             onClick={() => setPastOpen(v => !v)}
@@ -613,8 +614,8 @@ export default function DomainsPage({ domains, customCalendarEvents, todos, asse
             }}
           >
             <Archive size={13} color="var(--text-muted)" />
-            <span style={{ fontSize: 14, fontWeight: 700, color: 'var(--text-muted)', letterSpacing: '-0.2px' }}>Past Modules</span>
-            <span style={{ fontSize: 11, color: 'var(--text-muted)', background: 'var(--border)', padding: '2px 7px', borderRadius: 10 }}>{pastAcademic.length}</span>
+            <span style={{ fontSize: 14, fontWeight: 700, color: 'var(--text-muted)', letterSpacing: '-0.2px' }}>Past</span>
+            <span style={{ fontSize: 11, color: 'var(--text-muted)', background: 'var(--border)', padding: '2px 7px', borderRadius: 10 }}>{pastAcademic.length + pastOther.length}</span>
             <div style={{ flex: 1, height: 1, background: 'var(--border)', marginLeft: 4 }} />
             <motion.div animate={{ rotate: pastOpen ? 0 : -90 }} transition={{ duration: 0.2, ease: EASE }}>
               <ChevronDown size={14} color="var(--text-muted)" />
@@ -642,6 +643,11 @@ export default function DomainsPage({ domains, customCalendarEvents, todos, asse
                         compact={isMobile}
                         muted
                       />
+                    </CardItem>
+                  ))}
+                  {pastOther.map(d => (
+                    <CardItem key={d.id}>
+                      <GeneralCard domain={d} linkedEventCount={linkedCount(d.id)} onClick={() => onOpenDomain(d)} compact={isMobile} />
                     </CardItem>
                   ))}
                 </CardGrid>

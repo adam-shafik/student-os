@@ -188,6 +188,18 @@ export default function EventDetailModal({ event, onClose, onViewDomain, note, o
               </div>
             )}
 
+            {d.description && (
+              <div style={{ borderTop: '1px solid var(--border)', paddingTop: 14 }}>
+                <div style={{ fontSize: 11, fontWeight: 600, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.5px', marginBottom: 8, display: 'flex', alignItems: 'center', gap: 6 }}>
+                  <AlignLeft size={12} /> Description
+                </div>
+                {/* pre-wrap: the imported description is line-structured (codes, room, staff, session type) */}
+                <div style={{ fontSize: 12, color: 'var(--text-secondary)', lineHeight: 1.6, whiteSpace: 'pre-wrap', wordBreak: 'break-word' }}>
+                  {d.description}
+                </div>
+              </div>
+            )}
+
             {/* Reminder — only for custom events */}
             {onUpdateReminder && (
               <div style={{ borderTop: '1px solid var(--border)', paddingTop: 14 }}>

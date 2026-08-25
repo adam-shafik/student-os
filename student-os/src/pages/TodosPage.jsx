@@ -1,6 +1,6 @@
-import { useState, useMemo } from 'react'
+import { useState, useMemo, useEffect, useRef } from 'react'
 import AppSelect, { AppSelectItem } from '../components/AppSelect'
-import { Plus, X, CheckSquare, Square, Trash2, ChevronDown, AlertTriangle, CheckCircle2, FileText, CalendarDays } from 'lucide-react'
+import { Plus, X, CheckSquare, Square, Trash2, ChevronDown, AlertTriangle, CheckCircle2, FileText, Sparkles, RotateCcw } from 'lucide-react'
 import { getAcademicWeek, getBreakForDate, totalTeachingWeeks } from '../utils/semester'
 import { useIsMobile } from '../utils/useIsMobile'
 
@@ -16,7 +16,20 @@ const PRIORITY_DOTS = {
   low:    '#34d399',
 }
 
+const PRIORITY_RANK = { high: 0, medium: 1, low: 2 }
+
 const TOTAL_WEEKS = totalTeachingWeeks()
+
+const UNDO_WINDOW_MS = 5000
+
+const BUCKETS = [
+  { key: 'overdue',  label: 'Overdue',     color: 'var(--accent-red)'      },
+  { key: 'today',    label: 'Today',       color: 'var(--accent-amber)'    },
+  { key: 'tomorrow', label: 'Tomorrow',    color: 'var(--accent-blue)'     },
+  { key: 'week',     label: 'Next 7 days', color: 'var(--text-secondary)'  },
+  { key: 'later',    label: 'Later',       color: 'var(--text-muted)'      },
+  { key: 'someday',  label: 'Someday',     color: 'var(--text-muted)'      },
+]
 
 function todayMidnight() {
   const d = new Date(); d.setHours(0, 0, 0, 0); return d
@@ -24,6 +37,38 @@ function todayMidnight() {
 function parseDue(dateStr) {
   const [y, m, d] = dateStr.split('-').map(Number)
   return new Date(y, m - 1, d)
+}
+function toDateInput(date) {
+  const p = n => String(n).padStart(2, '0')
+  return `${date.getFullYear()}-${p(date.getMonth() + 1)}-${p(date.getDate())}`
+}
+
+function matchesDomain(task, filter) {
+  if (!filter) return true
+  return filter === '__general__' ? !task.domainId : task.domainId === filter
+}
+
+function bucketFor(task, today) {
+  if (!task.dueDate) return 'someday'
+  const days = Math.round((parseDue(task.dueDate) - today) / 86400000)
+  if (days < 0)  return 'overdue'
+  if (days === 0) return 'today'
+  if (days === 1) return 'tomorrow'
+  if (days <= 7)  return 'week'
+  return 'later'
+}
+
+// Buckets and the "completed today" cutoff are both anchored to the current day,
+// so the page has to roll over on its own when left open past midnight.
+function useToday() {
+  const [today, setToday] = useState(todayMidnight)
+  useEffect(() => {
+    const nextMidnight = new Date(today)
+    nextMidnight.setDate(nextMidnight.getDate() + 1)
+    const id = setTimeout(() => setToday(todayMidnight()), nextMidnight - Date.now() + 1000)
+    return () => clearTimeout(id)
+  }, [today])
+  return today
 }
 
 function PriorityDot({ priority }) {
@@ -325,408 +370,253 @@ function TaskDetailModal({ task, domains, notes, studySessions, domainMap, onClo
   )
 }
 
-// ─── Standard task row (Tasks view) ───────────────────────────────────────────
-function TaskRow({ task, domainMap, onToggle, onDelete, onOpenNote, onOpenDetail }) {
+// ─── Quick add ────────────────────────────────────────────────────────────────
+function QuickAdd({ today, domainId, onAdd }) {
+  const [title, setTitle] = useState('')
+  const [when,  setWhen]  = useState('none')
+
+  const WHEN_OPTS = [
+    ['none',     'No date'],
+    ['today',    'Today'],
+    ['tomorrow', 'Tomorrow'],
+  ]
+
+  const dueDateFor = (key) => {
+    if (key === 'none') return null
+    const d = new Date(today)
+    if (key === 'tomorrow') d.setDate(d.getDate() + 1)
+    return toDateInput(d)
+  }
+
+  const submit = (e) => {
+    e.preventDefault()
+    const trimmed = title.trim()
+    if (!trimmed) return
+    onAdd({
+      title: trimmed,
+      domainId: domainId || null,
+      dueDate: dueDateFor(when),
+      priority: 'medium',
+      academicWeek: null,
+      done: false,
+    })
+    setTitle('')
+  }
+
+  return (
+    <form onSubmit={submit} style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '10px 12px', borderBottom: '1px solid var(--border)', flexWrap: 'wrap', rowGap: 8 }}>
+      <Plus size={15} style={{ color: 'var(--text-muted)', flexShrink: 0 }} />
+      <input
+        value={title}
+        onChange={e => setTitle(e.target.value)}
+        placeholder="Add a task…"
+        style={{
+          flex: '1 1 160px', minWidth: 0, padding: '4px 0', border: 'none', background: 'transparent',
+          color: 'var(--text-primary)', fontSize: 13, outline: 'none', fontFamily: 'inherit',
+        }}
+      />
+      <div style={{ display: 'flex', gap: 4, flexShrink: 0 }}>
+        {WHEN_OPTS.map(([key, label]) => (
+          <button className="btn-press" type="button" key={key} onClick={() => setWhen(key)} style={{
+            padding: '4px 9px', borderRadius: 6, border: 'none', cursor: 'pointer', fontSize: 11, fontWeight: 600,
+            fontFamily: 'inherit',
+            background: when === key ? 'var(--nav-active)' : 'transparent',
+            color: when === key ? 'var(--accent-blue)' : 'var(--text-muted)',
+            outline: when === key ? '1px solid var(--border-strong)' : '1px solid transparent',
+            transition: 'all 0.12s',
+          }}>{label}</button>
+        ))}
+      </div>
+      <button className="btn-press" type="submit" disabled={!title.trim()} style={{
+        padding: '5px 13px', borderRadius: 7, border: 'none', fontSize: 12, fontWeight: 600, fontFamily: 'inherit',
+        background: title.trim() ? 'var(--accent-blue)' : 'var(--border)',
+        color: title.trim() ? 'var(--btn-primary-text)' : 'var(--text-muted)',
+        cursor: title.trim() ? 'pointer' : 'default', transition: 'all 0.15s', flexShrink: 0,
+      }}>Add</button>
+    </form>
+  )
+}
+
+// ─── Task row ─────────────────────────────────────────────────────────────────
+function TaskRow({ task, domainMap, today, justDone, onToggle, onDelete, onOpenNote, onOpenDetail }) {
   const [hovered,    setHovered]    = useState(false)
   const [confirming, setConfirming] = useState(false)
   const domain = task.domainId ? domainMap[task.domainId] : null
-  const isOverdue = task.dueDate && !task.done && parseDue(task.dueDate) < todayMidnight()
+  const isOverdue = task.dueDate && !task.done && parseDue(task.dueDate) < today
+  const struck = task.done
 
   return (
     <div onMouseEnter={() => setHovered(true)} onMouseLeave={() => setHovered(false)} style={{
       display: 'flex', alignItems: 'center', gap: 10, padding: '10px 14px', borderRadius: 9,
       background: hovered ? 'var(--nav-hover)' : (task.priority === 'high' && !task.done ? 'rgba(251,113,133,0.04)' : 'transparent'),
-      transition: 'background 0.12s',
+      opacity: justDone ? 0.55 : 1,
+      transition: 'background 0.12s, opacity 0.25s',
     }}>
-      <button className="btn-press" onClick={() => onToggle(task.id)} style={{ background: 'none', border: 'none', cursor: 'pointer', padding: 0, color: task.done ? 'var(--accent-green)' : 'var(--text-muted)', flexShrink: 0, display: 'flex' }}>
-        {task.done ? <CheckSquare size={16} /> : <Square size={16} />}
+      <button className="btn-press" onClick={() => onToggle(task.id)} style={{ background: 'none', border: 'none', cursor: 'pointer', padding: 0, color: struck ? 'var(--accent-green)' : 'var(--text-muted)', flexShrink: 0, display: 'flex' }}>
+        {struck ? <CheckSquare size={16} /> : <Square size={16} />}
       </button>
       <PriorityDot priority={task.priority} />
       <div onClick={() => onOpenDetail?.(task)} style={{ flex: 1, minWidth: 0, cursor: 'pointer' }}>
-        <span style={{ fontSize: 13, color: task.done ? 'var(--text-muted)' : 'var(--text-primary)', textDecoration: task.done ? 'line-through' : 'none' }}>
+        <span style={{ fontSize: 13, color: struck ? 'var(--text-muted)' : 'var(--text-primary)', textDecoration: struck ? 'line-through' : 'none' }}>
           {task.title}
         </span>
         <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginTop: 3, flexWrap: 'wrap' }}>
-          {task.dueDate && (
+          {task.dueDate && !struck && (
             <span style={{ fontSize: 11, color: isOverdue ? 'var(--accent-red)' : 'var(--text-muted)' }}>
               {isOverdue && <AlertTriangle size={10} style={{ display: 'inline', marginRight: 3 }} />}
               Due {parseDue(task.dueDate).toLocaleDateString('en-GB', { day: 'numeric', month: 'short' })}
             </span>
           )}
-          <DueDateWeekBadge date={task.dueDate} />
-          <AcademicWeekBadge week={task.academicWeek} />
-        </div>
-      </div>
-      {domain && (
-        <span style={{ fontSize: 10, fontWeight: 600, padding: '2px 7px', borderRadius: 4, background: `${domain.color}18`, color: domain.color, flexShrink: 0 }}>
-          {domain.code || domain.name}
-        </span>
-      )}
-      {task.noteId && onOpenNote && (
-        <button className="btn-press" onClick={() => onOpenNote(task.noteId)} title="Open linked note" style={{ background: 'none', border: 'none', cursor: 'pointer', padding: 2, color: 'var(--accent-purple)', display: 'flex', flexShrink: 0 }}>
-          <FileText size={12} />
-        </button>
-      )}
-      {hovered && !confirming && (
-        <button className="btn-press" onClick={e => { e.stopPropagation(); setConfirming(true) }} style={{ background: 'none', border: 'none', cursor: 'pointer', padding: 2, color: 'var(--text-muted)', flexShrink: 0, display: 'flex' }}
-          onMouseEnter={e => e.currentTarget.style.color = 'var(--accent-red)'}
-          onMouseLeave={e => e.currentTarget.style.color = 'var(--text-muted)'}>
-          <Trash2 size={13} />
-        </button>
-      )}
-      {confirming && (
-        <div style={{ display: 'flex', gap: 6, flexShrink: 0 }}>
-          <button className="btn-press" onClick={() => setConfirming(false)} style={{ padding: '3px 9px', borderRadius: 6, border: '1px solid var(--border-strong)', background: 'transparent', color: 'var(--text-muted)', fontSize: 11, cursor: 'pointer', fontFamily: 'inherit' }}>Cancel</button>
-          <button className="btn-press" onClick={() => onDelete(task.id)} style={{ padding: '3px 9px', borderRadius: 6, border: '1px solid rgba(251,113,133,0.4)', background: 'rgba(251,113,133,0.14)', color: '#fb7185', fontSize: 11, fontWeight: 600, cursor: 'pointer', fontFamily: 'inherit' }}>Delete</button>
-        </div>
-      )}
-    </div>
-  )
-}
-
-// ─── Study plan task row ───────────────────────────────────────────────────────
-function StudyPlanTaskRow({ task, domainMap, noteMap, onToggle, onDelete, onOpenNote, onOpenDetail, isLast }) {
-  const [hovered,    setHovered]    = useState(false)
-  const [confirming, setConfirming] = useState(false)
-  const domain = task.domainId ? domainMap[task.domainId] : null
-  const note   = task.noteId   ? noteMap[task.noteId]     : null
-
-  return (
-    <div onMouseEnter={() => setHovered(true)} onMouseLeave={() => setHovered(false)} style={{
-      display: 'flex', alignItems: 'center', gap: 10,
-      padding: '11px 14px',
-      borderBottom: isLast ? 'none' : '1px solid var(--border)',
-      background: hovered ? 'var(--nav-hover)' : 'transparent',
-      transition: 'background 0.12s',
-    }}>
-      <button className="btn-press" onClick={() => onToggle(task.id)} style={{ background: 'none', border: 'none', cursor: 'pointer', padding: 0, color: task.done ? 'var(--accent-green)' : 'var(--text-muted)', flexShrink: 0, display: 'flex' }}>
-        {task.done ? <CheckSquare size={15} /> : <Square size={15} />}
-      </button>
-
-      <div onClick={() => onOpenDetail?.(task)} style={{ flex: 1, minWidth: 0, cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 7 }}>
-        {domain && (
-          <>
-            <span style={{ width: 6, height: 6, borderRadius: '50%', background: domain.color, display: 'inline-block', flexShrink: 0 }} />
-            <span style={{ fontSize: 10, fontWeight: 800, color: domain.color, flexShrink: 0, letterSpacing: '0.3px' }}>
-              {domain.code || domain.name.slice(0, 6).toUpperCase()}
+          {!struck && <DueDateWeekBadge date={task.dueDate} />}
+          {!struck && <AcademicWeekBadge week={task.academicWeek} />}
+          {task.source === 'jarvis' && (
+            <span style={{ fontSize: 10, fontWeight: 600, padding: '2px 7px', borderRadius: 4, background: 'rgba(167,139,250,0.14)', color: 'var(--accent-purple)', display: 'inline-flex', alignItems: 'center', gap: 3 }}>
+              <Sparkles size={9} /> Jarvis
             </span>
-          </>
-        )}
-        <span style={{
-          fontSize: 13,
-          color: task.done ? 'var(--text-muted)' : 'var(--text-primary)',
-          textDecoration: task.done ? 'line-through' : 'none',
-          overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap',
+          )}
+        </div>
+      </div>
+      {justDone ? (
+        <button className="btn-press" onClick={() => onToggle(task.id)} style={{
+          display: 'flex', alignItems: 'center', gap: 4, padding: '3px 10px', borderRadius: 6,
+          border: '1px solid var(--border-strong)', background: 'transparent', color: 'var(--text-secondary)',
+          fontSize: 11, fontWeight: 600, cursor: 'pointer', fontFamily: 'inherit', flexShrink: 0,
         }}>
-          {task.title}
-        </span>
-      </div>
-
-      <div style={{ display: 'flex', alignItems: 'center', gap: 6, flexShrink: 0 }}>
-        <PriorityDot priority={task.priority} />
-        {note && (
-          <button className="btn-press" onClick={() => onOpenNote(note.id)} title={`Note: ${note.title}`}
-            style={{ background: 'none', border: 'none', cursor: 'pointer', padding: 2, color: 'var(--accent-purple)', display: 'flex' }}>
-            <FileText size={12} />
-          </button>
-        )}
-        {task.studySessionId && (
-          <span style={{ fontSize: 10, fontWeight: 600, padding: '1px 6px', borderRadius: 4, background: 'rgba(91,140,255,0.15)', color: 'var(--accent-blue)' }} title="Linked to study session">
-            session
-          </span>
-        )}
-        {hovered && !confirming && (
-          <button className="btn-press" onClick={e => { e.stopPropagation(); setConfirming(true) }} style={{ background: 'none', border: 'none', cursor: 'pointer', padding: 2, color: 'var(--text-muted)', display: 'flex' }}
-            onMouseEnter={e => e.currentTarget.style.color = 'var(--accent-red)'}
-            onMouseLeave={e => e.currentTarget.style.color = 'var(--text-muted)'}>
-            <Trash2 size={12} />
-          </button>
-        )}
-        {confirming && (
-          <div style={{ display: 'flex', gap: 6, flexShrink: 0 }}>
-            <button className="btn-press" onClick={() => setConfirming(false)} style={{ padding: '3px 9px', borderRadius: 6, border: '1px solid var(--border-strong)', background: 'transparent', color: 'var(--text-muted)', fontSize: 11, cursor: 'pointer', fontFamily: 'inherit' }}>Cancel</button>
-            <button className="btn-press" onClick={() => onDelete(task.id)} style={{ padding: '3px 9px', borderRadius: 6, border: '1px solid rgba(251,113,133,0.4)', background: 'rgba(251,113,133,0.14)', color: '#fb7185', fontSize: 11, fontWeight: 600, cursor: 'pointer', fontFamily: 'inherit' }}>Delete</button>
-          </div>
-        )}
-      </div>
+          <RotateCcw size={11} /> Undo
+        </button>
+      ) : (
+        <>
+          {domain && (
+            <span style={{ fontSize: 10, fontWeight: 600, padding: '2px 7px', borderRadius: 4, background: `${domain.color}18`, color: domain.color, flexShrink: 0 }}>
+              {domain.code || domain.name}
+            </span>
+          )}
+          {task.noteId && onOpenNote && (
+            <button className="btn-press" onClick={() => onOpenNote(task.noteId)} title="Open linked note" style={{ background: 'none', border: 'none', cursor: 'pointer', padding: 2, color: 'var(--accent-purple)', display: 'flex', flexShrink: 0 }}>
+              <FileText size={12} />
+            </button>
+          )}
+          {hovered && !confirming && (
+            <button className="btn-press" onClick={e => { e.stopPropagation(); setConfirming(true) }} style={{ background: 'none', border: 'none', cursor: 'pointer', padding: 2, color: 'var(--text-muted)', flexShrink: 0, display: 'flex' }}
+              onMouseEnter={e => e.currentTarget.style.color = 'var(--accent-red)'}
+              onMouseLeave={e => e.currentTarget.style.color = 'var(--text-muted)'}>
+              <Trash2 size={13} />
+            </button>
+          )}
+          {confirming && (
+            <div style={{ display: 'flex', gap: 6, flexShrink: 0 }}>
+              <button className="btn-press" onClick={() => setConfirming(false)} style={{ padding: '3px 9px', borderRadius: 6, border: '1px solid var(--border-strong)', background: 'transparent', color: 'var(--text-muted)', fontSize: 11, cursor: 'pointer', fontFamily: 'inherit' }}>Cancel</button>
+              <button className="btn-press" onClick={() => onDelete(task.id)} style={{ padding: '3px 9px', borderRadius: 6, border: '1px solid rgba(251,113,133,0.4)', background: 'rgba(251,113,133,0.14)', color: '#fb7185', fontSize: 11, fontWeight: 600, cursor: 'pointer', fontFamily: 'inherit' }}>Delete</button>
+            </div>
+          )}
+        </>
+      )}
     </div>
   )
 }
 
-// ─── Study plan view ───────────────────────────────────────────────────────────
-function StudyPlanView({ todos, domainMap, noteMap, onToggle, onDelete, onAdd, onOpenNote, onOpenDetail }) {
-  const today = todayMidnight()
-
-  const groups = useMemo(() => {
-    const map = {}
-    for (const t of todos) {
-      const key = t.dueDate || '__none__'
-      if (!map[key]) map[key] = []
-      map[key].push(t)
-    }
-    const dateKeys = Object.keys(map).filter(k => k !== '__none__').sort()
-    const result = dateKeys.map(key => ({ key, date: parseDue(key), tasks: map[key] }))
-    if (map['__none__']) result.push({ key: '__none__', date: null, tasks: map['__none__'] })
-    return result
-  }, [todos])
-
-  if (groups.length === 0) {
-    return (
-      <div style={{ textAlign: 'center', padding: '80px 0', color: 'var(--text-muted)' }}>
-        <CalendarDays size={36} style={{ marginBottom: 12, color: 'var(--border-strong)' }} />
-        <p style={{ fontSize: 14, margin: 0 }}>Your study plan is empty.</p>
-        <p style={{ fontSize: 12, margin: '6px 0 0' }}>Add tasks with a due date and they'll appear here.</p>
-      </div>
-    )
-  }
-
-  return (
-    <div style={{ display: 'flex', flexDirection: 'column', gap: 18 }}>
-      {groups.map(({ key, date, tasks }) => {
-        const isToday    = date && date.getTime() === today.getTime()
-        const isPast     = date && date < today
-        const isTomorrow = date && !isToday && !isPast && date.getTime() === today.getTime() + 86400000
-        const pending    = tasks.filter(t => !t.done).length
-        const allDone    = pending === 0
-
-        const dateLabel = date
-          ? date.toLocaleDateString('en-GB', { weekday: 'short', day: 'numeric', month: 'short' })
-          : 'No date'
-
-        return (
-          <div key={key} style={{ opacity: isPast && allDone ? 0.5 : isPast ? 0.72 : 1, transition: 'opacity 0.2s' }}>
-            {/* Day header */}
-            <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 8 }}>
-              <span style={{
-                fontSize: isToday ? 15 : 13,
-                fontWeight: isToday ? 800 : 700,
-                letterSpacing: isToday ? '-0.3px' : 0,
-                color: isToday ? 'var(--accent-blue)' : isPast ? 'var(--text-muted)' : 'var(--text-secondary)',
-                transition: 'font-size 0.15s',
-              }}>
-                {dateLabel}
-              </span>
-
-              {isToday && (
-                <span style={{
-                  fontSize: 10, fontWeight: 800, padding: '3px 10px', borderRadius: 10,
-                  background: 'var(--accent-blue)', color: '#fff', letterSpacing: '0.5px',
-                }}>TODAY</span>
-              )}
-              {isTomorrow && (
-                <span style={{
-                  fontSize: 9, fontWeight: 700, padding: '2px 9px', borderRadius: 10,
-                  background: 'rgba(91,140,255,0.15)', color: 'var(--accent-blue)', letterSpacing: '0.4px',
-                }}>TOMORROW</span>
-              )}
-
-              <div style={{ flex: 1, height: 1, background: 'var(--border)' }} />
-
-              <span style={{
-                fontSize: 12, fontWeight: 700,
-                color: allDone ? 'var(--accent-green)' : isPast && !allDone ? 'var(--accent-amber)' : 'var(--text-muted)',
-              }}>
-                {allDone ? '✓ all done' : `${tasks.length - pending}/${tasks.length}`}
-              </span>
-
-              {!isPast && (
-                <button className="btn-press" onClick={() => onAdd(key === '__none__' ? null : key)}
-                  style={{ background: 'none', border: 'none', cursor: 'pointer', padding: 3, color: 'var(--text-muted)', display: 'flex', borderRadius: 5 }}
-                  onMouseEnter={e => e.currentTarget.style.color = 'var(--accent-blue)'}
-                  onMouseLeave={e => e.currentTarget.style.color = 'var(--text-muted)'}>
-                  <Plus size={14} />
-                </button>
-              )}
-            </div>
-
-            {/* Task cards */}
-            <div style={{
-              background: isToday ? 'rgba(91,140,255,0.03)' : 'var(--bg-surface)',
-              border: `1px solid ${isToday ? 'rgba(91,140,255,0.3)' : 'var(--border)'}`,
-              borderTop: isToday ? '2px solid var(--accent-blue)' : undefined,
-              borderRadius: 12, overflow: 'hidden',
-            }}>
-              {tasks.map((task, i) => (
-                <StudyPlanTaskRow
-                  key={task.id}
-                  task={task}
-                  domainMap={domainMap}
-                  noteMap={noteMap}
-                  onToggle={onToggle}
-                  onDelete={onDelete}
-                  onOpenNote={onOpenNote}
-                  onOpenDetail={onOpenDetail}
-                  isLast={i === tasks.length - 1}
-                />
-              ))}
-            </div>
-          </div>
-        )
-      })}
-    </div>
-  )
-}
-
-// ─── Generic collapsible group ─────────────────────────────────────────────────
-function TaskGroup({ label, labelColor, tasks, domainMap, onToggle, onDelete, onOpenNote, onOpenDetail, defaultOpen = true }) {
-  const [open, setOpen] = useState(defaultOpen)
-  const pending = tasks.filter(t => !t.done).length
+// ─── Bucket section ───────────────────────────────────────────────────────────
+function BucketSection({ label, color, tasks, justDoneIds, ...rowProps }) {
   if (tasks.length === 0) return null
   return (
-    <div style={{ marginBottom: 8 }}>
-      <button className="btn-press" onClick={() => setOpen(v => !v)} style={{ display: 'flex', alignItems: 'center', gap: 8, background: 'none', border: 'none', cursor: 'pointer', padding: '6px 0', width: '100%', textAlign: 'left' }}>
-        <span style={{ fontSize: 13, fontWeight: 700, color: labelColor || 'var(--text-secondary)' }}>{label}</span>
-        {pending > 0 && (
-          <span style={{ fontSize: 10, fontWeight: 600, background: 'var(--border)', color: 'var(--text-secondary)', padding: '1px 7px', borderRadius: 10 }}>{pending}</span>
-        )}
-        <div style={{ flex: 1, height: 1, background: 'var(--border)' }} />
-        <ChevronDown size={13} color="var(--text-muted)" style={{ transform: open ? 'none' : 'rotate(-90deg)', transition: 'transform 0.2s', flexShrink: 0 }} />
-      </button>
-      {open && tasks.map(task => (
-        <TaskRow key={task.id} task={task} domainMap={domainMap} onToggle={onToggle} onDelete={onDelete} onOpenNote={onOpenNote} onOpenDetail={onOpenDetail} />
-      ))}
-    </div>
-  )
-}
-
-// ─── Domain section ─────────────────────────────────────────────────────────────
-function DomainSection({ domain, tasks, domainMap, onToggle, onDelete, onOpenNote, onOpenDetail, onAdd }) {
-  const [open, setOpen] = useState(true)
-  const pending = tasks.filter(t => !t.done).length
-  return (
-    <div style={{ marginBottom: 8 }}>
-      <div style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '6px 0', marginBottom: 4 }}>
-        {domain && <div style={{ width: 10, height: 10, borderRadius: '50%', background: domain.color, flexShrink: 0 }} />}
-        <button className="btn-press" onClick={() => setOpen(v => !v)} style={{ display: 'flex', alignItems: 'center', gap: 8, background: 'none', border: 'none', cursor: 'pointer', padding: 0, flex: 1, textAlign: 'left' }}>
-          <span style={{ fontSize: 13, fontWeight: 700, color: domain ? domain.color : 'var(--text-secondary)' }}>
-            {domain ? (domain.code ? `${domain.code} · ${domain.name}` : domain.name) : 'General'}
-          </span>
-          {pending > 0 && (
-            <span style={{ fontSize: 10, fontWeight: 600, background: domain ? `${domain.color}18` : 'var(--border)', color: domain ? domain.color : 'var(--text-secondary)', padding: '1px 7px', borderRadius: 10 }}>{pending}</span>
-          )}
-          <div style={{ flex: 1, height: 1, background: 'var(--border)' }} />
-          <ChevronDown size={13} color="var(--text-muted)" style={{ transform: open ? 'none' : 'rotate(-90deg)', transition: 'transform 0.2s', flexShrink: 0 }} />
-        </button>
-        <button className="btn-press" onClick={onAdd} style={{ background: 'none', border: 'none', cursor: 'pointer', padding: 3, color: 'var(--text-muted)', display: 'flex' }}
-          onMouseEnter={e => e.currentTarget.style.color = 'var(--accent-blue)'}
-          onMouseLeave={e => e.currentTarget.style.color = 'var(--text-muted)'}>
-          <Plus size={14} />
-        </button>
+    <div style={{ marginBottom: 4 }}>
+      <div style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '10px 14px 6px' }}>
+        <span style={{ fontSize: 11, fontWeight: 700, color, textTransform: 'uppercase', letterSpacing: '0.6px' }}>{label}</span>
+        <span style={{ fontSize: 11, color: 'var(--text-muted)' }}>{tasks.length}</span>
       </div>
-      {open && (
-        <div>
-          {tasks.length === 0 ? (
-            <div style={{ padding: '8px 14px', fontSize: 12, color: 'var(--text-muted)', fontStyle: 'italic' }}>No tasks yet, click + to add one</div>
-          ) : (
-            tasks.map(task => <TaskRow key={task.id} task={task} domainMap={domainMap} onToggle={onToggle} onDelete={onDelete} onOpenNote={onOpenNote} onOpenDetail={onOpenDetail} />)
-          )}
-        </div>
-      )}
+      {tasks.map(task => <TaskRow key={task.id} task={task} justDone={justDoneIds.includes(task.id)} {...rowProps} />)}
     </div>
   )
 }
 
-// ─── Main page ─────────────────────────────────────────────────────────────────
 export default function TodosPage({ todos, domains, onAddTodo, onToggleTodo, onDeleteTodo, onUpdateTodo, notes, studySessions, onOpenNote, isTutorial }) {
   const isMobile = useIsMobile()
-  const [view,         setView]         = useState('plan')
+  const today = useToday()
   const [showAdd,      setShowAdd]      = useState(false)
-  const [addForDomain, setAddForDomain] = useState(null)
-  const [addForDate,   setAddForDate]   = useState(null)
   const [showDone,     setShowDone]     = useState(false)
-  const [groupBy,      setGroupBy]      = useState('domain')
+  const [domainFilter, setDomainFilter] = useState(null)
   const [detailTask,   setDetailTask]   = useState(null)
+  const [justDone,     setJustDone]     = useState([])
+
+  const undoTimers = useRef({})
+  useEffect(() => () => Object.values(undoTimers.current).forEach(clearTimeout), [])
 
   const domainMap = useMemo(() => Object.fromEntries(domains.map(d => [d.id, d])), [domains])
-  const noteMap   = useMemo(() => Object.fromEntries((notes || []).map(n => [n.id, n])), [notes])
 
-  const pending = todos.filter(t => !t.done)
-  const done    = todos.filter(t => t.done)
+  // A ticked task holds its place for a few seconds so it can be undone, then
+  // drops into the completed footer.
+  const handleToggle = (id) => {
+    const task = todos.find(t => t.id === id)
+    if (!task) return
+    onToggleTodo(id)
 
-  // ── Domain grouping ──────────────────────────────────────────────────────────
-  const domainGroups = useMemo(() => {
-    const grouped = {}
-    for (const task of pending) {
-      const key = task.domainId || '__general__'
-      if (!grouped[key]) grouped[key] = []
-      grouped[key].push(task)
+    clearTimeout(undoTimers.current[id])
+    delete undoTimers.current[id]
+
+    if (task.done) {
+      setJustDone(prev => prev.filter(x => x !== id))
+    } else {
+      setJustDone(prev => prev.includes(id) ? prev : [...prev, id])
+      undoTimers.current[id] = setTimeout(() => {
+        setJustDone(prev => prev.filter(x => x !== id))
+        delete undoTimers.current[id]
+      }, UNDO_WINDOW_MS)
     }
-    const orderedIds = domains.map(d => d.id).filter(id => grouped[id])
-    if (grouped['__general__']) orderedIds.push('__general__')
-    return orderedIds.map(id => ({ domain: id === '__general__' ? null : domainMap[id], tasks: grouped[id] || [] }))
-  }, [pending, domains, domainMap])
-
-  // ── Priority grouping ────────────────────────────────────────────────────────
-  const priorityGroups = useMemo(() => [
-    { key: 'high',   label: 'High Priority',   color: 'var(--accent-red)'    },
-    { key: 'medium', label: 'Medium Priority',  color: 'var(--accent-amber)'  },
-    { key: 'low',    label: 'Low Priority',     color: 'var(--accent-green)'  },
-  ].map(g => ({ ...g, tasks: pending.filter(t => t.priority === g.key) })), [pending])
-
-  // ── Due date grouping ────────────────────────────────────────────────────────
-  const dueDateGroups = useMemo(() => {
-    const today = todayMidnight()
-    const endOfWeek = new Date(today); endOfWeek.setDate(today.getDate() + (6 - today.getDay()))
-    const buckets = { overdue: [], today: [], week: [], later: [], none: [] }
-    for (const task of pending) {
-      if (!task.dueDate) { buckets.none.push(task); continue }
-      const d = parseDue(task.dueDate)
-      if (d < today) buckets.overdue.push(task)
-      else if (d.getTime() === today.getTime()) buckets.today.push(task)
-      else if (d <= endOfWeek) buckets.week.push(task)
-      else buckets.later.push(task)
-    }
-    return [
-      { key: 'overdue', label: 'Overdue',    color: 'var(--accent-red)',     tasks: buckets.overdue },
-      { key: 'today',   label: 'Due Today',   color: 'var(--accent-amber)',   tasks: buckets.today  },
-      { key: 'week',    label: 'This Week',   color: 'var(--accent-blue)',    tasks: buckets.week   },
-      { key: 'later',   label: 'Later',       color: 'var(--text-secondary)', tasks: buckets.later  },
-      { key: 'none',    label: 'No Due Date', color: 'var(--text-muted)',     tasks: buckets.none   },
-    ]
-  }, [pending])
-
-  const openAdd = (domainId = null, dueDate = null) => {
-    setAddForDomain(domainId)
-    setAddForDate(dueDate)
-    setShowAdd(true)
   }
 
-  const handleSave = (task) => {
-    const merged = { ...task }
-    if (addForDomain && !merged.domainId) merged.domainId = addForDomain
-    if (addForDate   && !merged.dueDate)  merged.dueDate  = addForDate
-    onAddTodo(merged)
+  const open = useMemo(
+    () => todos.filter(t => (!t.done || justDone.includes(t.id)) && matchesDomain(t, domainFilter)),
+    [todos, justDone, domainFilter],
+  )
+
+  const completedToday = useMemo(
+    () => todos
+      .filter(t => t.done && !justDone.includes(t.id) && t.completedAt && new Date(t.completedAt) >= today && matchesDomain(t, domainFilter))
+      .sort((a, b) => new Date(b.completedAt) - new Date(a.completedAt)),
+    [todos, justDone, today, domainFilter],
+  )
+
+  const bucketed = useMemo(() => {
+    const groups = Object.fromEntries(BUCKETS.map(b => [b.key, []]))
+    for (const task of open) groups[bucketFor(task, today)].push(task)
+    for (const list of Object.values(groups)) {
+      list.sort((a, b) =>
+        (a.dueDate || '9999').localeCompare(b.dueDate || '9999') ||
+        PRIORITY_RANK[a.priority] - PRIORITY_RANK[b.priority] ||
+        String(a.createdAt).localeCompare(String(b.createdAt)),
+      )
+    }
+    return groups
+  }, [open, today])
+
+  const filterChips = useMemo(() => {
+    const pending = todos.filter(t => !t.done)
+    const chips = domains.filter(d => d.id === domainFilter || pending.some(t => t.domainId === d.id))
+      .map(d => ({ key: d.id, label: d.code || d.name, color: d.color }))
+    if (domainFilter === '__general__' || pending.some(t => !t.domainId)) {
+      chips.push({ key: '__general__', label: 'General', color: 'var(--text-secondary)' })
+    }
+    return chips
+  }, [todos, domains, domainFilter])
+
+  const openCount = todos.filter(t => !t.done).length
+  const rowProps = {
+    domainMap, today,
+    onToggle: handleToggle, onDelete: onDeleteTodo,
+    onOpenNote, onOpenDetail: setDetailTask,
   }
-
-  const totalPending = pending.length
-  const summaryStats = [
-    { label: 'Pending',  value: pending.length,                                          color: 'var(--accent-blue)'  },
-    { label: 'Done',     value: done.length,                                              color: 'var(--accent-green)' },
-    { label: 'High pri', value: pending.filter(t => t.priority === 'high').length,        color: 'var(--accent-red)'   },
-    { label: 'Overdue',  value: pending.filter(t => t.dueDate && parseDue(t.dueDate) < todayMidnight()).length, color: 'var(--accent-amber)' },
-  ]
-
-  const GROUP_OPTIONS = [
-    { key: 'domain',   label: 'Domain'   },
-    { key: 'priority', label: 'Priority' },
-    { key: 'dueDate',  label: 'Due Date' },
-  ]
-
-  const VIEW_OPTS = [['plan', CalendarDays, 'Study Plan'], ['tasks', CheckSquare, 'Tasks']]
-  const viewIdx = VIEW_OPTS.findIndex(([v]) => v === view)
 
   return (
     <div style={{ padding: isMobile ? '22px 16px 28px' : '36px 40px', maxWidth: 860 }}>
 
-      {/* ── Header ── */}
       <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', marginBottom: isMobile ? 18 : 24, gap: 12 }}>
         <div>
           <h1 style={{ margin: 0, fontSize: isMobile ? 30 : 40, fontWeight: 800, color: 'var(--text-primary)', letterSpacing: '-1px' }}>To Do</h1>
           <p style={{ margin: '4px 0 0', fontSize: 14, color: 'var(--text-secondary)' }}>
-            {totalPending === 0 ? 'All caught up' : `${totalPending} task${totalPending !== 1 ? 's' : ''} remaining`}
+            {openCount === 0 ? 'All caught up' : `${openCount} task${openCount !== 1 ? 's' : ''} remaining`}
           </p>
         </div>
-        <button className="btn-press" data-tutorial-id="todos-new-btn" onClick={() => openAdd()} style={{
+        <button className="btn-press" data-tutorial-id="todos-new-btn" onClick={() => setShowAdd(true)} style={{
           display: 'flex', alignItems: 'center', gap: 6, padding: '9px 16px', borderRadius: 9,
           border: 'none', background: 'var(--accent-blue)', color: 'var(--btn-primary-text)',
           fontSize: 13, fontWeight: 600, cursor: 'pointer', boxShadow: 'var(--glow-blue)',
@@ -735,147 +625,76 @@ export default function TodosPage({ todos, domains, onAddTodo, onToggleTodo, onD
         </button>
       </div>
 
-      {/* ── View toggle ── */}
-      <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: 20, flexWrap: 'wrap', rowGap: 10 }}>
-        <div style={{ position: 'relative', display: 'flex', background: 'var(--bg-surface)', border: '1px solid var(--border)', borderRadius: 9, padding: 3, gap: 0 }}>
-          <div style={{
-            position: 'absolute', top: 3, bottom: 3, left: 3,
-            width: 'calc((100% - 6px) / 2)',
-            background: 'rgba(91,140,255,0.14)',
-            border: '1px solid rgba(91,140,255,0.28)',
-            borderRadius: 7,
-            transform: `translateX(${viewIdx * 100}%)`,
-            transition: 'transform 0.22s cubic-bezier(0.32,0.72,0,1)',
-            pointerEvents: 'none',
-          }} />
-          {VIEW_OPTS.map(([v, Icon, label]) => (
-            <button className="btn-press" key={v} onClick={() => setView(v)} style={{
-              display: 'flex', alignItems: 'center', gap: 5,
-              padding: '6px 16px', borderRadius: 7, border: 'none', cursor: 'pointer',
-              fontSize: 12, fontWeight: 600, position: 'relative', zIndex: 1, background: 'none',
-              color: view === v ? 'var(--accent-blue)' : 'var(--text-muted)',
-              transition: 'color 0.18s',
-            }}>
-              <Icon size={13} />{label}
-            </button>
-          ))}
-        </div>
-
-        {view === 'tasks' && (
-          <>
-            <span style={{ fontSize: 11, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.5px' }}>Group by</span>
-            {GROUP_OPTIONS.map(opt => (
-              <button className="btn-press" key={opt.key} onClick={() => setGroupBy(opt.key)} style={{
-                padding: '4px 12px', borderRadius: 6, border: 'none', cursor: 'pointer', fontSize: 12, fontWeight: 500,
-                background: groupBy === opt.key ? 'var(--nav-active)' : 'transparent',
-                color: groupBy === opt.key ? 'var(--accent-blue)' : 'var(--text-secondary)',
-                outline: groupBy === opt.key ? '1px solid var(--border-strong)' : '1px solid transparent',
+      {filterChips.length > 1 && (
+        <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 16, flexWrap: 'wrap', rowGap: 8 }}>
+          <button className="btn-press" onClick={() => setDomainFilter(null)} style={{
+            padding: '4px 12px', borderRadius: 6, border: 'none', cursor: 'pointer', fontSize: 12, fontWeight: 600, fontFamily: 'inherit',
+            background: domainFilter === null ? 'var(--nav-active)' : 'transparent',
+            color: domainFilter === null ? 'var(--accent-blue)' : 'var(--text-secondary)',
+            outline: domainFilter === null ? '1px solid var(--border-strong)' : '1px solid transparent',
+            transition: 'all 0.12s',
+          }}>All</button>
+          {filterChips.map(chip => {
+            const active = domainFilter === chip.key
+            return (
+              <button className="btn-press" key={chip.key} onClick={() => setDomainFilter(active ? null : chip.key)} style={{
+                padding: '4px 12px', borderRadius: 6, border: 'none', cursor: 'pointer', fontSize: 12, fontWeight: 600, fontFamily: 'inherit',
+                background: active ? `${chip.color}1f` : 'transparent',
+                color: active ? chip.color : 'var(--text-secondary)',
+                outline: active ? `1px solid ${chip.color}55` : '1px solid transparent',
                 transition: 'all 0.12s',
-              }}>{opt.label}</button>
+              }}>{chip.label}</button>
+            )
+          })}
+        </div>
+      )}
+
+      <div style={{ background: 'var(--bg-surface)', border: '1px solid var(--border)', borderRadius: 14, paddingBottom: 6, overflow: 'hidden' }}>
+        <QuickAdd
+          today={today}
+          domainId={domainFilter === '__general__' ? null : domainFilter}
+          onAdd={onAddTodo}
+        />
+
+        {open.length === 0 ? (
+          <div style={{ textAlign: 'center', padding: '56px 20px', color: 'var(--text-muted)' }}>
+            <div style={{ marginBottom: 12, color: 'var(--border-strong)' }}><CheckCircle2 size={32} /></div>
+            <p style={{ fontSize: 13, margin: 0 }}>
+              {todos.length === 0 ? 'Nothing here yet. Type above to add your first task.' : 'Nothing left, nice work.'}
+            </p>
+          </div>
+        ) : (
+          <div style={{ padding: '4px 6px 0' }}>
+            {BUCKETS.map(b => (
+              <BucketSection
+                key={b.key} label={b.label} color={b.color}
+                tasks={bucketed[b.key]} justDoneIds={justDone}
+                {...rowProps}
+              />
             ))}
-          </>
+          </div>
+        )}
+
+        {completedToday.length > 0 && (
+          <div style={{ borderTop: '1px solid var(--border)', marginTop: 6, padding: '6px 6px 0' }}>
+            <button className="btn-press" onClick={() => setShowDone(v => !v)} style={{ display: 'flex', alignItems: 'center', gap: 8, background: 'none', border: 'none', cursor: 'pointer', padding: '8px 14px', color: 'var(--text-muted)', fontSize: 12, width: '100%', textAlign: 'left', fontFamily: 'inherit' }}>
+              <ChevronDown size={13} style={{ transform: showDone ? 'none' : 'rotate(-90deg)', transition: 'transform 0.2s' }} />
+              {completedToday.length} done today
+            </button>
+            {showDone && completedToday.map(task => (
+              <TaskRow key={task.id} task={task} {...rowProps} />
+            ))}
+          </div>
         )}
       </div>
-
-      {/* ── Summary stats (tasks view only) ── */}
-      {view === 'tasks' && todos.length > 0 && (
-        <div style={{ display: 'flex', alignItems: 'center', marginBottom: 24, padding: '16px 22px', background: 'var(--bg-surface)', border: '1px solid var(--border)', borderRadius: 12 }}>
-          <div style={{ marginRight: 24, lineHeight: 1 }}>
-            <span style={{ fontSize: 48, fontWeight: 800, color: 'var(--text-primary)', letterSpacing: '-2px', lineHeight: 1 }}>{pending.length}</span>
-            <span style={{ fontSize: 12, color: 'var(--text-muted)', marginLeft: 8, fontWeight: 500 }}>pending</span>
-          </div>
-          <div style={{ width: 1, height: 36, background: 'var(--border)', marginRight: 24, flexShrink: 0 }} />
-          <div style={{ display: 'flex', gap: 22, flexWrap: 'wrap' }}>
-            {summaryStats.slice(1).map(s => (
-              <div key={s.label}>
-                <span style={{ fontSize: 20, fontWeight: 700, color: s.color, letterSpacing: '-0.5px' }}>{s.value}</span>
-                <span style={{ fontSize: 11, color: 'var(--text-muted)', marginLeft: 5 }}>{s.label.toLowerCase()}</span>
-              </div>
-            ))}
-          </div>
-        </div>
-      )}
-
-      {/* ── Study Plan view ── */}
-      {view === 'plan' && (
-        <StudyPlanView
-          todos={todos}
-          domainMap={domainMap}
-          noteMap={noteMap}
-          onToggle={onToggleTodo}
-          onDelete={onDeleteTodo}
-          onOpenNote={onOpenNote}
-          onOpenDetail={setDetailTask}
-          onAdd={(dueDate) => openAdd(null, dueDate)}
-        />
-      )}
-
-      {/* ── Tasks view ── */}
-      {view === 'tasks' && (
-        <>
-          {todos.length === 0 ? (
-            <div style={{ textAlign: 'center', padding: '80px 0', color: 'var(--text-muted)' }}>
-              <div style={{ marginBottom: 12, color: 'var(--border-strong)' }}><CheckCircle2 size={36} /></div>
-              <p style={{ fontSize: 14, margin: 0 }}>No tasks yet. Click <strong style={{ color: 'var(--accent-blue)' }}>New Task</strong> to add one.</p>
-            </div>
-          ) : (
-            <div style={{ background: 'var(--bg-surface)', border: '1px solid var(--border)', borderRadius: 14, padding: '8px 6px' }}>
-
-              {groupBy === 'domain' && (
-                <>
-                  {domainGroups.length === 0 && <div style={{ padding: '16px 14px', fontSize: 13, color: 'var(--text-muted)', textAlign: 'center' }}>Nothing pending, nice work</div>}
-                  {domainGroups.map(({ domain, tasks }) => (
-                    <DomainSection
-                      key={domain ? domain.id : '__general__'}
-                      domain={domain} tasks={tasks} domainMap={domainMap}
-                      onToggle={onToggleTodo} onDelete={onDeleteTodo} onOpenNote={onOpenNote} onOpenDetail={setDetailTask}
-                      onAdd={() => openAdd(domain?.id || null)}
-                    />
-                  ))}
-                </>
-              )}
-
-              {groupBy === 'priority' && (
-                <>
-                  {pending.length === 0 && <div style={{ padding: '16px 14px', fontSize: 13, color: 'var(--text-muted)', textAlign: 'center' }}>Nothing pending, nice work</div>}
-                  {priorityGroups.map(g => (
-                    <TaskGroup key={g.key} label={g.label} labelColor={g.color} tasks={g.tasks} domainMap={domainMap} onToggle={onToggleTodo} onDelete={onDeleteTodo} onOpenNote={onOpenNote} onOpenDetail={setDetailTask} />
-                  ))}
-                </>
-              )}
-
-              {groupBy === 'dueDate' && (
-                <>
-                  {pending.length === 0 && <div style={{ padding: '16px 14px', fontSize: 13, color: 'var(--text-muted)', textAlign: 'center' }}>Nothing pending, nice work</div>}
-                  {dueDateGroups.map(g => (
-                    <TaskGroup key={g.key} label={g.label} labelColor={g.color} tasks={g.tasks} domainMap={domainMap} onToggle={onToggleTodo} onDelete={onDeleteTodo} onOpenNote={onOpenNote} onOpenDetail={setDetailTask} defaultOpen={g.key !== 'none'} />
-                  ))}
-                </>
-              )}
-
-              {done.length > 0 && (
-                <div style={{ borderTop: '1px solid var(--border)', marginTop: 8, paddingTop: 8 }}>
-                  <button className="btn-press" onClick={() => setShowDone(v => !v)} style={{ display: 'flex', alignItems: 'center', gap: 8, background: 'none', border: 'none', cursor: 'pointer', padding: '6px 14px', color: 'var(--text-muted)', fontSize: 12, width: '100%', textAlign: 'left' }}>
-                    <ChevronDown size={13} style={{ transform: showDone ? 'none' : 'rotate(-90deg)', transition: 'transform 0.2s' }} />
-                    {done.length} completed
-                  </button>
-                  {showDone && done.map(task => (
-                    <TaskRow key={task.id} task={task} domainMap={domainMap} onToggle={onToggleTodo} onDelete={onDeleteTodo} onOpenNote={onOpenNote} onOpenDetail={setDetailTask} />
-                  ))}
-                </div>
-              )}
-            </div>
-          )}
-        </>
-      )}
 
       {showAdd && (
         <AddTaskModal
           domains={domains}
-          initialDomainId={addForDomain}
-          defaultDueDate={addForDate}
-          onClose={() => { setShowAdd(false); setAddForDomain(null); setAddForDate(null) }}
-          onSave={handleSave}
+          initialDomainId={domainFilter === '__general__' ? null : domainFilter}
+          defaultDueDate={null}
+          onClose={() => setShowAdd(false)}
+          onSave={onAddTodo}
           isTutorial={isTutorial}
         />
       )}

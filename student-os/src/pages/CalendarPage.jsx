@@ -861,7 +861,7 @@ export default function CalendarPage({ domains = [], domainEvents = [], customEv
         style={{
         display: 'grid',
         gridTemplateColumns: isMobile ? '18px repeat(7, 1fr)' : '28px repeat(7, 1fr)',
-        gridTemplateRows: isMobile ? `auto repeat(6, minmax(72px, auto))` : `auto repeat(6, minmax(110px, auto))`,
+        gridTemplateRows: isMobile ? `auto repeat(${weekRows.length}, minmax(72px, auto))` : `auto repeat(${weekRows.length}, minmax(110px, auto))`,
         gap: '1px',
         background: 'var(--border)',
         border: '1px solid var(--border)',

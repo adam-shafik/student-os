@@ -13,8 +13,14 @@ import AuthPage from './pages/AuthPage'
 import OnboardingPage from './pages/OnboardingPage'
 import SettingsPage from './pages/SettingsPage'
 import ScheduleBuilderPage from './pages/ScheduleBuilderPage'
+import NewTermPage from './pages/NewTermPage'
 import TutorialOverlay from './components/TutorialOverlay'
 import { supabase } from './lib/supabase'
+import {
+  takePendingGoogleCode, exchangeGoogleCode, selectGoogleCalendars,
+  disconnectGoogleCalendar, syncGoogleCalendar, googleCalendarConfigured,
+  startGoogleCalendarConnect,
+} from './lib/googleCalendar'
 import { setSemesterConfig, getSemesterConfig, totalTeachingWeeks } from './utils/semester'
 import { buildScheduleEvents } from './utils/calendarEvents'
 
@@ -27,6 +33,32 @@ function openShareDb() {
     req.onerror = reject
   })
 }
+
+const mapCustomEventRow = (r) => ({
+  id: r.id, type: r.type, title: r.title,
+  date: new Date(r.date + 'T00:00:00'),
+  domainId: r.domain_id, academicWeek: r.academic_week,
+  reminderDays: r.reminder_days ?? [],
+  googleEventId: r.google_event_id || null,
+  googleSummary: r.google_summary || null,
+  locallyEdited: r.locally_edited ?? false,
+  // Same `details` shape buildScheduleEvents emits, so imported classes show
+  // their time and room in EventDetailModal like any other event.
+  details: {
+    time: r.start_time?.substring(0, 5) || null,
+    duration: r.duration_minutes ?? null,
+    location: r.location || null,
+    description: r.description || null,
+  },
+})
+
+const mapTodoRow = (r) => ({
+  id: r.id, title: r.title, domainId: r.domain_id, dueDate: r.due_date,
+  priority: r.priority, done: r.done, completedAt: r.completed_at || null,
+  source: r.source || 'app', createdAt: r.created_at,
+  studySessionId: r.study_session_id || null, noteId: r.note_id || null,
+  academicWeek: r.academic_week || null,
+})
 
 export default function App() {
   const [session,        setSession]        = useState(null)
@@ -127,9 +159,15 @@ export default function App() {
   const [weekConfidence, setWeekConfidence] = useState({})
   const [todos,              setTodos]              = useState([])
   const [semConfig,          setSemConfig]          = useState(null)
+  const [terms,              setTerms]              = useState([])
   const [semBreaks,          setSemBreaks]          = useState([])
   const [cancelledEventIds,  setCancelledEventIds]  = useState(() => new Set())
   const [eventTypeColors,    setEventTypeColors]    = useState({})
+  const [googleCal,          setGoogleCal]          = useState(null)   // status row, null = not connected
+  const [googleCalendarList, setGoogleCalendarList] = useState(null)   // set only while picking calendars
+  const [googleBusy,         setGoogleBusy]         = useState(null)   // 'connecting' | 'syncing' | null
+  const [googleResult,       setGoogleResult]       = useState(null)
+  const [googleMappings,     setGoogleMappings]     = useState([])
 
   const userId = session?.user?.id
 
@@ -174,6 +212,7 @@ export default function App() {
       professor: r.professor, credits: r.credits,
       semester: r.semester_label, description: r.description,
       semesterNumber: r.semester_number ?? null,
+      termId: r.term_id || null,
       role: r.role || null,
       progress: r.progress || 0,
       isPast: r.is_past || false,
@@ -181,22 +220,121 @@ export default function App() {
     }
   }
 
+  const dbTermToLocal = t => ({
+    id: t.id, label: t.label, position: t.position ?? 0,
+    isCurrent: !!t.is_current, start: t.start_date, end: t.end_date,
+  })
+
+  // Aggregate all terms (across years) into the semesterConfig the calendar/week utils
+  // understand: each term is a "semester" entry resolved by date, so past terms keep
+  // correct academic weeks and their events stay on their own dates. Takes local shapes:
+  // term { id, label, position, isCurrent, start:'YYYY-MM-DD', end } and
+  // break { name, startMonday, returnMonday, termId }.
+  function buildConfigFromTerms(localTerms, localBreaks) {
+    const sorted = [...localTerms].sort((a, b) => (a.position - b.position) || String(a.start).localeCompare(String(b.start)))
+    const semesters = sorted.map((t, i) => ({
+      index: i + 1, termId: t.id, label: t.label, isCurrent: !!t.isCurrent,
+      start: new Date(t.start + 'T00:00:00'),
+      end:   new Date(t.end   + 'T00:00:00'),
+    }))
+    const breaks = (localBreaks || []).filter(b => b.startMonday && b.returnMonday).map(b => {
+      const returnMon = new Date(b.returnMonday + 'T00:00:00')
+      const breakEnd  = new Date(returnMon); breakEnd.setDate(breakEnd.getDate() - 1)
+      return {
+        name: b.name, shortName: (b.name || '').split(' ')[0], color: '#fbbf24',
+        termId: b.termId || null,
+        start: new Date(b.startMonday + 'T00:00:00'), end: breakEnd,
+      }
+    })
+    const current = semesters.find(s => s.isCurrent) || semesters[semesters.length - 1]
+    return {
+      start: current?.start || semesters[0]?.start,
+      end:   current?.end   || semesters[0]?.end,
+      currentTermId: current?.termId || null,
+      semesters, breaks,
+    }
+  }
+
+  // One-time migration: existing users have their semester on user_profiles and no term
+  // rows yet. Create term(s) mirroring their config and tag existing domains/breaks, so
+  // nothing changes visibly but everything is now term-scoped going forward.
+  async function backfillTermsFromProfile(profile, dbBreaks) {
+    const today = new Date().toISOString().slice(0, 10)
+    const yearLabel = profile.year_of_study ? `${profile.year_of_study} · ` : ''
+    const rows = [{
+      id: crypto.randomUUID(), user_id: userId,
+      label: `${yearLabel}Semester 1`,
+      start_date: profile.semester_start, end_date: profile.semester_end,
+      position: 0, is_current: true,
+    }]
+    if (profile.semester2_start && profile.semester2_end) {
+      rows.push({
+        id: crypto.randomUUID(), user_id: userId,
+        label: `${yearLabel}Semester 2`,
+        start_date: profile.semester2_start, end_date: profile.semester2_end,
+        position: 1, is_current: false,
+      })
+    }
+    // Current = the term containing today, else the last one.
+    const containing = rows.find(r => r.start_date <= today && today <= r.end_date)
+    rows.forEach(r => { r.is_current = containing ? r.id === containing.id : r === rows[rows.length - 1] })
+    const t1 = rows[0], t2 = rows[1] || null
+
+    await supabase.from('terms').insert(rows)
+
+    // Tag domains by their existing semester_number (2 → term 2, else term 1).
+    const { data: domRows } = await supabase.from('domains').select('id, semester_number').eq('user_id', userId)
+    for (const d of (domRows || [])) {
+      const termId = (t2 && d.semester_number === 2) ? t2.id : t1.id
+      await supabase.from('domains').update({ term_id: termId }).eq('id', d.id)
+    }
+    // Tag breaks by which term's date range contains them.
+    for (const b of (dbBreaks || [])) {
+      const inT2 = t2 && b.start_monday >= t2.start_date && b.start_monday <= t2.end_date
+      await supabase.from('semester_breaks').update({ term_id: inT2 ? t2.id : t1.id }).eq('id', b.id)
+    }
+    return rows
+  }
+
+  const initialLoadRef = useRef(null)
   useEffect(() => {
-    if (!userId) return
+    if (!userId) { initialLoadRef.current = null; return }
+    // Run the initial load (and one-time term backfill) once per user, even under
+    // StrictMode's double-invoke, so we never insert duplicate term rows.
+    if (initialLoadRef.current === userId) return
+    initialLoadRef.current = userId
 
     // Check if user has completed onboarding
     supabase.from('user_profiles').select('*').eq('id', userId).maybeSingle()
-      .then(({ data }) => {
+      .then(async ({ data }) => {
         if (data) {
           setUserProfile(data)
-          // Load semester breaks and build the dynamic semester config
-          supabase.from('semester_breaks').select('*').eq('user_id', userId)
-            .then(({ data: breaks }) => {
-              const config = buildSemesterConfig(data, breaks || [])
-              setSemesterConfig(config)
-              setSemConfig(config)
-              setSemBreaks((breaks || []).map(b => ({ id: b.id, name: b.name, startMonday: b.start_monday, returnMonday: b.return_monday })))
-            })
+          let [{ data: breaks }, { data: termRows }] = await Promise.all([
+            supabase.from('semester_breaks').select('*').eq('user_id', userId),
+            supabase.from('terms').select('*').eq('user_id', userId).order('position'),
+          ])
+          // Legacy users have no terms yet — create them from the existing profile config.
+          if ((!termRows || termRows.length === 0) && data.semester_start && data.semester_end) {
+            const created = await backfillTermsFromProfile(data, breaks || [])
+            termRows = created
+            const { data: b2 } = await supabase.from('semester_breaks').select('*').eq('user_id', userId)
+            breaks = b2 || breaks
+            const { data: d2 } = await supabase.from('domains').select('*').eq('user_id', userId).order('created_at')
+            if (d2) setDomains(d2.map(dbDomainToLocal))
+          }
+          const localTerms  = (termRows || []).map(dbTermToLocal)
+          const localBreaks = (breaks || []).map(b => ({ id: b.id, name: b.name, startMonday: b.start_monday, returnMonday: b.return_monday, termId: b.term_id || null }))
+          setTerms(localTerms)
+          setSemBreaks(localBreaks)
+          if (localTerms.length) {
+            const config = buildConfigFromTerms(localTerms, localBreaks)
+            setSemesterConfig(config)
+            setSemConfig(config)
+          } else {
+            const config = buildSemesterConfig(data, breaks || [])
+            setSemesterConfig(config)
+            setSemConfig(config)
+          }
         }
         setProfileChecked(true)
       })
@@ -219,22 +357,12 @@ export default function App() {
 
     supabase.from('todos').select('*').eq('user_id', userId).order('created_at', { ascending: false })
       .then(({ data }) => {
-        if (data) setTodos(data.map(r => ({
-          id: r.id, title: r.title, domainId: r.domain_id, dueDate: r.due_date,
-          priority: r.priority, done: r.done, createdAt: r.created_at,
-          studySessionId: r.study_session_id || null, noteId: r.note_id || null,
-          academicWeek: r.academic_week || null,
-        })))
+        if (data) setTodos(data.map(mapTodoRow))
       })
 
     supabase.from('custom_calendar_events').select('*').eq('user_id', userId)
       .then(({ data }) => {
-        if (data) setCustomCalendarEvents(data.map(r => ({
-          id: r.id, type: r.type, title: r.title,
-          date: new Date(r.date + 'T00:00:00'),
-          domainId: r.domain_id, academicWeek: r.academic_week,
-          reminderDays: r.reminder_days ?? [],
-        })))
+        if (data) setCustomCalendarEvents(data.map(mapCustomEventRow))
       })
 
     supabase.from('cancelled_schedule_events').select('event_id').eq('user_id', userId)
@@ -344,6 +472,167 @@ export default function App() {
         })))
       })
   }, [userId])
+
+  // Jarvis writes to `todos` out of band, so the open app follows the table live.
+  useEffect(() => {
+    if (!userId) return
+    const channel = supabase
+      .channel('todos-sync')
+      .on('postgres_changes',
+        { event: '*', schema: 'public', table: 'todos', filter: `user_id=eq.${userId}` },
+        ({ eventType, new: row, old }) => {
+          if (eventType === 'DELETE') {
+            setTodos(prev => prev.filter(t => t.id !== old.id))
+            return
+          }
+          const todo = mapTodoRow(row)
+          setTodos(prev => prev.some(t => t.id === todo.id)
+            ? prev.map(t => t.id === todo.id ? todo : t)
+            : [...prev, todo])
+        })
+      .subscribe()
+    return () => { supabase.removeChannel(channel) }
+  }, [userId])
+
+  // ── Google Calendar import ──────────────────────────────────────────────────
+  // Stable identity: EventMapping remounts off this, so a fresh array each
+  // render would wipe the user's in-progress selections.
+  const importedGoogleEvents = useMemo(
+    () => customCalendarEvents.filter(ev => ev.googleEventId),
+    [customCalendarEvents],
+  )
+
+  const refetchCustomEvents = async () => {
+    const { data } = await supabase.from('custom_calendar_events').select('*').eq('user_id', userId)
+    if (data) setCustomCalendarEvents(data.map(mapCustomEventRow))
+  }
+
+  const runGoogleSync = async ({ silent = false } = {}) => {
+    if (!silent) { setGoogleBusy('syncing'); setGoogleResult(null) }
+    const result = await syncGoogleCalendar()
+    await refetchCustomEvents()   // a partial sync still changed rows; show what is actually there
+    const { data } = await supabase.from('google_calendar_status').select('*').maybeSingle()
+    setGoogleCal(data ?? null)
+    if (!silent) { setGoogleBusy(null); setGoogleResult(result) }
+    return result
+  }
+
+  const loadGoogleMappings = async () => {
+    const { data } = await supabase.from('google_event_mappings').select('*').eq('user_id', userId)
+    setGoogleMappings(data ?? [])
+  }
+
+  // Applies each mapping to the events already imported under that title, then
+  // stores it so future syncs match without the user doing this again.
+  const handleSaveGoogleMappings = async (entries) => {
+    setGoogleBusy('syncing')
+    const rows = entries.map(e => ({
+      user_id: userId, title_key: e.titleKey,
+      domain_id: e.domainId || null, event_type: e.eventType || null,
+      updated_at: new Date().toISOString(),
+    }))
+    const { error } = await supabase.from('google_event_mappings').upsert(rows, { onConflict: 'user_id,title_key' })
+    if (error) {
+      setGoogleBusy(null)
+      setGoogleResult({ error: `Could not save mapping: ${error.message}` })
+      return
+    }
+
+    for (const entry of entries) {
+      const ids = customCalendarEvents
+        .filter(ev => ev.googleEventId &&
+          (ev.googleSummary || ev.title).trim().toLowerCase() === entry.titleKey)
+        .map(ev => ev.id)
+      if (!ids.length) continue
+      await supabase.from('custom_calendar_events')
+        .update({ domain_id: entry.domainId || null }).in('id', ids).eq('user_id', userId)
+    }
+
+    await refetchCustomEvents()
+    await loadGoogleMappings()
+    setGoogleBusy(null)
+    setGoogleResult({ mapped: entries.length })
+  }
+
+  useEffect(() => {
+    if (!userId || !googleCalendarConfigured) return
+    let cancelled = false
+
+    ;(async () => {
+      const code = takePendingGoogleCode()
+      const wasConnecting = sessionStorage.getItem('sos-gcal-connecting')
+      if (code || wasConnecting) sessionStorage.removeItem('sos-gcal-connecting')
+      if (!code && wasConnecting) {
+        setGoogleResult({ error: 'Google sent you back without a usable code. Try Connect again.' })
+      }
+      if (code) {
+        setGoogleBusy('connecting')
+        setCurrentPage('settings')
+        try {
+          const result = await exchangeGoogleCode(code)
+          if (result.error) setGoogleResult(result)
+          else setGoogleCalendarList(result.calendars || [])
+        } finally {
+          setGoogleBusy(null)
+        }
+      }
+
+      const { data } = await supabase.from('google_calendar_status').select('*').maybeSingle()
+      if (cancelled) return
+      setGoogleCal(data ?? null)
+      if (data) loadGoogleMappings()
+
+      // Once per app launch, and only when there is something to sync into.
+      if (data?.calendar_ids?.length && !sessionStorage.getItem('sos-gcal-synced')) {
+        sessionStorage.setItem('sos-gcal-synced', '1')
+        runGoogleSync({ silent: true })
+      }
+    })()
+
+    return () => { cancelled = true }
+  }, [userId]) // eslint-disable-line react-hooks/exhaustive-deps
+
+  const handleSelectGoogleCalendars = async (calendarIds) => {
+    setGoogleBusy('syncing')
+    const result = await selectGoogleCalendars(calendarIds)
+    if (result.error) { setGoogleBusy(null); setGoogleResult(result); return }
+    setGoogleCalendarList(null)
+    setGoogleBusy(null)
+    await runGoogleSync()
+  }
+
+  // Clean slate: drop every imported event AND its tombstone, then pull fresh.
+  // Clearing the tombstones is the part that matters — without it the re-sync
+  // would treat each event as one the user had deliberately deleted.
+  const handleResetGoogleImports = async () => {
+    setGoogleBusy('syncing')
+    setGoogleResult(null)
+
+    const { error: delError } = await supabase.from('custom_calendar_events')
+      .delete().eq('user_id', userId).not('google_event_id', 'is', null)
+    if (delError) {
+      setGoogleBusy(null)
+      setGoogleResult({ error: `Could not clear imports: ${delError.message}` })
+      return
+    }
+    await supabase.from('cancelled_schedule_events')
+      .delete().eq('user_id', userId).like('event_id', 'google:%')
+
+    // Reflect the delete immediately. Without this the rows are gone from the
+    // database but still on screen until the re-sync succeeds, so a failed sync
+    // looks exactly like "nothing was deleted".
+    await refetchCustomEvents()
+
+    setGoogleBusy(null)
+    await runGoogleSync()
+  }
+
+  const handleDisconnectGoogle = async () => {
+    await disconnectGoogleCalendar()
+    setGoogleCal(null)
+    setGoogleCalendarList(null)
+    setGoogleResult(null)
+  }
 
   const handleNavigate = (page) => {
     setPreviousPage(currentPage)
@@ -456,13 +745,15 @@ export default function App() {
 
   const handleCreateDomain = async (domain) => {
     const now = new Date().toISOString()
-    const withDefaults = { ...domain, lectures:[], labs:[], assignments:[], exams:[] }
+    const termId = domain.termId ?? (semConfig?.currentTermId || null)
+    const withDefaults = { ...domain, termId, lectures:[], labs:[], assignments:[], exams:[] }
     setDomains(prev => [...prev, withDefaults])
     const { error } = await supabase.from('domains').insert({
       id: domain.id, user_id: userId, name: domain.name, code: domain.code || null,
       category: domain.category, color: domain.color, icon: domain.icon || 'BookOpen',
       professor: domain.professor || null, credits: domain.credits || null,
       semester_number: domain.semesterNumber ?? null,
+      term_id: termId,
       progress: 0, created_at: now, updated_at: now,
     })
     if (error) {
@@ -484,6 +775,7 @@ export default function App() {
     if ('credits'          in updates) patch.credits          = updates.credits ?? null
     if ('semester'         in updates) patch.semester_label   = updates.semester ?? null
     if ('semesterNumber'   in updates) patch.semester_number  = updates.semesterNumber ?? null
+    if ('termId'           in updates) patch.term_id          = updates.termId ?? null
     if ('role'             in updates) patch.role             = updates.role ?? null
     if ('isPast'           in updates) patch.is_past          = updates.isPast
     if ('excludeFromGrade' in updates) patch.exclude_from_grade = updates.excludeFromGrade
@@ -544,9 +836,16 @@ export default function App() {
   }
 
   const handleDeleteCalendarEvent = async (id) => {
+    const target = customCalendarEvents.find(ev => ev.id === id)
     setCustomCalendarEvents(prev => prev.filter(ev => ev.id !== id))
     const { error } = await supabase.from('custom_calendar_events').delete().eq('id', id).eq('user_id', userId)
-    if (error) console.error('calendar event delete failed:', error.message)
+    if (error) { console.error('calendar event delete failed:', error.message); return }
+    // Tombstone by Google id, not row id: the row id is regenerated on re-import,
+    // so without this the next sync would bring the deleted class straight back.
+    if (target?.googleEventId) {
+      await supabase.from('cancelled_schedule_events')
+        .insert({ user_id: userId, event_id: `google:${target.googleEventId}` })
+    }
   }
 
   const handleUpdateEventReminder = async (id, reminderDays) => {
@@ -620,7 +919,7 @@ export default function App() {
   const handleAddTodo = async (todo) => {
     const id  = crypto.randomUUID()
     const now = new Date().toISOString()
-    setTodos(prev => [...prev, { ...todo, id, createdAt: now }])
+    setTodos(prev => [...prev, { ...todo, id, createdAt: now, done: false, completedAt: null, source: 'app' }])
     const { error } = await supabase.from('todos').insert({
       id, user_id: userId, title: todo.title, domain_id: todo.domainId || null,
       due_date: todo.dueDate || null, priority: todo.priority, done: false, created_at: now,
@@ -637,11 +936,12 @@ export default function App() {
     const todo = todos.find(t => t.id === id)
     if (!todo) return
     const newDone = !todo.done
-    setTodos(prev => prev.map(t => t.id === id ? { ...t, done: newDone } : t))
-    const { error } = await supabase.from('todos').update({ done: newDone }).eq('id', id).eq('user_id', userId)
+    const completedAt = newDone ? new Date().toISOString() : null
+    setTodos(prev => prev.map(t => t.id === id ? { ...t, done: newDone, completedAt } : t))
+    const { error } = await supabase.from('todos').update({ done: newDone, completed_at: completedAt }).eq('id', id).eq('user_id', userId)
     if (error) {
       console.error('todo toggle failed:', error.message, error)
-      setTodos(prev => prev.map(t => t.id === id ? { ...t, done: !newDone } : t))
+      setTodos(prev => prev.map(t => t.id === id ? todo : t))
     }
   }
 
@@ -1242,26 +1542,95 @@ export default function App() {
     return { error }
   }
 
-  const handleUpdateSemester = async ({ start, end, sem2Start = null, sem2End = null, breaks }) => {
-    const { error } = await supabase.from('user_profiles').update({
-      semester_start: start, semester_end: end,
-      semester2_start: sem2Start || null, semester2_end: sem2End || null,
-      updated_at: new Date().toISOString(),
-    }).eq('id', userId)
+  // Edits the CURRENT term's dates + breaks (the Settings "Semester" card).
+  const handleUpdateSemester = async ({ start, end, breaks = [] }) => {
+    const current = terms.find(t => t.isCurrent) || terms[0]
+    if (!current) return { error: { message: 'No active semester to edit yet.' } }
+    const now = new Date().toISOString()
+    const { error } = await supabase.from('terms')
+      .update({ start_date: start, end_date: end, updated_at: now })
+      .eq('id', current.id).eq('user_id', userId)
     if (error) return { error }
-    await supabase.from('semester_breaks').delete().eq('user_id', userId)
-    if (breaks.length) {
-      await supabase.from('semester_breaks').insert(
-        breaks.map(b => ({ id: b.id || crypto.randomUUID(), user_id: userId, name: b.name, start_monday: b.startMonday, return_monday: b.returnMonday }))
-      )
-    }
-    const updatedProfile = { ...userProfile, semester_start: start, semester_end: end, semester2_start: sem2Start || null, semester2_end: sem2End || null }
-    setUserProfile(updatedProfile)
-    setSemBreaks(breaks)
-    const config = buildSemesterConfig(updatedProfile, breaks.map(b => ({ name: b.name, start_monday: b.startMonday, return_monday: b.returnMonday })))
+    // Mirror the dates onto the profile for legacy reads.
+    await supabase.from('user_profiles').update({ semester_start: start, semester_end: end, updated_at: now }).eq('id', userId)
+    // Replace only this term's breaks.
+    await supabase.from('semester_breaks').delete().eq('user_id', userId).eq('term_id', current.id)
+    const newBreakRows = (breaks || []).map(b => ({ id: b.id || crypto.randomUUID(), user_id: userId, term_id: current.id, name: b.name, start_monday: b.startMonday, return_monday: b.returnMonday }))
+    if (newBreakRows.length) await supabase.from('semester_breaks').insert(newBreakRows)
+
+    const newTerms = terms.map(t => t.id === current.id ? { ...t, start, end } : t)
+    const localBreaks = [
+      ...semBreaks.filter(b => b.termId !== current.id),
+      ...newBreakRows.map(b => ({ id: b.id, name: b.name, startMonday: b.start_monday, returnMonday: b.return_monday, termId: current.id })),
+    ]
+    setTerms(newTerms)
+    setSemBreaks(localBreaks)
+    setUserProfile(prev => prev ? { ...prev, semester_start: start, semester_end: end } : prev)
+    const config = buildConfigFromTerms(newTerms, localBreaks)
     setSemConfig(config)
     setSemesterConfig(config)
     return { error: null }
+  }
+
+  // Rolls over into a new semester: creates it (now current), archives the previous
+  // term's non-carried domains (kept, just past), carries over the chosen ones, and adds
+  // the new modules. Nothing from earlier terms is deleted or overwritten.
+  const handleStartNewTerm = async ({ label, start, end, breaks = [], modules = [], carryOverIds = [] }) => {
+    const now = new Date().toISOString()
+    const newTermId = crypto.randomUUID()
+    const position = terms.reduce((m, t) => Math.max(m, t.position), -1) + 1
+    const prevCurrent = terms.find(t => t.isCurrent) || null
+
+    const termRow = { id: newTermId, user_id: userId, label: label || 'New Semester', start_date: start, end_date: end, position, is_current: true }
+    const { error: termErr } = await supabase.from('terms').insert(termRow)
+    if (termErr) return { error: termErr }
+    await supabase.from('terms').update({ is_current: false }).eq('user_id', userId).neq('id', newTermId)
+    await supabase.from('user_profiles').update({ semester_start: start, semester_end: end, semester2_start: null, semester2_end: null, updated_at: now }).eq('id', userId)
+
+    const breakRows = (breaks || []).filter(b => b.name && b.startMonday && b.returnMonday)
+      .map(b => ({ id: crypto.randomUUID(), user_id: userId, term_id: newTermId, name: b.name, start_monday: b.startMonday, return_monday: b.returnMonday }))
+    if (breakRows.length) await supabase.from('semester_breaks').insert(breakRows)
+
+    const carry = new Set(carryOverIds)
+    const prevActive = domains.filter(d => !d.isPast && (prevCurrent ? d.termId === prevCurrent.id : true))
+    const toArchive = prevActive.filter(d => !carry.has(d.id))
+    for (const d of toArchive) await supabase.from('domains').update({ is_past: true }).eq('id', d.id).eq('user_id', userId)
+    for (const id of carryOverIds) await supabase.from('domains').update({ term_id: newTermId, is_past: false }).eq('id', id).eq('user_id', userId)
+
+    const newDomainRows = (modules || []).map(m => ({
+      id: m.id || crypto.randomUUID(), user_id: userId, name: m.name, code: m.code || null,
+      category: m.category || 'academic', color: m.color, icon: m.icon || 'BookOpen',
+      professor: m.professor || null, credits: m.credits || null, role: m.role || null,
+      semester_number: null, term_id: newTermId, progress: 0, created_at: now, updated_at: now,
+    }))
+    if (newDomainRows.length) {
+      const { error: domErr } = await supabase.from('domains').insert(newDomainRows)
+      if (domErr) return { error: domErr }
+    }
+
+    const localTerms = [
+      ...terms.map(t => ({ ...t, isCurrent: false })),
+      { id: newTermId, label: termRow.label, position, isCurrent: true, start, end },
+    ]
+    const localBreaks = [
+      ...semBreaks,
+      ...breakRows.map(b => ({ id: b.id, name: b.name, startMonday: b.start_monday, returnMonday: b.return_monday, termId: newTermId })),
+    ]
+    const archivedIds = new Set(toArchive.map(d => d.id))
+    setDomains(prev => ([
+      ...prev.map(d =>
+        archivedIds.has(d.id) ? { ...d, isPast: true }
+        : carry.has(d.id)     ? { ...d, termId: newTermId, isPast: false }
+        : d),
+      ...newDomainRows.map(dbDomainToLocal),
+    ]))
+    setTerms(localTerms)
+    setSemBreaks(localBreaks)
+    setUserProfile(prev => prev ? { ...prev, semester_start: start, semester_end: end, semester2_start: null, semester2_end: null } : prev)
+    const config = buildConfigFromTerms(localTerms, localBreaks)
+    setSemConfig(config)
+    setSemesterConfig(config)
+    return { error: null, termId: newTermId }
   }
 
   const handleExportData = () => {
@@ -1324,6 +1693,7 @@ export default function App() {
       supabase.from('domain_assessments').delete().eq('user_id', userId),
       supabase.from('note_folders').delete().eq('user_id', userId),
       supabase.from('domains').delete().eq('user_id', userId),
+      supabase.from('terms').delete().eq('user_id', userId),
       supabase.from('user_profiles').delete().eq('id', userId),
       supabase.from('user_preferences').delete().eq('user_id', userId),
     ])
@@ -1331,6 +1701,8 @@ export default function App() {
     setDomains([])
     setScheduleSlots([])
     setSemConfig(null)
+    setTerms([])
+    setSemBreaks([])
     setTodos([])
     setStudySessions([])
     setCustomCalendarEvents([])
@@ -1485,7 +1857,10 @@ export default function App() {
           wallpaperEnabled={wallpaperEnabled}
           onToggleWallpaper={handleToggleWallpaper}
           semBreaks={semBreaks}
+          terms={terms}
+          currentTerm={terms.find(t => t.isCurrent) || null}
           onUpdateSemester={handleUpdateSemester}
+          onStartNewSemester={() => { setPreviousPage('settings'); setCurrentPage('new-term') }}
           onExportData={handleExportData}
           notifStatus={notifStatus}
           onEnableNotifications={handleEnableNotifications}
@@ -1494,6 +1869,20 @@ export default function App() {
           onChangePassword={handleChangePassword}
           onResetOnboarding={handleDevResetOnboarding}
           onEditSchedule={() => { setPreviousPage('settings'); setCurrentPage('schedule-builder') }}
+          googleConfigured={googleCalendarConfigured}
+          googleCal={googleCal}
+          googleCalendarList={googleCalendarList}
+          googleBusy={googleBusy}
+          googleResult={googleResult}
+          onConnectGoogle={startGoogleCalendarConnect}
+          domains={domains}
+          importedEvents={importedGoogleEvents}
+          googleMappings={googleMappings}
+          onSaveGoogleMappings={handleSaveGoogleMappings}
+          onResetGoogleImports={handleResetGoogleImports}
+          onSelectGoogleCalendars={handleSelectGoogleCalendars}
+          onSyncGoogle={() => runGoogleSync()}
+          onDisconnectGoogle={handleDisconnectGoogle}
         />
       )}
       {currentPage === 'schedule-builder' && (
@@ -1504,6 +1893,20 @@ export default function App() {
           totalWeeks={semConfig ? totalTeachingWeeks() : null}
           onSave={handleSaveSchedule}
           onCancel={() => setCurrentPage('settings')}
+        />
+      )}
+      {currentPage === 'new-term' && (
+        <NewTermPage
+          domains={domains}
+          currentTerm={terms.find(t => t.isCurrent) || null}
+          weekStartSunday={userProfile?.week_start === 'sunday'}
+          yearOfStudy={userProfile?.year_of_study || ''}
+          onCancel={() => setCurrentPage('settings')}
+          onSubmit={async (payload) => {
+            const res = await handleStartNewTerm(payload)
+            if (!res.error) { setPreviousPage('new-term'); setCurrentPage('schedule-builder') }
+            return res
+          }}
         />
       )}
     </Layout>

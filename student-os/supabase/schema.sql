@@ -62,6 +62,33 @@ alter table domains enable row level security;
 create policy "Users manage their own domains"
   on domains for all using (auth.uid() = user_id);
 
+-- ─── Terms (semester periods) ─────────────────────────────────────────────────
+-- One row per semester the student sets up. Rolling into a new semester creates a
+-- new term and marks it current; previous terms (and their domains/events) are kept.
+create table terms (
+  id          uuid primary key default gen_random_uuid(),
+  user_id     uuid not null references auth.users(id) on delete cascade,
+  label       text not null default 'Semester',
+  start_date  date not null,
+  end_date    date not null,
+  position    integer not null default 0,
+  is_current  boolean not null default true,
+  created_at  timestamptz not null default now(),
+  updated_at  timestamptz not null default now()
+);
+
+alter table terms enable row level security;
+create policy "Users manage their own terms"
+  on terms for all using (auth.uid() = user_id);
+
+create index terms_user_idx on terms(user_id);
+
+-- Each domain belongs to one term (null for legacy rows, backfilled on first load).
+alter table domains add column term_id uuid references terms(id) on delete set null;
+
+-- Each break belongs to one term (defined earlier; column added here after terms exists).
+alter table semester_breaks add column term_id uuid references terms(id) on delete cascade;
+
 -- ─── Domain Schedule Slots ────────────────────────────────────────────────────
 create table domain_schedule_slots (
   id                uuid primary key default gen_random_uuid(),
@@ -100,14 +127,21 @@ create policy "Users manage their own assessments"
 
 -- ─── Custom Calendar Events ───────────────────────────────────────────────────
 create table custom_calendar_events (
-  id              uuid primary key default gen_random_uuid(),
-  user_id         uuid not null references auth.users(id) on delete cascade,
-  domain_id       uuid references domains(id) on delete set null,
-  type            text not null,
-  title           text not null,
-  date            date not null,
-  academic_week   integer,
-  created_at      timestamptz not null default now()
+  id                 uuid primary key default gen_random_uuid(),
+  user_id            uuid not null references auth.users(id) on delete cascade,
+  domain_id          uuid references domains(id) on delete set null,
+  type               text not null,
+  title              text not null,
+  date               date not null,
+  academic_week      integer,
+  -- Added by migrations/2026_google_calendar.sql for imported timetable events:
+  start_time         time,
+  duration_minutes   integer,
+  location           text,
+  google_event_id    text,   -- null for hand-made events; unique per user when set
+  google_calendar_id text,
+  locally_edited     boolean not null default false,  -- true = sync must not overwrite
+  created_at         timestamptz not null default now()
 );
 
 alter table custom_calendar_events enable row level security;
@@ -173,6 +207,8 @@ create table todos (
   due_date          date,
   priority          text not null default 'medium', -- 'low'|'medium'|'high'
   done              boolean not null default false,
+  completed_at      timestamptz,   -- kept in sync with `done` by trigger (see migrations/2026_todos_lifecycle.sql)
+  source            text not null default 'app',  -- 'app' | 'jarvis'
   academic_week     integer,
   note_id           uuid,   -- FK → notes (circular; added after notes table)
   study_session_id  uuid,   -- FK → study_sessions (circular; added after that table)

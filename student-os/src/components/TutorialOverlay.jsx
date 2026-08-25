@@ -134,7 +134,7 @@ function buildSteps(name, hasDomains) {
       page: 'todos',
       targetId: 'todos-new-btn',
       title: 'To do',
-      body: `Keep all your tasks here with priorities, due dates, and domain links. Tasks can be pinned to a specific academic week and grouped by domain, priority, or due date.`,
+      body: `Every task in one list, ordered by when it's due. Tick something off and it clears itself at the end of the day. Type in the quick-add bar for speed, or use New Task for the full form.`,
       nextLabel: 'Got it',
       tooltipSide: 'bottom',
     },

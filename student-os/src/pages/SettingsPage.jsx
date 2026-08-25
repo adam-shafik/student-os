@@ -1,7 +1,8 @@
-import { useState } from 'react'
-import { User, Lock, Palette, AlertTriangle, Check, Eye, EyeOff, Save, Loader2, Calendar, Download, Plus, Trash2, Bell } from 'lucide-react'
+import { useState, useMemo } from 'react'
+import { User, Lock, Palette, AlertTriangle, Check, Eye, EyeOff, Save, Loader2, Calendar, CalendarPlus, CalendarSync, Download, Plus, Trash2, Bell, Link2, Unlink, RotateCcw } from 'lucide-react'
 import { THEMES } from '../theme'
 import ConfirmModal from '../components/ConfirmModal'
+import AppSelect, { AppSelectItem } from '../components/AppSelect'
 
 function SectionCard({ title, Icon, accentColor = 'var(--accent-blue)', children, tutorialId, contentStyle }) {
   return (
@@ -70,7 +71,255 @@ function ErrorBanner({ message }) {
   )
 }
 
-export default function SettingsPage({ userProfile, userEmail, theme, onThemeChange, wallpaperEnabled, onToggleWallpaper, semBreaks = [], onUpdateSemester, onExportData, notifStatus = 'unsupported', onEnableNotifications, onDisableNotifications, onUpdateProfile, onChangePassword, onResetOnboarding, onEditSchedule }) {
+// One row per distinct imported title. This uni titles each event with the module
+// itself, so the list is one entry per module and stays short.
+function EventMapping({ domains, importedEvents, mappings, busy, onSave }) {
+  const groups = useMemo(() => {
+    const byKey = new Map()
+    for (const ev of importedEvents) {
+      const module = ev.googleSummary || ev.title
+      const key = module.trim().toLowerCase()
+      if (!byKey.has(key)) byKey.set(key, { key, title: module, count: 0, domainId: ev.domainId })
+      byKey.get(key).count++
+    }
+    return [...byKey.values()].sort((a, b) =>
+      (a.domainId ? 1 : 0) - (b.domainId ? 1 : 0) || a.title.localeCompare(b.title))
+  }, [importedEvents])
+
+  const initial = useMemo(() => {
+    const map = {}
+    for (const g of groups) {
+      const saved = mappings.find(m => m.title_key === g.key)
+      map[g.key] = { domainId: saved?.domain_id ?? g.domainId ?? '' }
+    }
+    return map
+  }, [groups, mappings])
+
+  // Remounted via `key` whenever the imported set changes, so the draft starts
+  // from current data without syncing state during render.
+  const [draft, setDraft] = useState(initial)
+
+  const set = (key, field, value) =>
+    setDraft(d => ({ ...d, [key]: { ...d[key], [field]: value } }))
+
+  const changed = groups.filter(g => draft[g.key]?.domainId !== initial[g.key]?.domainId)
+
+  if (!groups.length) {
+    if (busy) return null   // mid-sync the list is briefly empty; don't flash "nothing imported"
+    return (
+      <div style={{ borderTop: '1px solid var(--border)', paddingTop: 16, fontSize: 12, color: 'var(--text-muted)', lineHeight: 1.6 }}>
+        No events imported yet, so there is nothing to match. If the sync above reported
+        <strong style={{ color: 'var(--text-secondary)' }}> 0 added</strong>, Google returned no events in the
+        imported range (three months back to a year ahead).
+      </div>
+    )
+  }
+  const unmapped = groups.filter(g => !draft[g.key]?.domainId).length
+
+  return (
+    <div style={{ borderTop: '1px solid var(--border)', paddingTop: 16, display: 'flex', flexDirection: 'column', gap: 12 }}>
+      <div>
+        <div style={{ fontSize: 13, fontWeight: 600, color: 'var(--text-primary)', marginBottom: 4 }}>Match to domains</div>
+        <div style={{ fontSize: 12, color: 'var(--text-muted)', lineHeight: 1.5 }}>
+          {unmapped > 0
+            ? `${unmapped} of ${groups.length} modules aren’t linked to a domain yet.`
+            : 'All modules are linked. Future syncs reuse these.'}
+        </div>
+      </div>
+
+      <div style={{ display: 'flex', flexDirection: 'column', gap: 8, maxHeight: 340, overflowY: 'auto' }}>
+        {groups.map(g => (
+          <div key={g.key} style={{
+            display: 'grid', gridTemplateColumns: 'minmax(0,1fr) 190px', gap: 8, alignItems: 'center',
+            padding: '9px 11px', borderRadius: 9,
+            background: draft[g.key]?.domainId ? 'transparent' : 'rgba(251,191,36,0.06)',
+            border: `1px solid ${draft[g.key]?.domainId ? 'var(--border)' : 'rgba(251,191,36,0.28)'}`,
+          }}>
+            <div style={{ minWidth: 0 }}>
+              <div style={{ fontSize: 13, color: 'var(--text-primary)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{g.title}</div>
+              <div style={{ fontSize: 11, color: 'var(--text-muted)' }}>{g.count} event{g.count === 1 ? '' : 's'}</div>
+            </div>
+            <AppSelect value={draft[g.key]?.domainId || ''} onChange={v => set(g.key, 'domainId', v)}>
+              <AppSelectItem value="">No domain</AppSelectItem>
+              {domains.map(d => (
+                <AppSelectItem key={d.id} value={d.id}>{d.code ? `${d.code} · ` : ''}{d.name}</AppSelectItem>
+              ))}
+            </AppSelect>
+          </div>
+        ))}
+      </div>
+
+      <button className="btn-press" disabled={!changed.length || busy}
+        onClick={() => onSave(changed.map(g => ({ titleKey: g.key, ...draft[g.key] })))}
+        style={{
+          alignSelf: 'flex-start', padding: '9px 18px', borderRadius: 9, border: 'none',
+          fontSize: 13, fontWeight: 600, fontFamily: 'inherit',
+          background: changed.length ? 'var(--accent-blue)' : 'var(--border)',
+          color: changed.length ? 'var(--btn-primary-text, #fff)' : 'var(--text-muted)',
+          cursor: changed.length && !busy ? 'pointer' : 'default',
+        }}>
+        {busy === 'syncing' ? 'Saving…' : `Apply ${changed.length || ''} change${changed.length === 1 ? '' : 's'}`}
+      </button>
+    </div>
+  )
+}
+
+function GoogleCalendarSection({ connection, calendarList, busy, result, domains = [], importedEvents = [], mappings = [], onConnect, onSelect, onSync, onDisconnect, onSaveMappings, onResetImports }) {
+  const [resetConfirm, setResetConfirm] = useState(false)
+  const [picked, setPicked] = useState([])
+
+  const btn = (bg, color) => ({
+    display: 'flex', alignItems: 'center', gap: 7, padding: '10px 20px', borderRadius: 9,
+    border: 'none', background: bg, color, fontSize: 13, fontWeight: 600,
+    cursor: busy ? 'default' : 'pointer', flexShrink: 0, fontFamily: 'inherit',
+    opacity: busy ? 0.6 : 1, transition: 'all 0.15s',
+  })
+
+  const fmt = iso => iso
+    ? new Date(iso).toLocaleString('en-GB', { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' })
+    : null
+
+  // Calendar picker — shown straight after consent, before the first sync.
+  if (calendarList) {
+    return (
+      <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
+        <div style={{ fontSize: 12, color: 'var(--text-muted)', lineHeight: 1.5 }}>
+          Which of these is your timetable? Only the ones you tick get imported.
+        </div>
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 6, maxHeight: 260, overflowY: 'auto' }}>
+          {calendarList.map(cal => {
+            const on = picked.includes(cal.id)
+            return (
+              <button className="btn-press" key={cal.id}
+                onClick={() => setPicked(p => on ? p.filter(x => x !== cal.id) : [...p, cal.id])}
+                style={{
+                  display: 'flex', alignItems: 'center', gap: 10, padding: '10px 13px', borderRadius: 9,
+                  border: `1px solid ${on ? 'var(--accent-green)' : 'var(--border-strong)'}`,
+                  background: on ? 'rgba(52,211,153,0.10)' : 'transparent',
+                  color: 'var(--text-primary)', fontSize: 13, cursor: 'pointer',
+                  textAlign: 'left', fontFamily: 'inherit', transition: 'all 0.12s',
+                }}>
+                <span style={{
+                  width: 16, height: 16, borderRadius: 4, flexShrink: 0,
+                  border: `1.5px solid ${on ? 'var(--accent-green)' : 'var(--border-strong)'}`,
+                  background: on ? 'var(--accent-green)' : 'transparent',
+                  display: 'flex', alignItems: 'center', justifyContent: 'center',
+                }}>{on && <Check size={11} color="#0b0b0f" />}</span>
+                <span style={{ flex: 1, minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                  {cal.summary}
+                </span>
+              </button>
+            )
+          })}
+        </div>
+        {result?.error && (
+          <div style={{ fontSize: 12, color: 'var(--accent-red)', lineHeight: 1.5 }}>{result.error}</div>
+        )}
+        <button className="btn-press" disabled={!picked.length || busy}
+          onClick={() => onSelect(picked)}
+          style={btn(picked.length ? 'var(--accent-green)' : 'var(--border)', picked.length ? '#0b0b0f' : 'var(--text-muted)')}>
+          {busy === 'syncing' ? <><Loader2 size={14} style={{ animation: 'spin 0.7s linear infinite' }} /> Importing…</> : <>Import {picked.length || ''} calendar{picked.length === 1 ? '' : 's'}</>}
+        </button>
+      </div>
+    )
+  }
+
+  if (!connection) {
+    return (
+      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 16, flexWrap: 'wrap' }}>
+        <div>
+          <div style={{ fontSize: 13, fontWeight: 600, color: 'var(--text-primary)', marginBottom: 4 }}>Import your university timetable</div>
+          <div style={{ fontSize: 12, color: 'var(--text-muted)', lineHeight: 1.5, maxWidth: 380 }}>
+            Connect the Google account your timetable lives in. Classes import with their real times and rooms, and stay editable here. Read-only — StudentOS never writes to Google.
+          </div>
+          {result?.error && <div style={{ fontSize: 12, color: 'var(--accent-red)', marginTop: 8, maxWidth: 380 }}>{result.error}</div>}
+        </div>
+        <button className="btn-press" onClick={onConnect} disabled={busy} style={btn('var(--accent-green)', '#0b0b0f')}>
+          {busy === 'connecting' ? <><Loader2 size={14} style={{ animation: 'spin 0.7s linear infinite' }} /> Connecting…</> : <><Link2 size={14} /> Connect</>}
+        </button>
+      </div>
+    )
+  }
+
+  const noCalendars = !connection.calendar_ids?.length
+
+  return (
+    <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
+      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 16, flexWrap: 'wrap' }}>
+        <div>
+          <div style={{ fontSize: 13, fontWeight: 600, color: 'var(--text-primary)', marginBottom: 4 }}>
+            {connection.google_email || 'Connected'}
+          </div>
+          <div style={{ fontSize: 12, color: 'var(--text-muted)', lineHeight: 1.5 }}>
+            {noCalendars
+              ? 'No calendar selected yet — reconnect to pick one.'
+              : `Syncing ${connection.calendar_ids.length} calendar${connection.calendar_ids.length === 1 ? '' : 's'}.`}
+            {connection.last_synced_at && <> Last synced {fmt(connection.last_synced_at)}.</>}
+          </div>
+        </div>
+        <div style={{ display: 'flex', gap: 8, flexShrink: 0 }}>
+          <button className="btn-press" onClick={onSync} disabled={busy || noCalendars} style={btn('var(--accent-blue)', 'var(--btn-primary-text, #fff)')}>
+            {busy === 'syncing' ? <><Loader2 size={14} style={{ animation: 'spin 0.7s linear infinite' }} /> Syncing…</> : <><CalendarSync size={14} /> Sync now</>}
+          </button>
+          <button className="btn-press" onClick={onDisconnect} disabled={busy}
+            style={{ ...btn('transparent', 'var(--text-secondary)'), border: '1px solid var(--border-strong)' }}>
+            <Unlink size={14} /> Disconnect
+          </button>
+        </div>
+      </div>
+
+      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12, flexWrap: 'wrap' }}>
+        <div style={{ fontSize: 12, color: 'var(--text-muted)', lineHeight: 1.5, maxWidth: 420 }}>
+          Imports looking wrong? Clear them all and pull a fresh copy — your saved domain matches are kept and reapplied.
+        </div>
+        <button className="btn-press" onClick={() => setResetConfirm(true)} disabled={busy || noCalendars}
+          style={{ ...btn('transparent', 'var(--accent-amber)'), border: '1px solid rgba(251,191,36,0.35)', padding: '8px 14px', fontSize: 12 }}>
+          <RotateCcw size={13} /> Re-import from scratch
+        </button>
+      </div>
+
+      {resetConfirm && (
+        <ConfirmModal
+          message="Deletes every event imported from Google and pulls a fresh copy. Notes attached to an imported event will be orphaned, and hand-edits to imported events are lost. Your domain matches are kept."
+          confirmLabel="Re-import"
+          onConfirm={() => { setResetConfirm(false); onResetImports() }}
+          onCancel={() => setResetConfirm(false)}
+        />
+      )}
+
+      {(result?.error || connection.last_sync_error) && (
+        <div style={{ fontSize: 12, color: 'var(--accent-red)', lineHeight: 1.5 }}>
+          {result?.error || connection.last_sync_error}
+        </div>
+      )}
+
+      <EventMapping
+        key={`${importedEvents.length}:${importedEvents.filter(e => !e.domainId).length}:${mappings.length}`}
+        domains={domains}
+        importedEvents={importedEvents}
+        mappings={mappings}
+        busy={busy}
+        onSave={onSaveMappings}
+      />
+
+      {result?.mapped > 0 && (
+        <div style={{ fontSize: 12, color: 'var(--accent-green)' }}>
+          Updated {result.mapped} title{result.mapped === 1 ? '' : 's'}.
+        </div>
+      )}
+
+      {result && !result.error && result.inserted !== undefined && (
+        <div style={{ fontSize: 12, color: 'var(--text-muted)', lineHeight: 1.5 }}>
+          {result.inserted} added · {result.updated} updated · {result.removed} removed
+          {result.skippedEdited > 0 && <> · {result.skippedEdited} left alone (edited here)</>}
+          {result.unmatched > 0 && <><br /><span style={{ color: 'var(--accent-amber)' }}>{result.unmatched} couldn’t be matched to a domain — open them on the calendar to assign one.</span></>}
+        </div>
+      )}
+    </div>
+  )
+}
+
+export default function SettingsPage({ userProfile, userEmail, theme, onThemeChange, wallpaperEnabled, onToggleWallpaper, semBreaks = [], terms = [], currentTerm = null, onUpdateSemester, onStartNewSemester, onExportData, notifStatus = 'unsupported', onEnableNotifications, onDisableNotifications, onUpdateProfile, onChangePassword, onResetOnboarding, onEditSchedule, googleCal = null, googleCalendarList = null, googleBusy = null, googleResult = null, googleConfigured = false, onConnectGoogle, onSelectGoogleCalendars, onSyncGoogle, onDisconnectGoogle, domains = [], importedEvents = [], googleMappings = [], onSaveGoogleMappings, onResetGoogleImports }) {
   const [firstName,  setFirstName]  = useState(userProfile?.first_name    || '')
   const [lastName,   setLastName]   = useState(userProfile?.last_name     || '')
   const [dob,        setDob]        = useState(userProfile?.date_of_birth || '')
@@ -92,12 +341,9 @@ export default function SettingsPage({ userProfile, userEmail, theme, onThemeCha
   const [resetConfirm, setResetConfirm] = useState(false)
   const [resetBusy,    setResetBusy]    = useState(false)
 
-  const [semStart,  setSemStart]  = useState(userProfile?.semester_start || '')
-  const [semEnd,    setSemEnd]    = useState(userProfile?.semester_end   || '')
-  const [numSemesters, setNumSemesters] = useState(userProfile?.semester2_start && userProfile?.semester2_end ? 2 : 1)
-  const [sem2Start, setSem2Start] = useState(userProfile?.semester2_start || '')
-  const [sem2End,   setSem2End]   = useState(userProfile?.semester2_end   || '')
-  const [breaks,    setBreaks]    = useState(() => semBreaks.map(b => ({ ...b, id: b.id || crypto.randomUUID() })))
+  const [semStart,  setSemStart]  = useState(currentTerm?.start || userProfile?.semester_start || '')
+  const [semEnd,    setSemEnd]    = useState(currentTerm?.end   || userProfile?.semester_end   || '')
+  const [breaks,    setBreaks]    = useState(() => semBreaks.filter(b => !currentTerm || b.termId === currentTerm.id).map(b => ({ ...b, id: b.id || crypto.randomUUID() })))
   const [semSaving, setSemSaving] = useState(false)
   const [semSaved,  setSemSaved]  = useState(false)
   const [semError,  setSemError]  = useState(null)
@@ -123,24 +369,12 @@ export default function SettingsPage({ userProfile, userEmail, theme, onThemeCha
     if (!startValid) { setSemError(`Semester start must be a ${DOW_NAMES[startDay]}`); return }
     if (!endValid)   { setSemError(`Semester end must be a ${DOW_NAMES[endDay]}`); return }
     if (semStart >= semEnd) { setSemError('End date must be after start date'); return }
-    if (numSemesters === 2) {
-      if (!sem2Start || !sem2End) { setSemError('Semester 2 start and end dates are required'); return }
-      if (getDow(sem2Start) !== startDay) { setSemError(`Semester 2 start must be a ${DOW_NAMES[startDay]}`); return }
-      if (getDow(sem2End)   !== endDay)   { setSemError(`Semester 2 end must be a ${DOW_NAMES[endDay]}`); return }
-      if (sem2Start >= sem2End) { setSemError('Semester 2 end must be after its start'); return }
-      if (sem2Start <= semEnd)  { setSemError('Semester 2 must start after Semester 1 ends'); return }
-    }
     const incomplete = breaks.find(b => !b.name.trim() || !b.startMonday || !b.returnMonday)
     if (incomplete) { setSemError('All break fields are required'); return }
     const badBreak = breaks.find(b => getDow(b.startMonday) !== breakDay || getDow(b.returnMonday) !== breakDay)
     if (badBreak) { setSemError(`Break dates must be ${DOW_NAMES[breakDay]}s`); return }
     setSemSaving(true); setSemError(null)
-    const { error } = await onUpdateSemester?.({
-      start: semStart, end: semEnd,
-      sem2Start: numSemesters === 2 ? sem2Start : null,
-      sem2End:   numSemesters === 2 ? sem2End   : null,
-      breaks,
-    })
+    const { error } = await onUpdateSemester?.({ start: semStart, end: semEnd, breaks })
     setSemSaving(false)
     if (error) { setSemError(error.message || 'Save failed'); return }
     setSemSaved(true)
@@ -351,27 +585,36 @@ export default function SettingsPage({ userProfile, userEmail, theme, onThemeCha
         </div>
       </SectionCard>
 
+      {/* Uni calendar */}
+      {googleConfigured && (
+        <SectionCard title="Uni calendar" Icon={CalendarSync} accentColor="var(--accent-green)">
+          <GoogleCalendarSection
+            domains={domains}
+            importedEvents={importedEvents}
+            mappings={googleMappings}
+            onSaveMappings={onSaveGoogleMappings}
+            onResetImports={onResetGoogleImports}
+            connection={googleCal}
+            calendarList={googleCalendarList}
+            busy={googleBusy}
+            result={googleResult}
+            onConnect={onConnectGoogle}
+            onSelect={onSelectGoogleCalendars}
+            onSync={onSyncGoogle}
+            onDisconnect={onDisconnectGoogle}
+          />
+        </SectionCard>
+      )}
+
       {/* Semester */}
       <SectionCard title="Semester" Icon={Calendar} accentColor="var(--accent-amber)">
         <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
-          {/* Semester count toggle */}
-          <Field label="Number of semesters">
-            <div style={{ display: 'flex', gap: 8 }}>
-              {[{ v: 1, label: 'One semester' }, { v: 2, label: 'Two semesters' }].map(o => (
-                <button className="btn-press" key={o.v} onClick={() => setNumSemesters(o.v)} style={{
-                  flex: 1, padding: '9px 0', borderRadius: 8, cursor: 'pointer', fontFamily: 'inherit', fontSize: 13,
-                  fontWeight: numSemesters === o.v ? 600 : 400,
-                  border: `1px solid ${numSemesters === o.v ? 'var(--accent-amber)' : 'var(--border-strong)'}`,
-                  background: numSemesters === o.v ? 'rgba(251,191,36,0.12)' : 'transparent',
-                  color: numSemesters === o.v ? 'var(--accent-amber)' : 'var(--text-secondary)',
-                  transition: 'all 0.15s',
-                }}>{o.label}</button>
-              ))}
-            </div>
-          </Field>
+          <p style={{ margin: 0, fontSize: 12, color: 'var(--text-muted)', lineHeight: 1.5 }}>
+            Editing your current semester{currentTerm?.label ? <> — <strong style={{ color: 'var(--text-secondary)' }}>{currentTerm.label}</strong></> : ''}. To move on to the next one, use “Start a new semester” below.
+          </p>
 
           <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 14 }}>
-            <Field label={`${numSemesters === 2 ? 'Sem 1 ' : 'Semester '}Start (${DOW_NAMES[startDay]})`}>
+            <Field label={`Semester Start (${DOW_NAMES[startDay]})`}>
               <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
                 <TextInput type="date" value={semStart} onChange={e => setSemStart(e.target.value)} style={{ colorScheme: 'dark' }} />
                 {semStart && (
@@ -379,7 +622,7 @@ export default function SettingsPage({ userProfile, userEmail, theme, onThemeCha
                 )}
               </div>
             </Field>
-            <Field label={`${numSemesters === 2 ? 'Sem 1 ' : 'Semester '}End (${DOW_NAMES[endDay]})`}>
+            <Field label={`Semester End (${DOW_NAMES[endDay]})`}>
               <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
                 <TextInput type="date" value={semEnd} onChange={e => setSemEnd(e.target.value)} style={{ colorScheme: 'dark' }} />
                 {semEnd && (
@@ -388,32 +631,6 @@ export default function SettingsPage({ userProfile, userEmail, theme, onThemeCha
               </div>
             </Field>
           </div>
-
-          {numSemesters === 2 && (
-            <>
-              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 14 }}>
-                <Field label={`Sem 2 Start (${DOW_NAMES[startDay]})`}>
-                  <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
-                    <TextInput type="date" value={sem2Start} onChange={e => setSem2Start(e.target.value)} style={{ colorScheme: 'dark' }} />
-                    {sem2Start && (
-                      <span style={{ fontSize: 12, fontWeight: 600, padding: '4px 9px', borderRadius: 6, flexShrink: 0, background: getDow(sem2Start) === startDay ? 'rgba(52,211,153,0.12)' : 'rgba(251,113,133,0.12)', color: getDow(sem2Start) === startDay ? '#34d399' : '#fb7185', border: `1px solid ${getDow(sem2Start) === startDay ? 'rgba(52,211,153,0.25)' : 'rgba(251,113,133,0.25)'}` }}>{dowName(sem2Start)}</span>
-                    )}
-                  </div>
-                </Field>
-                <Field label={`Sem 2 End (${DOW_NAMES[endDay]})`}>
-                  <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
-                    <TextInput type="date" value={sem2End} onChange={e => setSem2End(e.target.value)} style={{ colorScheme: 'dark' }} />
-                    {sem2End && (
-                      <span style={{ fontSize: 12, fontWeight: 600, padding: '4px 9px', borderRadius: 6, flexShrink: 0, background: getDow(sem2End) === endDay ? 'rgba(52,211,153,0.12)' : 'rgba(251,113,133,0.12)', color: getDow(sem2End) === endDay ? '#34d399' : '#fb7185', border: `1px solid ${getDow(sem2End) === endDay ? 'rgba(52,211,153,0.25)' : 'rgba(251,113,133,0.25)'}` }}>{dowName(sem2End)}</span>
-                    )}
-                  </div>
-                </Field>
-              </div>
-              <p style={{ margin: 0, fontSize: 12, color: 'var(--text-muted)', lineHeight: 1.5 }}>
-                The gap between Semester 1 and Semester 2 is the inter-semester break. Week numbers restart at 1 in Semester 2. Set each domain's semester from its card.
-              </p>
-            </>
-          )}
 
           <div>
             <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 10 }}>
@@ -455,6 +672,26 @@ export default function SettingsPage({ userProfile, userEmail, theme, onThemeCha
           <div style={{ display: 'flex', justifyContent: 'flex-end' }}>
             <SaveBtn saving={semSaving} saved={semSaved} onClick={handleSaveSemester} color="var(--accent-amber)" label="Save semester" />
           </div>
+        </div>
+      </SectionCard>
+
+      {/* New semester rollover */}
+      <SectionCard title="New semester" Icon={CalendarPlus} accentColor="var(--accent-green)">
+        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 16, flexWrap: 'wrap' }}>
+          <div>
+            <div style={{ fontSize: 13, fontWeight: 600, color: 'var(--text-primary)', marginBottom: 4 }}>Move on to a new semester</div>
+            <div style={{ fontSize: 12, color: 'var(--text-muted)', lineHeight: 1.5, maxWidth: 400 }}>
+              Set fresh dates and modules for the next term. Your current modules move to your Past section — nothing is deleted, and old notes, grades, and calendar history stay intact. You can carry over ongoing societies or projects.
+            </div>
+          </div>
+          <button className="btn-press"
+            onClick={onStartNewSemester}
+            style={{ display: 'flex', alignItems: 'center', gap: 7, padding: '10px 20px', borderRadius: 9, border: 'none', background: 'var(--accent-green)', color: '#052e1a', fontSize: 13, fontWeight: 600, cursor: 'pointer', flexShrink: 0, fontFamily: 'inherit', transition: 'all 0.15s' }}
+            onMouseEnter={e => { e.currentTarget.style.filter = 'brightness(1.1)'; e.currentTarget.style.transform = 'translateY(-1px)' }}
+            onMouseLeave={e => { e.currentTarget.style.filter = 'none'; e.currentTarget.style.transform = 'none' }}
+          >
+            <CalendarPlus size={14} /> Start a new semester
+          </button>
         </div>
       </SectionCard>
 

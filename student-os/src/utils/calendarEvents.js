@@ -46,9 +46,10 @@ export function getTypeColor(type, customColors = {}) {
 
 // ─── Build schedule events from user's weekly slots + semester config ─────────
 // Generates a lecture/lab event for every teaching week based on slots set in onboarding.
-// GOOGLE CALENDAR HOOK: In the future, merge this output with events from the Google
-// Calendar API (after OAuth2 auth). The event shape is designed to accommodate external
-// events with domainId: null.
+// Google Calendar events are NOT built here: they are imported into
+// custom_calendar_events by supabase/functions/google-calendar-sync, which also owns
+// the title -> domain/type matching (it runs where the import happens). They reach the
+// calendar through customCalendarEvents, carrying the same `details` shape as below.
 export function buildScheduleEvents(domains, scheduleSlots, config, weekStartSunday = false) {
   if (!domains?.length || !scheduleSlots?.length || !config) return []
 
@@ -85,10 +86,17 @@ export function buildScheduleEvents(domains, scheduleSlots, config, weekStartSun
         for (const slot of scheduleSlots) {
           const domain = domainMap[slot.domainId]
           if (!domain) continue
-          // Semester scoping: a domain tagged to a specific semester only appears there;
-          // null/0 = full-year domain (appears in every semester). Only enforced for 2-sem years.
-          const dsem = domain.semesterNumber
-          if (multi && dsem != null && dsem !== 0 && dsem !== sem.index) continue
+          if (sem.termId) {
+            // Term model: a domain repeats only inside its own term. Legacy domains
+            // (no term yet) fall through to the current term so they still show.
+            if (domain.termId) { if (domain.termId !== sem.termId) continue }
+            else if (!sem.isCurrent) continue
+          } else {
+            // Legacy single-config: a domain tagged to a specific semester only appears
+            // there; null/0 = full-year domain (appears in every semester).
+            const dsem = domain.semesterNumber
+            if (multi && dsem != null && dsem !== 0 && dsem !== sem.index) continue
+          }
           if (slot.weekFrom != null && weekNum < slot.weekFrom) continue
           if (slot.weekTo   != null && weekNum > slot.weekTo)   continue
 
@@ -98,8 +106,9 @@ export function buildScheduleEvents(domains, scheduleSlots, config, weekStartSun
           if (eventDate > semEnd || eventDate < semStart) continue
 
           events.push({
-            // Keep the legacy id format for single-semester years so existing cancellations survive
-            id: multi ? `schedule-${slot.id}-s${sem.index}-w${weekNum}` : `schedule-${slot.id}-w${weekNum}`,
+            // Each slot emits in exactly one term, so slot+week is unique. Keep the legacy
+            // s{index} form only for the pre-term multi-semester config (stable cancel ids).
+            id: (!sem.termId && multi) ? `schedule-${slot.id}-s${sem.index}-w${weekNum}` : `schedule-${slot.id}-w${weekNum}`,
             type: slot.slotType,
             title: domain.name,
             date: eventDate,
@@ -153,7 +162,7 @@ export function getCalendarDays(year, month, weekStartSunday = false) {
   for (let d = 1; d <= daysInMonth; d++) {
     days.push({ date: new Date(year, month, d), isCurrentMonth: true })
   }
-  const remaining = 42 - days.length
+  const remaining = Math.ceil(days.length / 7) * 7 - days.length
   for (let d = 1; d <= remaining; d++) {
     days.push({ date: new Date(year, month + 1, d), isCurrentMonth: false })
   }
