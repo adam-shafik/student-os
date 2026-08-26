@@ -280,7 +280,16 @@ export default function App() {
     rows.forEach(r => { r.is_current = containing ? r.id === containing.id : r === rows[rows.length - 1] })
     const t1 = rows[0], t2 = rows[1] || null
 
-    await supabase.from('terms').insert(rows)
+    // These ids become foreign keys on domains and breaks, so they must not escape
+    // this function unless the rows really landed. Returning them after a failed
+    // insert seeds state with ids that exist only in memory, and every later domain
+    // insert dies on domains_term_id_fkey. With none, the caller falls back to the
+    // profile-derived config — exactly how the app behaved before terms existed.
+    const { error: termErr } = await supabase.from('terms').insert(rows)
+    if (termErr) {
+      console.error('term backfill failed:', termErr.message)
+      return []
+    }
 
     // Tag domains by their existing semester_number (2 → term 2, else term 1).
     const { data: domRows } = await supabase.from('domains').select('id, semester_number').eq('user_id', userId)

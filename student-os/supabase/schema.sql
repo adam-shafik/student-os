@@ -130,7 +130,11 @@ create table custom_calendar_events (
   id                 uuid primary key default gen_random_uuid(),
   user_id            uuid not null references auth.users(id) on delete cascade,
   domain_id          uuid references domains(id) on delete set null,
-  type               text not null,
+  -- Constrained by migrations/2026_calendar_event_type_check.sql: off-list values
+  -- are not rejected without it, just downgraded to a grey "Event" chip.
+  type               text not null check (type in (
+                       'lecture','lab','tutorial','seminar','workshop','group',
+                       'assignment','exam','study','social','appointment','reminder','other')),
   title              text not null,
   date               date not null,
   academic_week      integer,
@@ -141,8 +145,16 @@ create table custom_calendar_events (
   google_event_id    text,   -- null for hand-made events; unique per user when set
   google_calendar_id text,
   locally_edited     boolean not null default false,  -- true = sync must not overwrite
+  -- Added by migrations/2026_jarvis_mac_event_uid.sql: JARVIS's handle on its copy
+  -- of this event in macOS Calendar. Written and read only by JARVIS. Distinct from
+  -- google_event_id, which is the provenance flag.
+  mac_event_uid      text,
   created_at         timestamptz not null default now()
 );
+
+create index custom_calendar_events_mac_event_uid_idx
+  on custom_calendar_events (user_id, mac_event_uid)
+  where mac_event_uid is not null;
 
 alter table custom_calendar_events enable row level security;
 create policy "Users manage their own calendar events"
