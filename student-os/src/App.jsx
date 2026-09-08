@@ -21,7 +21,7 @@ import {
   disconnectGoogleCalendar, syncGoogleCalendar, googleCalendarConfigured,
   startGoogleCalendarConnect,
 } from './lib/googleCalendar'
-import { setSemesterConfig, getSemesterConfig, totalTeachingWeeks } from './utils/semester'
+import { setSemesterConfig, getSemesterConfig, totalTeachingWeeks, getAcademicWeek } from './utils/semester'
 import { buildScheduleEvents } from './utils/calendarEvents'
 
 // ── Shared PDF via Web Share Target ──────────────────────────────────────────
@@ -693,6 +693,36 @@ export default function App() {
     }).filter(Boolean)
     return [...schedEvents, ...assessEvents]
   }, [domains, scheduleSlots, semConfig, cancelledEventIds, assessments])
+
+  // Calendar events the user (or the Google sync) has attached to a domain are real
+  // sessions for that domain, so the domain views have to count them alongside the
+  // slot-generated ones. They are normalised into the buildScheduleEvents shape here:
+  // the import stores no academic week, and without one every imported class would
+  // land in the Schedule tab's "No week" bucket.
+  const linkedDomainEvents = useMemo(() => {
+    const domainMap = Object.fromEntries(domains.map(d => [d.id, d]))
+    return customCalendarEvents.reduce((acc, ev) => {
+      const d = ev.domainId && domainMap[ev.domainId]
+      if (!d) return acc
+      acc.push({
+        ...ev,
+        domainCode: d.code,
+        domainName: d.name,
+        domainColor: d.color,
+        domainIcon: d.icon || 'BookOpen',
+        details: { ...ev.details, week: ev.academicWeek ?? getAcademicWeek(ev.date) ?? null },
+      })
+      return acc
+    }, [])
+  }, [customCalendarEvents, domains, semConfig])
+
+  // What the Domains tab and a domain's detail page work from. The Calendar page is
+  // deliberately left on the raw `domainEvents` + `customEvents` pair: it merges those
+  // itself, and needs custom events kept identifiable for its edit/delete paths.
+  const allDomainEvents = useMemo(
+    () => [...domainEvents, ...linkedDomainEvents],
+    [domainEvents, linkedDomainEvents],
+  )
 
   const handleCompleteOnboarding = async ({ profile, semBreaks, domains: newDomains, slots }) => {
     const now = new Date().toISOString()
@@ -1740,7 +1770,7 @@ export default function App() {
           customCalendarEvents={customCalendarEvents}
           todos={todos}
           assessments={assessments}
-          domainEvents={domainEvents}
+          domainEvents={allDomainEvents}
           onOpenDomain={handleOpenDomain}
           onCreateDomain={handleCreateDomain}
         />
@@ -1748,7 +1778,7 @@ export default function App() {
       {currentPage === 'domain-detail' && selectedDomain && (
         <DomainDetailPage
           domain={selectedDomain}
-          domainEvents={domainEvents.filter(e => e.domainId === selectedDomain.id)}
+          domainEvents={allDomainEvents.filter(e => e.domainId === selectedDomain.id)}
           linkedEvents={linkedEventsFor(selectedDomain.id)}
           onBack={handleBack}
           eventNotes={eventNotes}
