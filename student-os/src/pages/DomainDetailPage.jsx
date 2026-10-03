@@ -1,4 +1,5 @@
-import { useState, useRef, useEffect, useLayoutEffect } from 'react'
+import { useState, useRef, useEffect, useLayoutEffect, Fragment } from 'react'
+import { motion, useReducedMotion } from 'framer-motion'
 import {
   ArrowLeft, User, Award, FileText,
   GraduationCap, CheckCircle2, Clock, ChevronDown,
@@ -10,7 +11,7 @@ import {
 import { DOMAIN_CATEGORIES, DOMAIN_COLORS, DOMAIN_ICON_GROUPS, getDomainIcon, readableTextOn } from '../data/domains'
 import NewNoteModal from '../components/NewNoteModal'
 import { EVENT_TYPES, resolveTypeLabel, resolveTypeColor } from '../utils/calendarEvents'
-import { totalTeachingWeeks, getSemesterCount } from '../utils/semester'
+import { totalTeachingWeeks, getSemesterCount, getAcademicWeek } from '../utils/semester'
 import { useIsMobile } from '../utils/useIsMobile'
 import EventDetailModal from '../components/EventDetailModal'
 import ConfirmModal from '../components/ConfirmModal'
@@ -21,7 +22,6 @@ function DomainIcon({ name, size = 16, color }) {
   return <Icon size={size} color={color} />
 }
 
-const TOTAL_WEEKS = totalTeachingWeeks()
 const CONF_LEVELS = [
   { key: 'not_started', label: 'Not Started', color: '#4a4c60', bg: 'rgba(74,76,96,0.15)'   },
   { key: 'reviewed',    label: 'Reviewed',    color: '#fbbf24', bg: 'rgba(251,191,36,0.12)' },
@@ -803,7 +803,390 @@ function AssessmentsTab({ domain, assessments, onAddAssessment, onUpdateAssessme
 }
 
 // ─── Study tab ────────────────────────────────────────────────────────────────
-function StudyTab({ domain, studySessions, notes, weekConfidence, onSetWeekConfidence, onNewNote, onOpenNote, showContent }) {
+// ─── Weekly tick tracker (academic domains) ───────────────────────────────────
+// A spreadsheet the student builds themselves: they name the columns once per
+// domain ("Homework", "Tutorial", "Revise") and those repeat down every teaching
+// week. Per-domain by design — a lab module and an essay module track different
+// work, so one global column set would fit neither.
+//
+// Module-level rather than nested inside StudyTab: the header holds text inputs
+// for renaming, and a component redefined on every parent render remounts them,
+// dropping focus on each keystroke.
+const DEFAULT_TRACKER_COLUMNS = ['Lecture', 'Homework', 'Tutorial', 'Revise']
+const TRACKER_LABEL_MAX = 24
+
+function TickCell({ checked, color, label, onToggle, reduce }) {
+  return (
+    <button
+      role="checkbox"
+      aria-checked={checked}
+      aria-label={label}
+      onClick={onToggle}
+      style={{
+        width: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center',
+        background: 'none', border: 'none', cursor: 'pointer', padding: '7px 0',
+        WebkitTapHighlightColor: 'transparent',
+      }}
+    >
+      <motion.span
+        whileHover={reduce ? undefined : { scale: 1.1 }}
+        whileTap={reduce ? undefined : { scale: 0.88 }}
+        style={{
+          width: 22, height: 22, borderRadius: 6, borderWidth: 1.5, borderStyle: 'solid',
+          display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0,
+          // Driven by CSS, not framer-motion: it cannot interpolate a var() colour,
+          // and animating one snaps instead of fading.
+          backgroundColor: checked ? color : 'transparent',
+          borderColor: checked ? color : 'var(--border-strong)',
+          transition: reduce ? 'none' : 'background-color 0.14s, border-color 0.14s',
+        }}
+      >
+        {checked && (
+          <motion.span
+            initial={reduce ? false : { scale: 0.4, opacity: 0 }}
+            animate={{ scale: 1, opacity: 1 }}
+            transition={{ duration: reduce ? 0 : 0.16, ease: [0.22, 1, 0.36, 1] }}
+            style={{ display: 'flex' }}
+          >
+            <Check size={13} strokeWidth={3.5} color={readableTextOn(color)} />
+          </motion.span>
+        )}
+      </motion.span>
+    </button>
+  )
+}
+
+function WeekTrackerGrid({
+  domain, columns, ticks, currentWeek, isMobile, showContent,
+  onAddColumns, onRenameColumn, onDeleteColumn, onToggleTick,
+  confidenceFor, onCycleConfidence,
+  weekHasDetail, openWeeks, onToggleWeek, renderWeekDetail, renderWeekActions,
+}) {
+  const reduce = useReducedMotion()
+  const [adding,      setAdding]      = useState(false)
+  const [newLabel,    setNewLabel]    = useState('')
+  const [renamingId,  setRenamingId]  = useState(null)
+  const [renameValue, setRenameValue] = useState('')
+  const [confirmDel,  setConfirmDel]  = useState(null)
+
+  // Rows = teaching weeks, measured per render. A module-level constant is
+  // evaluated at import time, before App applies the user's semester config, so
+  // it sizes the grid from the built-in default instead of their real term.
+  const semWeeks   = domain.semesterNumber ? totalTeachingWeeks(domain.semesterNumber) : 0
+  const totalWeeks = Math.max(1, semWeeks || totalTeachingWeeks())
+  const weeks      = Array.from({ length: totalWeeks }, (_, i) => i + 1)
+  const isTicked = (col, week) => ticks.has(`${col.id}:${week}`)
+
+  function commitAdd() {
+    const label = newLabel.trim().slice(0, TRACKER_LABEL_MAX)
+    if (label) onAddColumns?.(domain.id, [label])
+    setNewLabel('')
+    setAdding(false)
+  }
+
+  function commitRename(col) {
+    const label = renameValue.trim().slice(0, TRACKER_LABEL_MAX)
+    if (label && label !== col.label) onRenameColumn?.(col.id, label)
+    setRenamingId(null)
+  }
+
+  const totalCells = columns.length * totalWeeks
+  const doneCells  = columns.reduce((sum, c) => sum + weeks.filter(w => isTicked(c, w)).length, 0)
+
+  const cellPadX = isMobile ? 8 : 14
+  const stickyBg = 'var(--bg-surface)'
+  const thStyle  = {
+    padding: `9px ${cellPadX}px`, textAlign: 'center', fontSize: 11, fontWeight: 700,
+    color: 'var(--text-secondary)', textTransform: 'uppercase', letterSpacing: '0.4px',
+    borderBottom: '1px solid var(--border)', whiteSpace: 'nowrap', verticalAlign: 'bottom',
+  }
+
+  // ── Empty state: nothing to tick until the columns exist ────────────────────
+  if (columns.length === 0) {
+    return (
+      <SectionCard>
+        <div style={{ padding: isMobile ? '26px 20px' : '34px 28px', textAlign: 'center' }}>
+          <div style={{
+            width: 38, height: 38, borderRadius: 10, margin: '0 auto 14px',
+            background: `${domain.color}18`, display: 'flex', alignItems: 'center', justifyContent: 'center',
+          }}>
+            <CheckCircle2 size={18} color={domain.color} />
+          </div>
+          <p style={{ margin: '0 0 6px', fontSize: 14, fontWeight: 600, color: 'var(--text-primary)' }}>
+            Track your weekly routine
+          </p>
+          <p style={{ margin: '0 auto 18px', fontSize: 12.5, color: 'var(--text-muted)', lineHeight: 1.6, maxWidth: 380 }}>
+            Pick the things you do every week for {domain.code || domain.name}, then tick them off
+            week by week. Columns are yours to rename, remove, or add to at any time.
+          </p>
+          <div style={{ display: 'flex', gap: 9, justifyContent: 'center', flexWrap: 'wrap' }}>
+            <button className="btn-press"
+              onClick={() => onAddColumns?.(domain.id, DEFAULT_TRACKER_COLUMNS)}
+              style={{
+                padding: '9px 16px', borderRadius: 9, border: 'none', cursor: 'pointer',
+                background: domain.color, color: readableTextOn(domain.color),
+                fontSize: 13, fontWeight: 600, fontFamily: 'inherit',
+              }}>
+              Start with {DEFAULT_TRACKER_COLUMNS.join(', ')}
+            </button>
+            <button className="btn-press"
+              onClick={() => onAddColumns?.(domain.id, ['Done'])}
+              style={{
+                padding: '9px 16px', borderRadius: 9, cursor: 'pointer',
+                border: '1px solid var(--border-strong)', background: 'transparent',
+                color: 'var(--text-secondary)', fontSize: 13, fontWeight: 500, fontFamily: 'inherit',
+              }}>
+              Start blank
+            </button>
+          </div>
+        </div>
+      </SectionCard>
+    )
+  }
+
+  return (
+    <>
+      <SectionCard>
+        {/* Toolbar */}
+        <div style={{
+          display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap',
+          padding: `11px ${isMobile ? 14 : 20}px`, borderBottom: '1px solid var(--border)',
+        }}>
+          <span style={{ fontSize: 13, fontWeight: 600, color: 'var(--text-primary)' }}>Weekly tracker</span>
+          <span style={{ fontSize: 11.5, color: 'var(--text-muted)' }}>{doneCells}/{totalCells} ticked</span>
+          <div style={{ flex: 1 }} />
+          {adding ? (
+            <input
+              autoFocus
+              value={newLabel}
+              maxLength={TRACKER_LABEL_MAX}
+              placeholder="Column name"
+              onChange={e => setNewLabel(e.target.value)}
+              onBlur={commitAdd}
+              onKeyDown={e => {
+                if (e.key === 'Enter') commitAdd()
+                if (e.key === 'Escape') { setNewLabel(''); setAdding(false) }
+              }}
+              style={{
+                width: 150, padding: '6px 10px', borderRadius: 7, fontSize: 12.5, fontFamily: 'inherit',
+                background: 'var(--bg-overlay)', border: '1px solid var(--border-focus)',
+                color: 'var(--text-primary)', outline: 'none',
+              }}
+            />
+          ) : (
+            <button className="btn-press" onClick={() => setAdding(true)}
+              style={{
+                display: 'flex', alignItems: 'center', gap: 5, padding: '6px 11px', borderRadius: 7,
+                border: `1px solid ${domain.color}40`, background: `${domain.color}12`,
+                color: domain.color, cursor: 'pointer', fontSize: 12, fontWeight: 600, fontFamily: 'inherit',
+              }}>
+              <Plus size={12} /> Add column
+            </button>
+          )}
+        </div>
+
+        {/* The grid. A wide column set scrolls sideways; the week column stays put. */}
+        <div style={{ overflowX: 'auto' }}>
+          <table style={{ width: '100%', borderCollapse: 'separate', borderSpacing: 0 }}>
+            <thead>
+              <tr>
+                <th style={{
+                  ...thStyle, position: 'sticky', left: 0, zIndex: 2, background: stickyBg,
+                  textAlign: 'left', paddingLeft: isMobile ? 14 : 20,
+                }}>
+                  Week
+                </th>
+
+                {columns.map(col => {
+                  const done = weeks.filter(w => isTicked(col, w)).length
+                  return (
+                    <th key={col.id} style={thStyle}>
+                      {renamingId === col.id ? (
+                        <input
+                          autoFocus
+                          value={renameValue}
+                          maxLength={TRACKER_LABEL_MAX}
+                          onChange={e => setRenameValue(e.target.value)}
+                          onBlur={() => commitRename(col)}
+                          onKeyDown={e => {
+                            if (e.key === 'Enter') commitRename(col)
+                            if (e.key === 'Escape') setRenamingId(null)
+                          }}
+                          style={{
+                            width: 92, padding: '4px 7px', borderRadius: 6, fontSize: 11.5,
+                            fontFamily: 'inherit', fontWeight: 700, textAlign: 'center',
+                            background: 'var(--bg-overlay)', border: '1px solid var(--border-focus)',
+                            color: 'var(--text-primary)', outline: 'none',
+                          }}
+                        />
+                      ) : (
+                        <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 3 }}>
+                          <div style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
+                            <button
+                              onClick={() => { setRenamingId(col.id); setRenameValue(col.label) }}
+                              title={`Rename "${col.label}"`}
+                              style={{
+                                background: 'none', border: 'none', padding: 0, cursor: 'pointer',
+                                font: 'inherit', color: 'var(--text-secondary)', letterSpacing: 'inherit',
+                                textTransform: 'inherit', maxWidth: 120, overflow: 'hidden',
+                                textOverflow: 'ellipsis', whiteSpace: 'nowrap',
+                              }}>
+                              {col.label}
+                            </button>
+                            <button
+                              onClick={() => setConfirmDel(col)}
+                              title={`Delete "${col.label}"`}
+                              style={{
+                                background: 'none', border: 'none', padding: 2, cursor: 'pointer',
+                                display: 'flex', color: 'var(--text-muted)', borderRadius: 4,
+                              }}>
+                              <X size={11} />
+                            </button>
+                          </div>
+                          <span style={{
+                            fontSize: 9.5, fontWeight: 600, letterSpacing: 0, textTransform: 'none',
+                            color: done === totalWeeks ? 'var(--accent-green)' : 'var(--text-muted)',
+                          }}>
+                            {done}/{totalWeeks}
+                          </span>
+                        </div>
+                      )}
+                    </th>
+                  )
+                })}
+
+                <th style={{ ...thStyle, textAlign: 'center' }}>Confidence</th>
+                {showContent && <th style={{ ...thStyle, width: 1 }} aria-label="Actions" />}
+              </tr>
+            </thead>
+
+            <tbody>
+              {weeks.map(week => {
+                const confCfg   = CONF_LEVELS.find(l => l.key === confidenceFor(week)) || CONF_LEVELS[0]
+                const rowDone   = columns.filter(c => isTicked(c, week)).length
+                const allDone   = rowDone === columns.length
+                const isNow     = week === currentWeek
+                const hasDetail = weekHasDetail(week)
+                const isOpen    = !!openWeeks[week]
+                const colCount  = columns.length + 2 + (showContent ? 1 : 0)
+                const rowBg     = isNow ? `${domain.color}0e` : allDone ? 'rgba(52,211,153,0.055)' : 'transparent'
+
+                return (
+                  <Fragment key={week}>
+                    <tr style={{ background: rowBg }}>
+                      {/* Week — sticky, so it stays readable while ticking far-right columns.
+                          The row tint is layered over an opaque base: a transparent sticky
+                          cell lets the scrolled columns show through underneath it. */}
+                      <td style={{
+                        position: 'sticky', left: 0, zIndex: 1,
+                        background: rowBg === 'transparent'
+                          ? stickyBg
+                          : `linear-gradient(${rowBg}, ${rowBg}), ${stickyBg}`,
+                        borderBottom: '1px solid var(--border)',
+                        padding: `7px ${cellPadX}px 7px ${isMobile ? 14 : 20}px`, whiteSpace: 'nowrap',
+                      }}>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                          <span style={{
+                            minWidth: 30, textAlign: 'center', fontSize: 11, fontWeight: 700,
+                            padding: '3px 6px', borderRadius: 6,
+                            background: allDone ? 'rgba(52,211,153,0.16)' : `${domain.color}16`,
+                            color: allDone ? 'var(--accent-green)' : domain.color,
+                          }}>
+                            W{week}
+                          </span>
+                          {isNow && (
+                            <span style={{
+                              fontSize: 9.5, fontWeight: 700, letterSpacing: '0.3px', textTransform: 'uppercase',
+                              padding: '2px 6px', borderRadius: 4,
+                              background: `${domain.color}1f`, color: domain.color,
+                            }}>
+                              Now
+                            </span>
+                          )}
+                          <span style={{ fontSize: 10.5, color: 'var(--text-muted)' }}>
+                            {rowDone}/{columns.length}
+                          </span>
+                        </div>
+                      </td>
+
+                      {columns.map(col => (
+                        <td key={col.id} style={{ borderBottom: '1px solid var(--border)', padding: `0 ${cellPadX}px` }}>
+                          <TickCell
+                            checked={isTicked(col, week)}
+                            color={domain.color}
+                            label={`${col.label}, week ${week}`}
+                            onToggle={() => onToggleTick?.(col.id, week)}
+                            reduce={reduce}
+                          />
+                        </td>
+                      ))}
+
+                      {/* Confidence — same cycling behaviour as before, now just another column */}
+                      <td style={{ borderBottom: '1px solid var(--border)', padding: `6px ${cellPadX}px`, textAlign: 'center' }}>
+                        <button className="btn-press" onClick={e => onCycleConfidence(week, e)}
+                          style={{
+                            padding: '4px 10px', borderRadius: 6, cursor: 'pointer',
+                            border: `1px solid ${confCfg.color}40`, background: confCfg.bg,
+                            color: confCfg.color, fontSize: 11, fontWeight: 600,
+                            fontFamily: 'inherit', whiteSpace: 'nowrap', transition: 'all 0.12s',
+                          }}>
+                          {confCfg.label}
+                        </button>
+                      </td>
+
+                      {showContent && (
+                        <td style={{ borderBottom: '1px solid var(--border)', padding: `6px ${isMobile ? 10 : 14}px`, whiteSpace: 'nowrap' }}>
+                          <div style={{ display: 'flex', alignItems: 'center', gap: 4, justifyContent: 'flex-end' }}>
+                            {renderWeekActions(week)}
+                            <button className="btn-press"
+                              onClick={() => onToggleWeek(week)}
+                              disabled={!hasDetail}
+                              title={hasDetail ? 'Sessions & notes' : 'No sessions or notes yet'}
+                              style={{
+                                background: 'none', border: 'none', display: 'flex', padding: 4, borderRadius: 5,
+                                color: hasDetail ? 'var(--text-muted)' : 'var(--border-strong)',
+                                cursor: hasDetail ? 'pointer' : 'default',
+                              }}>
+                              {isOpen ? <ChevronDown size={15} /> : <ChevronRight size={15} />}
+                            </button>
+                          </div>
+                        </td>
+                      )}
+                    </tr>
+
+                    {isOpen && hasDetail && showContent && (
+                      <tr>
+                        <td colSpan={colCount} style={{ padding: 0, borderBottom: '1px solid var(--border)', background: 'var(--bg-overlay)' }}>
+                          {renderWeekDetail(week)}
+                        </td>
+                      </tr>
+                    )}
+                  </Fragment>
+                )
+              })}
+            </tbody>
+          </table>
+        </div>
+      </SectionCard>
+
+      {confirmDel && (
+        <ConfirmModal
+          message={`Delete the "${confirmDel.label}" column? Every tick in it will be lost across all ${totalWeeks} weeks. This cannot be undone.`}
+          confirmLabel="Delete column"
+          onConfirm={() => { onDeleteColumn?.(confirmDel.id); setConfirmDel(null) }}
+          onCancel={() => setConfirmDel(null)}
+        />
+      )}
+    </>
+  )
+}
+
+function StudyTab({
+  domain, studySessions, notes, weekConfidence, onSetWeekConfidence, onNewNote, onOpenNote, showContent,
+  trackerColumns = [], trackerTicks, onAddTrackerColumns, onRenameTrackerColumn,
+  onDeleteTrackerColumn, onToggleTrackerTick,
+}) {
+  const isMobile = useIsMobile()
   const [openWeeks, setOpenWeeks] = useState({})
   const domainConf = (weekConfidence || {})[domain.id] || {}
 
@@ -870,52 +1253,34 @@ function StudyTab({ domain, studySessions, notes, weekConfidence, onSetWeekConfi
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
-      {Array.from({ length: TOTAL_WEEKS }, (_, i) => i + 1).map(week => {
-        const sessions  = domainSessions.filter(s => s.academicWeek === week)
-        const weekNotes = domainNotes.filter(n => n.academicWeek === week)
-        const conf      = domainConf[week] || 'not_started'
-        const confCfg   = CONF_LEVELS.find(l => l.key === conf) || CONF_LEVELS[0]
-        const hasData   = sessions.length > 0 || weekNotes.length > 0
-        const isOpen    = openWeeks[week]
-        return (
-          <SectionCard key={week}>
-            <div style={{ display: 'flex', alignItems: 'center', gap: 12, padding: '12px 20px' }}>
-              <div style={{ width: 32, height: 32, borderRadius: 8, background: `${confCfg.color}18`,
-                display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
-                <span style={{ fontSize: 11, fontWeight: 700, color: confCfg.color }}>W{week}</span>
-              </div>
-              <div style={{ flex: 1 }}>
-                <span style={{ fontSize: 13, fontWeight: 500, color: 'var(--text-primary)' }}>Week {week}</span>
-                {hasData && showContent && (
-                  <span style={{ fontSize: 12, color: 'var(--text-muted)', marginLeft: 8 }}>
-                    {[sessions.length > 0 && `${sessions.length} session${sessions.length > 1 ? 's' : ''}`,
-                      weekNotes.length > 0 && `${weekNotes.length} note${weekNotes.length > 1 ? 's' : ''}`
-                    ].filter(Boolean).join(' · ')}
-                  </span>
-                )}
-              </div>
-              {showContent && <NoteButton onNewNote={onNewNote} meta={{ domainId: domain.id, academicWeek: week, title: `Week ${week} – Study Notes` }} />}
-              <button className="btn-press" onClick={e => cycleConf(week, e)}
-                style={{ display: 'flex', alignItems: 'center', gap: 5, padding: '5px 10px', borderRadius: 6,
-                  border: `1px solid ${confCfg.color}40`, background: confCfg.bg, color: confCfg.color,
-                  cursor: 'pointer', fontSize: 11, fontWeight: 600, flexShrink: 0, transition: 'all 0.12s' }}>
-                {confCfg.label}
-              </button>
-              {hasData && showContent && (
-                <button className="btn-press" onClick={() => setOpenWeeks(prev => ({ ...prev, [week]: !prev[week] }))}
-                  style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--text-muted)', display: 'flex', padding: 4, borderRadius: 5, flexShrink: 0 }}>
-                  {isOpen ? <ChevronDown size={15} /> : <ChevronRight size={15} />}
-                </button>
-              )}
-            </div>
-            {isOpen && hasData && showContent && (
-              <div style={{ borderTop: '1px solid var(--border)' }}>
-                <WeekContent sessions={sessions} weekNotes={weekNotes} />
-              </div>
-            )}
-          </SectionCard>
-        )
-      })}
+      <WeekTrackerGrid
+        domain={domain}
+        columns={trackerColumns}
+        ticks={trackerTicks ?? new Set()}
+        currentWeek={getAcademicWeek(new Date())}
+        isMobile={isMobile}
+        showContent={showContent}
+        onAddColumns={onAddTrackerColumns}
+        onRenameColumn={onRenameTrackerColumn}
+        onDeleteColumn={onDeleteTrackerColumn}
+        onToggleTick={onToggleTrackerTick}
+        confidenceFor={week => domainConf[week] || 'not_started'}
+        onCycleConfidence={cycleConf}
+        weekHasDetail={week =>
+          domainSessions.some(x => x.academicWeek === week) ||
+          domainNotes.some(n => n.academicWeek === week)}
+        openWeeks={openWeeks}
+        onToggleWeek={week => setOpenWeeks(prev => ({ ...prev, [week]: !prev[week] }))}
+        renderWeekActions={week => (
+          <NoteButton onNewNote={onNewNote} meta={{ domainId: domain.id, academicWeek: week, title: `Week ${week} – Study Notes` }} />
+        )}
+        renderWeekDetail={week => (
+          <WeekContent
+            sessions={domainSessions.filter(x => x.academicWeek === week)}
+            weekNotes={domainNotes.filter(n => n.academicWeek === week)}
+          />
+        )}
+      />
 
       {/* General / no-week section */}
       {showContent && (generalSessions.length > 0 || generalNotes.length > 0) && (
@@ -1160,6 +1525,8 @@ export default function DomainDetailPage({
   onNewNote, onUpdateDomain, onDeleteDomain, studySessions, notes, weekConfidence, onSetWeekConfidence,
   onOpenNote, assessments = [], onAddAssessment, onUpdateAssessment, onDeleteAssessment,
   domains = [],
+  trackerColumns = [], trackerTicks, onAddTrackerColumns, onRenameTrackerColumn,
+  onDeleteTrackerColumn, onToggleTrackerTick,
 }) {
   const isMobile = useIsMobile()
   const isAcademic = domain.category === 'academic'
@@ -1407,7 +1774,10 @@ export default function DomainDetailPage({
           {activeTab === 'Overview'    && <OverviewTab    domain={domain} domainEvents={domainEvents} assessments={assessments} calculatedProgress={calculatedProgress} />}
           {activeTab === 'Schedule'    && <ScheduleTab    domain={domain} domainEvents={domainEvents} onNewNote={setNoteModalMeta} notes={notes} eventNotes={eventNotes} showContent={showLinked} />}
           {activeTab === 'Assessments' && <AssessmentsTab domain={domain} assessments={assessments} onAddAssessment={onAddAssessment} onUpdateAssessment={onUpdateAssessment} onDeleteAssessment={onDeleteAssessment} />}
-          {activeTab === 'Study'       && <StudyTab       domain={domain} studySessions={studySessions} notes={notes} weekConfidence={weekConfidence} onSetWeekConfidence={onSetWeekConfidence} onNewNote={setNoteModalMeta} onOpenNote={onOpenNote} showContent={showLinked} />}
+          {activeTab === 'Study'       && <StudyTab       domain={domain} studySessions={studySessions} notes={notes} weekConfidence={weekConfidence} onSetWeekConfidence={onSetWeekConfidence} onNewNote={setNoteModalMeta} onOpenNote={onOpenNote} showContent={showLinked}
+            trackerColumns={trackerColumns} trackerTicks={trackerTicks}
+            onAddTrackerColumns={onAddTrackerColumns} onRenameTrackerColumn={onRenameTrackerColumn}
+            onDeleteTrackerColumn={onDeleteTrackerColumn} onToggleTrackerTick={onToggleTrackerTick} />}
         </>
       ) : (
         <>

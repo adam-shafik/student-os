@@ -52,6 +52,10 @@ const mapCustomEventRow = (r) => ({
   },
 })
 
+const mapTrackerColumnRow = (r) => ({
+  id: r.id, domainId: r.domain_id, label: r.label, position: r.position,
+})
+
 const mapTodoRow = (r) => ({
   id: r.id, title: r.title, domainId: r.domain_id, dueDate: r.due_date,
   priority: r.priority, done: r.done, completedAt: r.completed_at || null,
@@ -157,6 +161,11 @@ export default function App() {
   const [decks,         setDecks]         = useState([])
   const [flashcardSourceNote, setFlashcardSourceNote] = useState(null)
   const [weekConfidence, setWeekConfidence] = useState({})
+  // Per-domain weekly tick tracker. Columns are the user's own ("Homework",
+  // "Tutorial"); cells are keyed `${columnId}:${week}` so a toggle is one Set
+  // operation instead of a nested-object rewrite.
+  const [trackerColumns, setTrackerColumns] = useState([])
+  const [trackerTicks,   setTrackerTicks]   = useState(() => new Set())
   const [todos,              setTodos]              = useState([])
   const [semConfig,          setSemConfig]          = useState(null)
   const [terms,              setTerms]              = useState([])
@@ -408,6 +417,16 @@ export default function App() {
           })
           setWeekConfidence(map)
         }
+      })
+
+    supabase.from('domain_tracker_columns').select('*').eq('user_id', userId).order('position')
+      .then(({ data }) => {
+        if (data) setTrackerColumns(data.map(mapTrackerColumnRow))
+      })
+
+    supabase.from('domain_tracker_cells').select('column_id, week, checked').eq('user_id', userId)
+      .then(({ data }) => {
+        if (data) setTrackerTicks(new Set(data.filter(r => r.checked).map(r => `${r.column_id}:${r.week}`)))
       })
 
     supabase.from('study_sessions').select('*').eq('user_id', userId).order('started_at', { ascending: false })
@@ -952,6 +971,83 @@ export default function App() {
         ...prev,
         [domainId]: { ...(prev[domainId] || {}), [week]: prev_level },
       }))
+    }
+  }
+
+  // ── Weekly tick tracker ─────────────────────────────────────────────────────
+  // Same optimistic-then-rollback shape as the handlers above: the grid is a
+  // tap target, so waiting on a round trip per tick would feel broken.
+
+  const handleAddTrackerColumns = async (domainId, labels) => {
+    const basePos = trackerColumns.filter(c => c.domainId === domainId).length
+    const rows = labels.map((label, i) => ({
+      id: crypto.randomUUID(), user_id: userId, domain_id: domainId,
+      label, position: basePos + i,
+    }))
+    const added = rows.map(mapTrackerColumnRow)
+    setTrackerColumns(prev => [...prev, ...added])
+
+    const { error } = await supabase.from('domain_tracker_columns').insert(rows)
+    if (error) {
+      console.error('add tracker columns failed:', error.message)
+      const ids = new Set(added.map(c => c.id))
+      setTrackerColumns(prev => prev.filter(c => !ids.has(c.id)))
+    }
+  }
+
+  const handleRenameTrackerColumn = async (columnId, label) => {
+    const snapshot = trackerColumns.find(c => c.id === columnId)
+    setTrackerColumns(prev => prev.map(c => c.id === columnId ? { ...c, label } : c))
+
+    const { error } = await supabase.from('domain_tracker_columns')
+      .update({ label }).eq('id', columnId).eq('user_id', userId)
+    if (error) {
+      console.error('rename tracker column failed:', error.message)
+      if (snapshot) setTrackerColumns(prev => prev.map(c => c.id === columnId ? snapshot : c))
+    }
+  }
+
+  const handleDeleteTrackerColumn = async (columnId) => {
+    const snapshot = trackerColumns.find(c => c.id === columnId)
+    const tickSnapshot = trackerTicks
+    setTrackerColumns(prev => prev.filter(c => c.id !== columnId))
+    // The cells go with it in the database (on delete cascade); drop them here
+    // too so a re-added column cannot inherit the old one's ticks on screen.
+    setTrackerTicks(prev => {
+      const next = new Set(prev)
+      for (const key of next) if (key.startsWith(`${columnId}:`)) next.delete(key)
+      return next
+    })
+
+    const { error } = await supabase.from('domain_tracker_columns')
+      .delete().eq('id', columnId).eq('user_id', userId)
+    if (error) {
+      console.error('delete tracker column failed:', error.message)
+      if (snapshot) setTrackerColumns(prev => [...prev, snapshot])
+      setTrackerTicks(tickSnapshot)
+    }
+  }
+
+  const handleToggleTrackerTick = async (columnId, week) => {
+    const key  = `${columnId}:${week}`
+    const next = !trackerTicks.has(key)
+    setTrackerTicks(prev => {
+      const s = new Set(prev)
+      if (next) s.add(key); else s.delete(key)
+      return s
+    })
+
+    const { error } = await supabase.from('domain_tracker_cells').upsert(
+      { user_id: userId, column_id: columnId, week, checked: next, updated_at: new Date().toISOString() },
+      { onConflict: 'user_id,column_id,week' },
+    )
+    if (error) {
+      console.error('tracker tick save failed:', error.message)
+      setTrackerTicks(prev => {
+        const s = new Set(prev)
+        if (next) s.delete(key); else s.add(key)
+        return s
+      })
     }
   }
 
@@ -1791,6 +1887,12 @@ export default function App() {
           notes={notes}
           weekConfidence={weekConfidence}
           onSetWeekConfidence={handleSetWeekConfidence}
+          trackerColumns={trackerColumns.filter(c => c.domainId === selectedDomain.id)}
+          trackerTicks={trackerTicks}
+          onAddTrackerColumns={handleAddTrackerColumns}
+          onRenameTrackerColumn={handleRenameTrackerColumn}
+          onDeleteTrackerColumn={handleDeleteTrackerColumn}
+          onToggleTrackerTick={handleToggleTrackerTick}
           onOpenNote={handleOpenNoteFromSession}
           assessments={assessments.filter(a => a.domainId === selectedDomain.id)}
           onAddAssessment={handleAddAssessment}
