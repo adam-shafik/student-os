@@ -1,9 +1,9 @@
 import { useState } from 'react'
 import {
   X, Calendar, Clock, MapPin, BookOpen, FlaskConical, FileCheck,
-  GraduationCap, Tag, AlignLeft, ExternalLink, StickyNote, AlertTriangle, Trash2,
+  GraduationCap, Tag, AlignLeft, ExternalLink, StickyNote, AlertTriangle, Trash2, Pencil,
 } from 'lucide-react'
-import { resolveTypeLabel, resolveTypeColor } from '../utils/calendarEvents'
+import { resolveTypeLabel, resolveTypeColor, fmtTimeRange, fmtDuration } from '../utils/calendarEvents'
 import { getAcademicWeek, getBreakForDate } from '../utils/semester'
 
 const STATUS_CFG = {
@@ -38,18 +38,7 @@ function Stat({ label, value, color }) {
   )
 }
 
-function fmtTime(t) {
-  if (!t) return null
-  const [h, m] = t.split(':').map(Number)
-  return `${h % 12 || 12}${m ? ':' + String(m).padStart(2, '0') : ''}${h >= 12 ? 'pm' : 'am'}`
-}
-function fmtDuration(mins) {
-  if (!mins) return null
-  const h = Math.floor(mins / 60), m = mins % 60
-  return h && m ? `${h}h ${m}m` : h ? `${h}h` : `${m}m`
-}
-
-export default function EventDetailModal({ event, onClose, onViewDomain, note, onUpdateNote, onDelete, onUpdateReminder, isTutorial = false }) {
+export default function EventDetailModal({ event, onClose, onViewDomain, note, onUpdateNote, onEdit, onDelete, onUpdateReminder, isTutorial = false }) {
   const [confirmDelete,  setConfirmDelete]  = useState(false)
   const [reminderDays,   setReminderDays]   = useState(event?.reminderDays || [])
 
@@ -105,9 +94,16 @@ export default function EventDetailModal({ event, onClose, onViewDomain, note, o
             <h2 style={{ margin: 0, fontSize: 16, fontWeight: 600, color: 'var(--text-primary)', lineHeight: 1.4 }}>{event.title}</h2>
             {event.domainName && <p style={{ margin: '4px 0 0', fontSize: 12, color: 'var(--text-secondary)' }}>{event.domainName}</p>}
           </div>
-          <button className="btn-press" onClick={onClose} style={{ width: 28, height: 28, borderRadius: 7, border: 'none', background: 'var(--bg-overlay)', color: 'var(--text-secondary)', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
-            <X size={14} />
-          </button>
+          <div style={{ display: 'flex', gap: 6, flexShrink: 0 }}>
+            {onEdit && (
+              <button className="btn-press" onClick={isTutorial ? undefined : onEdit} title="Edit event" style={{ height: 28, padding: '0 10px', borderRadius: 7, border: 'none', background: 'var(--bg-overlay)', color: 'var(--text-secondary)', cursor: isTutorial ? 'not-allowed' : 'pointer', opacity: isTutorial ? 0.4 : 1, display: 'flex', alignItems: 'center', gap: 5, fontSize: 12, fontFamily: 'inherit' }}>
+                <Pencil size={12} /> Edit
+              </button>
+            )}
+            <button className="btn-press" onClick={onClose} style={{ width: 28, height: 28, borderRadius: 7, border: 'none', background: 'var(--bg-overlay)', color: 'var(--text-secondary)', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+              <X size={14} />
+            </button>
+          </div>
         </div>
 
         {/* Scrollable body */}
@@ -124,7 +120,7 @@ export default function EventDetailModal({ event, onClose, onViewDomain, note, o
               <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
                 <Clock size={14} color="var(--text-muted)" />
                 <span style={{ fontSize: 13, color: 'var(--text-secondary)', fontWeight: 500 }}>
-                  {fmtTime(d.time)}{d.duration ? ` · ${fmtDuration(d.duration)}` : ''}
+                  {fmtTimeRange(d.time, d.duration)}{d.duration ? ` · ${fmtDuration(d.duration)}` : ''}
                 </span>
               </div>
             )}

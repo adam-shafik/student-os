@@ -5,6 +5,7 @@ import {
   EVENT_TYPES, TYPE_PRIORITY, MONTHS, WEEKDAYS, WEEKDAYS_SUN,
   getCalendarDays, dateKey,
   resolveTypeLabel, resolveTypeColor, getTypeColor,
+  fmtTime, fmtTimeRange, addMinutesToTime,
 } from '../utils/calendarEvents'
 import { getDomainIcon } from '../data/domains'
 import { getWeekRowInfo, getAcademicWeek, getBreakForDate, getSemesterIndexForDate, getSemesterCount } from '../utils/semester'
@@ -19,24 +20,12 @@ const COLOR_SWATCHES = [
 
 const MAX_VISIBLE = 3
 
-function fmtTime(t) {
-  if (!t) return null
-  const [h, m] = t.split(':').map(Number)
-  return `${h % 12 || 12}${m ? ':' + String(m).padStart(2, '0') : ''}${h >= 12 ? 'pm' : 'am'}`
-}
-function fmtDuration(mins) {
-  if (!mins) return null
-  const h = Math.floor(mins / 60), m = mins % 60
-  return h && m ? `${h}h ${m}m` : h ? `${h}h` : `${m}m`
-}
-
 // ─── Event chip ───────────────────────────────────────────────────────────────
 function EventChip({ event, onClick, hasNote, customColors }) {
   const typeColor   = resolveTypeColor(event, customColors)
   const typeLabel   = resolveTypeLabel(event)
   const domainColor = event.domainColor || null
-  const time        = fmtTime(event.details?.time)
-  const duration    = fmtDuration(event.details?.duration)
+  const time        = fmtTimeRange(event.details?.time, event.details?.duration)
   const showDomain  = event.domainName && event.domainName !== event.title && domainColor
   const DomainIcon  = event.domainIcon ? getDomainIcon(event.domainIcon) : null
 
@@ -75,7 +64,7 @@ function EventChip({ event, onClick, hasNote, customColors }) {
         <div style={{ display: 'flex', alignItems: 'center', gap: 4, marginTop: 1, flexWrap: 'nowrap', overflow: 'hidden' }}>
           {time && (
             <span style={{ fontSize: 9, fontWeight: 600, color: typeColor, opacity: 0.85, whiteSpace: 'nowrap' }}>
-              {time}{duration ? ` · ${duration}` : ''}
+              {time}
             </span>
           )}
           {time && showDomain && <span style={{ fontSize: 8, color: 'var(--text-muted)' }}>·</span>}
@@ -212,10 +201,23 @@ function groupDomains(domains) {
   }
 }
 
-function AddEventModal({ initialDate, initialTime, domains, onClose, onSave }) {
-  const [form, setForm] = useState({
+function minutesBetween(start, end) {
+  const [sh, sm] = start.split(':').map(Number), [eh, em] = end.split(':').map(Number)
+  const mins = (eh * 60 + em) - (sh * 60 + sm)
+  return mins > 0 ? mins : mins < 0 ? mins + 1440 : null // an earlier end time runs past midnight
+}
+
+// Create (no `event`) or edit (`event` given) a user calendar event
+function EventFormModal({ initialDate, initialTime, event, domains, onClose, onSave }) {
+  const [form, setForm] = useState(() => event ? {
+    title: event.title, date: toInputDate(event.date),
+    time: event.details?.time || '',
+    endTime: event.details?.time && event.details?.duration ? addMinutesToTime(event.details.time, event.details.duration) : '',
+    type: event.type, customTypeName: event.details?.customTypeName || '', notes: '',
+    domainId: event.domainId || null, reminderDays: event.reminderDays || [],
+  } : {
     title: '', date: toInputDate(initialDate || new Date()),
-    time: initialTime || '', type: 'social', customTypeName: '', notes: '', domainId: null, reminderDays: [],
+    time: initialTime || '', endTime: '', type: 'social', customTypeName: '', notes: '', domainId: null, reminderDays: [],
   })
   const toggleReminder = (d) => setForm(prev => ({
     ...prev,
@@ -238,15 +240,17 @@ function AddEventModal({ initialDate, initialTime, domains, onClose, onSave }) {
   const handleSave = () => {
     if (!canSave) return
     const [y, m, d] = form.date.split('-').map(Number)
-    const domain = linkedDomain
     onSave({
-      id: `custom-${Date.now()}`, type: form.type,
+      type: form.type,
       title: form.title.trim(), date: new Date(y, m - 1, d),
-      domainId:    domain?.id   || null,
-      domainCode:  domain?.code || null,
-      domainName:  domain?.name || null,
-      domainColor: domain?.color || null,
-      details: { time: form.time, notes: form.notes, customTypeName: form.type === 'other' ? form.customTypeName.trim() : undefined },
+      domainId: linkedDomain?.id || null,
+      details: {
+        ...event?.details,
+        time: form.time || null,
+        duration: form.time && form.endTime ? minutesBetween(form.time, form.endTime) : null,
+        customTypeName: form.type === 'other' ? form.customTypeName.trim() : undefined,
+      },
+      notes: form.notes,
       reminderDays: form.reminderDays,
     })
     onClose()
@@ -265,7 +269,7 @@ function AddEventModal({ initialDate, initialTime, domains, onClose, onSave }) {
         <div style={{ padding: '18px 22px', borderBottom: '1px solid var(--border)', display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexShrink: 0 }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
             <Plus size={16} color={activeColor} />
-            <span style={{ fontSize: 15, fontWeight: 600, color: 'var(--text-primary)' }}>Add Event</span>
+            <span style={{ fontSize: 15, fontWeight: 600, color: 'var(--text-primary)' }}>{event ? 'Edit Event' : 'Add Event'}</span>
           </div>
           <button className="btn-press" onClick={onClose} style={{ width: 28, height: 28, borderRadius: 7, border: 'none', background: 'var(--bg-overlay)', color: 'var(--text-secondary)', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
             <X size={14} />
@@ -299,6 +303,18 @@ function AddEventModal({ initialDate, initialTime, domains, onClose, onSave }) {
                 />
               </div>
             </div>
+            {form.time && (
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 }}>
+                <div />
+                <div>
+                  <Label>End time (optional)</Label>
+                  <input type="time" style={{ ...inputStyle, colorScheme: 'dark' }} value={form.endTime} onChange={e => set('endTime', e.target.value)}
+                    onFocus={e => e.target.style.borderColor = 'var(--border-focus)'}
+                    onBlur={e => e.target.style.borderColor = 'var(--border-strong)'}
+                  />
+                </div>
+              </div>
+            )}
             {isAcademicLink && (eventWeek || eventBreak) && (
               <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
                 <span style={{
@@ -407,18 +423,18 @@ function AddEventModal({ initialDate, initialTime, domains, onClose, onSave }) {
             </div>
           </div>
 
-          <div>
+          {!event && <div>
             <Label>Notes (optional)</Label>
             <textarea style={{ ...inputStyle, resize: 'vertical', minHeight: 60, fontFamily: 'inherit', lineHeight: 1.5 }} placeholder="Add notes…" value={form.notes} onChange={e => set('notes', e.target.value)}
               onFocus={e => e.target.style.borderColor = 'var(--border-focus)'}
               onBlur={e => e.target.style.borderColor = 'var(--border-strong)'}
             />
-          </div>
+          </div>}
         </div>
 
         <div style={{ padding: '14px 22px', borderTop: '1px solid var(--border)', display: 'flex', justifyContent: 'flex-end', gap: 8, flexShrink: 0 }}>
           <button className="btn-press" onClick={onClose} style={{ padding: '8px 16px', borderRadius: 8, border: '1px solid var(--border-strong)', background: 'none', color: 'var(--text-secondary)', cursor: 'pointer', fontSize: 13 }}>Cancel</button>
-          <button className="btn-press" onClick={handleSave} disabled={!canSave} style={{ padding: '8px 18px', borderRadius: 8, border: 'none', fontSize: 13, fontWeight: 600, background: canSave ? activeColor : 'var(--border)', color: canSave ? '#fff' : 'var(--text-muted)', cursor: canSave ? 'pointer' : 'default', transition: 'all 0.15s' }}>Add Event</button>
+          <button className="btn-press" onClick={handleSave} disabled={!canSave} style={{ padding: '8px 18px', borderRadius: 8, border: 'none', fontSize: 13, fontWeight: 600, background: canSave ? activeColor : 'var(--border)', color: canSave ? '#fff' : 'var(--text-muted)', cursor: canSave ? 'pointer' : 'default', transition: 'all 0.15s' }}>{event ? 'Save' : 'Add Event'}</button>
         </div>
       </div>
     </div>
@@ -655,7 +671,7 @@ function WeekView({ weekDate, allEvents, onEventClick, onAddClick, customColors 
                       <div style={{ fontSize: 9, fontWeight: 700, color, textTransform: 'uppercase', letterSpacing: '0.3px', whiteSpace: 'nowrap' }}>{resolveTypeLabel(ev)}</div>
                       <div style={{ fontSize: 11, color: 'var(--text-bright)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{ev.title}</div>
                       {height > 44 && (
-                        <div style={{ fontSize: 9, color, opacity: 0.85, marginTop: 1 }}>{fmtTime(ev.details.time)}{dur ? ` · ${fmtDuration(dur)}` : ''}</div>
+                        <div style={{ fontSize: 9, color, opacity: 0.85, marginTop: 1 }}>{fmtTimeRange(ev.details.time, ev.details.duration)}</div>
                       )}
                     </div>
                   )
@@ -680,7 +696,7 @@ function WeekView({ weekDate, allEvents, onEventClick, onAddClick, customColors 
 }
 
 // ─── Calendar page ────────────────────────────────────────────────────────────
-export default function CalendarPage({ domains = [], domainEvents = [], customEvents = [], onViewDomain, onAddCalendarEvent, onDeleteCalendarEvent, onCancelScheduleEvent, onUpdateEventReminder, onUpdateAssessmentReminder, eventNotes = {}, onUpdateNote, eventTypeColors = {}, onUpdateEventTypeColor, isTutorial = false, weekStartSunday = false }) {
+export default function CalendarPage({ domains = [], domainEvents = [], customEvents: customEventRows = [], onViewDomain, onAddCalendarEvent, onUpdateCalendarEvent, onDeleteCalendarEvent, onCancelScheduleEvent, onUpdateEventReminder, onUpdateAssessmentReminder, eventNotes = {}, onUpdateNote, eventTypeColors = {}, onUpdateEventTypeColor, isTutorial = false, weekStartSunday = false }) {
   const isMobile = useIsMobile()
   const today = new Date()
   const [view,             setView]             = useState('month')
@@ -689,6 +705,7 @@ export default function CalendarPage({ domains = [], domainEvents = [], customEv
   const [selectedEvent,    setSelectedEvent]    = useState(null)
   const [addModalDate,     setAddModalDate]     = useState(null)
   const [addModalTime,     setAddModalTime]     = useState(null)
+  const [editingEvent,     setEditingEvent]     = useState(null)
   const [openColorPicker,  setOpenColorPicker]  = useState(null)
 
   const year  = viewDate.getFullYear()
@@ -708,6 +725,16 @@ export default function CalendarPage({ domains = [], domainEvents = [], customEv
     if (v === 'month' && view === 'week') setViewDate(new Date(weekDate.getFullYear(), weekDate.getMonth(), 1))
     setView(v)
   }
+
+  // Stored events carry only domainId; resolve the domain's code/name/colour at render so
+  // they survive reloads and follow later domain edits
+  const customEvents = useMemo(() => {
+    const byId = Object.fromEntries(domains.map(d => [d.id, d]))
+    return customEventRows.map(ev => {
+      const d = ev.domainId && byId[ev.domainId]
+      return d ? { ...ev, domainCode: d.code, domainName: d.name, domainColor: d.color, domainIcon: d.icon } : ev
+    })
+  }, [customEventRows, domains])
 
   const allEvents    = useMemo(() => [...domainEvents, ...customEvents], [domainEvents, customEvents])
   const presentTypes = useMemo(() => {
@@ -913,6 +940,9 @@ export default function CalendarPage({ domains = [], domainEvents = [], customEv
           onViewDomain={onViewDomain}
           note={eventNotes[selectedEvent.id] || ''}
           onUpdateNote={onUpdateNote || (() => {})}
+          onEdit={customEvents.some(ev => ev.id === selectedEvent.id)
+            ? () => { setEditingEvent(selectedEvent); setSelectedEvent(null) }
+            : null}
           onDelete={() => {
             if (customEvents.some(ev => ev.id === selectedEvent.id)) {
               onDeleteCalendarEvent?.(selectedEvent.id)
@@ -932,12 +962,20 @@ export default function CalendarPage({ domains = [], domainEvents = [], customEv
         />
       )}
       {addModalDate && (
-        <AddEventModal
+        <EventFormModal
           initialDate={addModalDate}
           initialTime={addModalTime}
           domains={domains}
           onClose={() => { setAddModalDate(null); setAddModalTime(null) }}
           onSave={ev => { onAddCalendarEvent?.(ev); setAddModalDate(null); setAddModalTime(null) }}
+        />
+      )}
+      {editingEvent && (
+        <EventFormModal
+          event={editingEvent}
+          domains={domains}
+          onClose={() => setEditingEvent(null)}
+          onSave={ev => onUpdateCalendarEvent?.(editingEvent.id, ev)}
         />
       )}
     </div>

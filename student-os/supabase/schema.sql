@@ -149,6 +149,8 @@ create table custom_calendar_events (
   -- of this event in macOS Calendar. Written and read only by JARVIS. Distinct from
   -- google_event_id, which is the provenance flag.
   mac_event_uid      text,
+  -- Added by migrations/2026_calendar_event_custom_type.sql: label for type 'other'
+  custom_type_name   text,
   created_at         timestamptz not null default now()
 );
 

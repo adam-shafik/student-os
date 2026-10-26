@@ -6,7 +6,7 @@ import {
   ChevronRight, StickyNote, Calendar, MapPin, TrendingUp,
   AlertCircle, ExternalLink, Tag, PenLine, Pencil, X,
   Plus, Trash2, Edit2, Check, BarChart2, MoreVertical, Archive, RotateCcw,
-  Eye, EyeOff,
+  Eye, EyeOff, GripVertical,
 } from 'lucide-react'
 import { DOMAIN_CATEGORIES, DOMAIN_COLORS, DOMAIN_ICON_GROUPS, getDomainIcon, readableTextOn } from '../data/domains'
 import NewNoteModal from '../components/NewNoteModal'
@@ -858,7 +858,7 @@ function TickCell({ checked, color, label, onToggle, reduce }) {
 
 function WeekTrackerGrid({
   domain, columns, ticks, currentWeek, isMobile, showContent,
-  onAddColumns, onRenameColumn, onDeleteColumn, onToggleTick,
+  onAddColumns, onRenameColumn, onDeleteColumn, onReorderColumns, onToggleTick,
   confidenceFor, onCycleConfidence,
   weekHasDetail, openWeeks, onToggleWeek, renderWeekDetail, renderWeekActions,
 }) {
@@ -868,6 +868,8 @@ function WeekTrackerGrid({
   const [renamingId,  setRenamingId]  = useState(null)
   const [renameValue, setRenameValue] = useState('')
   const [confirmDel,  setConfirmDel]  = useState(null)
+  const [drag,        setDrag]        = useState(null) // { id, to }: column being dragged and its drop index
+  const thRefs = useRef({})
 
   // Rows = teaching weeks, measured per render. A module-level constant is
   // evaluated at import time, before App applies the user's semester config, so
@@ -889,6 +891,45 @@ function WeekTrackerGrid({
     if (label && label !== col.label) onRenameColumn?.(col.id, label)
     setRenamingId(null)
   }
+
+  function moveColumn(id, to) {
+    const ids = columns.map(c => c.id)
+    const from = ids.indexOf(id)
+    if (from === to || to < 0 || to >= ids.length) return
+    ids.splice(from, 1)
+    ids.splice(to, 0, id)
+    onReorderColumns?.(domain.id, ids)
+  }
+
+  // Pointer-based (not HTML5 drag-and-drop) so it works with a finger or Pencil on iPad.
+  // Drop index = how many other columns' midpoints sit left of the pointer.
+  function onGripDown(e, col) {
+    e.preventDefault()
+    e.currentTarget.setPointerCapture(e.pointerId)
+    setDrag({ id: col.id, to: columns.findIndex(c => c.id === col.id) })
+  }
+  function onGripMove(e) {
+    if (!drag) return
+    let to = 0
+    for (const c of columns) {
+      if (c.id === drag.id) continue
+      const r = thRefs.current[c.id]?.getBoundingClientRect()
+      if (r && e.clientX > r.left + r.width / 2) to++
+    }
+    if (to !== drag.to) setDrag({ ...drag, to })
+  }
+  function onGripUp() {
+    if (!drag) return
+    moveColumn(drag.id, drag.to)
+    setDrag(null)
+  }
+
+  // While dragging, the whole table previews the new order
+  const shownColumns = drag ? (() => {
+    const rest = columns.filter(c => c.id !== drag.id)
+    rest.splice(drag.to, 0, columns.find(c => c.id === drag.id))
+    return rest
+  })() : columns
 
   const totalCells = columns.length * totalWeeks
   const doneCells  = columns.reduce((sum, c) => sum + weeks.filter(w => isTicked(c, w)).length, 0)
@@ -997,10 +1038,12 @@ function WeekTrackerGrid({
                   Week
                 </th>
 
-                {columns.map(col => {
+                {shownColumns.map((col, colIdx) => {
                   const done = weeks.filter(w => isTicked(col, w)).length
+                  const dragging = drag?.id === col.id
                   return (
-                    <th key={col.id} style={thStyle}>
+                    <th key={col.id} ref={el => { thRefs.current[col.id] = el }}
+                      style={{ ...thStyle, ...(dragging ? { background: `${domain.color}14`, boxShadow: `inset 0 -2px 0 ${domain.color}` } : {}) }}>
                       {renamingId === col.id ? (
                         <input
                           autoFocus
@@ -1022,6 +1065,26 @@ function WeekTrackerGrid({
                       ) : (
                         <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 3 }}>
                           <div style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
+                            {columns.length > 1 && (
+                              <button
+                                onPointerDown={e => onGripDown(e, col)}
+                                onPointerMove={onGripMove}
+                                onPointerUp={onGripUp}
+                                onPointerCancel={() => setDrag(null)}
+                                onKeyDown={e => {
+                                  if (e.key === 'ArrowLeft')  { e.preventDefault(); moveColumn(col.id, colIdx - 1) }
+                                  if (e.key === 'ArrowRight') { e.preventDefault(); moveColumn(col.id, colIdx + 1) }
+                                }}
+                                title="Drag to reorder (or use arrow keys)"
+                                aria-label={`Reorder "${col.label}"`}
+                                style={{
+                                  background: 'none', border: 'none', padding: 2, display: 'flex',
+                                  color: dragging ? domain.color : 'var(--text-muted)', borderRadius: 4,
+                                  cursor: dragging ? 'grabbing' : 'grab', touchAction: 'none',
+                                }}>
+                                <GripVertical size={12} />
+                              </button>
+                            )}
                             <button
                               onClick={() => { setRenamingId(col.id); setRenameValue(col.label) }}
                               title={`Rename "${col.label}"`}
@@ -1109,8 +1172,8 @@ function WeekTrackerGrid({
                         </div>
                       </td>
 
-                      {columns.map(col => (
-                        <td key={col.id} style={{ borderBottom: '1px solid var(--border)', padding: `0 ${cellPadX}px` }}>
+                      {shownColumns.map(col => (
+                        <td key={col.id} style={{ borderBottom: '1px solid var(--border)', padding: `0 ${cellPadX}px`, background: drag?.id === col.id ? `${domain.color}0a` : undefined }}>
                           <TickCell
                             checked={isTicked(col, week)}
                             color={domain.color}
@@ -1184,7 +1247,7 @@ function WeekTrackerGrid({
 function StudyTab({
   domain, studySessions, notes, weekConfidence, onSetWeekConfidence, onNewNote, onOpenNote, showContent,
   trackerColumns = [], trackerTicks, onAddTrackerColumns, onRenameTrackerColumn,
-  onDeleteTrackerColumn, onToggleTrackerTick,
+  onDeleteTrackerColumn, onReorderTrackerColumns, onToggleTrackerTick,
 }) {
   const isMobile = useIsMobile()
   const [openWeeks, setOpenWeeks] = useState({})
@@ -1263,6 +1326,7 @@ function StudyTab({
         onAddColumns={onAddTrackerColumns}
         onRenameColumn={onRenameTrackerColumn}
         onDeleteColumn={onDeleteTrackerColumn}
+        onReorderColumns={onReorderTrackerColumns}
         onToggleTick={onToggleTrackerTick}
         confidenceFor={week => domainConf[week] || 'not_started'}
         onCycleConfidence={cycleConf}
@@ -1526,7 +1590,7 @@ export default function DomainDetailPage({
   onOpenNote, assessments = [], onAddAssessment, onUpdateAssessment, onDeleteAssessment,
   domains = [],
   trackerColumns = [], trackerTicks, onAddTrackerColumns, onRenameTrackerColumn,
-  onDeleteTrackerColumn, onToggleTrackerTick,
+  onDeleteTrackerColumn, onReorderTrackerColumns, onToggleTrackerTick,
 }) {
   const isMobile = useIsMobile()
   const isAcademic = domain.category === 'academic'
@@ -1777,7 +1841,7 @@ export default function DomainDetailPage({
           {activeTab === 'Study'       && <StudyTab       domain={domain} studySessions={studySessions} notes={notes} weekConfidence={weekConfidence} onSetWeekConfidence={onSetWeekConfidence} onNewNote={setNoteModalMeta} onOpenNote={onOpenNote} showContent={showLinked}
             trackerColumns={trackerColumns} trackerTicks={trackerTicks}
             onAddTrackerColumns={onAddTrackerColumns} onRenameTrackerColumn={onRenameTrackerColumn}
-            onDeleteTrackerColumn={onDeleteTrackerColumn} onToggleTrackerTick={onToggleTrackerTick} />}
+            onDeleteTrackerColumn={onDeleteTrackerColumn} onReorderTrackerColumns={onReorderTrackerColumns} onToggleTrackerTick={onToggleTrackerTick} />}
         </>
       ) : (
         <>

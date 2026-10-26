@@ -692,6 +692,9 @@ export default function NotesPage({ notes, domains, noteFolders = [], onAddFolde
   const pdfInputRef        = useRef()
   const pendingPdfMeta     = useRef({})
   const autoSaveTimerRef   = useRef(null)
+  const pendingSaveIdRef   = useRef(null) // note with an autosave scheduled but not yet sent
+  const onSaveNoteRef      = useRef(onSaveNote)
+  onSaveNoteRef.current    = onSaveNote
   const openNoteBaseline   = useRef(null)
   const canvasRef          = useRef()
 
@@ -714,45 +717,34 @@ export default function NotesPage({ notes, domains, noteFolders = [], onAddFolde
     }
   }
 
+  async function shareOrDownload(file) {
+    if (navigator.canShare?.({ files: [file] })) {
+      try {
+        await navigator.share({ files: [file], title: openNote.title })
+        return
+      } catch (e) {
+        // A long export can outlive the tap's user activation; fall back to a download
+        if (e?.name !== 'NotAllowedError') throw e
+      }
+    }
+    const url = URL.createObjectURL(file)
+    Object.assign(document.createElement('a'), { href: url, download: file.name }).click()
+    setTimeout(() => URL.revokeObjectURL(url), 1000)
+  }
+
   async function handleShare() {
     if (!openNote || sharing) return
+    // PDF pages render from the backgrounds; exporting before they load would give blank pages
+    if (openNote.type === 'pdf' && !pdfBackgrounds[openNote.id]) return
     setSharing(true)
     try {
       if (openNote.type === 'typed') {
-        const file = new File([openNote.content || ''], `${openNote.title || 'Note'}.txt`, { type: 'text/plain' })
-        if (navigator.canShare?.({ files: [file] })) {
-          await navigator.share({ files: [file], title: openNote.title })
-        } else {
-          const url = URL.createObjectURL(file)
-          Object.assign(document.createElement('a'), { href: url, download: file.name }).click()
-          URL.revokeObjectURL(url)
-        }
-      } else if (openNote.type === 'pdf' && openNote.pdfStoragePath) {
-        const signedUrl = await onGetSignedPdfUrl(openNote.pdfStoragePath)
-        if (signedUrl) {
-          const res = await fetch(signedUrl)
-          const blob = await res.blob()
-          const file = new File([blob], `${openNote.title || 'Note'}.pdf`, { type: 'application/pdf' })
-          if (navigator.canShare?.({ files: [file] })) {
-            await navigator.share({ files: [file], title: openNote.title })
-          } else {
-            const url = URL.createObjectURL(file)
-            Object.assign(document.createElement('a'), { href: url, download: file.name }).click()
-            URL.revokeObjectURL(url)
-          }
-        }
-      } else if (openNote.type === 'handwritten' && canvasRef.current) {
+        await shareOrDownload(new File([openNote.content || ''], `${openNote.title || 'Note'}.txt`, { type: 'text/plain' }))
+      } else if (canvasRef.current) {
+        // Handwritten and PDF notes both export from the canvas, so added pages, annotations
+        // and pasted images are included — not just the originally imported file
         const pdfBlob = await canvasRef.current.exportAsPdf()
-        if (pdfBlob) {
-          const file = new File([pdfBlob], `${openNote.title || 'Note'}.pdf`, { type: 'application/pdf' })
-          if (navigator.canShare?.({ files: [file] })) {
-            await navigator.share({ files: [file], title: openNote.title })
-          } else {
-            const url = URL.createObjectURL(file)
-            Object.assign(document.createElement('a'), { href: url, download: file.name }).click()
-            URL.revokeObjectURL(url)
-          }
-        }
+        if (pdfBlob) await shareOrDownload(new File([pdfBlob], `${openNote.title || 'Note'}.pdf`, { type: 'application/pdf' }))
       }
     } catch (e) {
       if (e?.name !== 'AbortError') console.error('Share failed:', e)
@@ -770,9 +762,28 @@ export default function NotesPage({ notes, domains, noteFolders = [], onAddFolde
 
   const openNote = (notes || []).find(n => n.id === openNoteId)
 
+  // Send a scheduled autosave now instead of dropping it. Switching notes, leaving the page
+  // or backgrounding the app inside the 3s debounce used to cancel it, losing the last edits.
+  function flushPendingSave() {
+    const id = pendingSaveIdRef.current
+    clearTimeout(autoSaveTimerRef.current)
+    if (!id) return
+    pendingSaveIdRef.current = null
+    onSaveNoteRef.current(id).catch(err => console.error('note save failed:', err))
+  }
+
+  useEffect(() => {
+    function onHide() { if (document.visibilityState === 'hidden') flushPendingSave() }
+    document.addEventListener('visibilitychange', onHide)
+    return () => {
+      document.removeEventListener('visibilitychange', onHide)
+      flushPendingSave()
+    }
+  }, []) // eslint-disable-line react-hooks/exhaustive-deps
+
   // Store baseline updatedAt when a note is opened so we know if it has been edited
   useEffect(() => {
-    clearTimeout(autoSaveTimerRef.current)
+    flushPendingSave()
     setSaveState('idle')
     setSaveError('')
     setTypedFullscreen(false)
@@ -805,8 +816,8 @@ export default function NotesPage({ notes, domains, noteFolders = [], onAddFolde
     if (!baseline || baseline.id !== openNote.id || openNote.updatedAt === baseline.updatedAt) return
     clearTimeout(autoSaveTimerRef.current)
     setSaveState('idle')
-    autoSaveTimerRef.current = setTimeout(() => handleSave(openNote.id), 3000)
-    return () => clearTimeout(autoSaveTimerRef.current)
+    pendingSaveIdRef.current = openNote.id
+    autoSaveTimerRef.current = setTimeout(() => { pendingSaveIdRef.current = null; handleSave(openNote.id) }, 3000)
   }, [openNote?.updatedAt]) // eslint-disable-line react-hooks/exhaustive-deps
 
   // Load PDF backgrounds when switching to a PDF note that hasn't been rendered yet
@@ -929,11 +940,7 @@ export default function NotesPage({ notes, domains, noteFolders = [], onAddFolde
   }, [visibleNotes, selectedFolder, sortBy, typeFilter])
 
   function closeNote() {
-    clearTimeout(autoSaveTimerRef.current)
-    const baseline = openNoteBaseline.current
-    if (openNote && baseline && openNote.updatedAt !== baseline.updatedAt) {
-      handleSave(openNote.id) // fire-and-forget background save
-    }
+    flushPendingSave()
     setOpenNoteId(null)
   }
 
@@ -1197,7 +1204,7 @@ export default function NotesPage({ notes, domains, noteFolders = [], onAddFolde
       <div style={{ flex: 1, display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
         {openNote ? (
           // ── Note editor ──
-          <div style={typedFullscreen && openNote.type === 'typed'
+          <div className={openNote.type === 'typed' ? undefined : 'no-text-select'} style={typedFullscreen && openNote.type === 'typed'
             ? { position: 'fixed', inset: 0, zIndex: 1000, display: 'flex', flexDirection: 'column', background: 'var(--bg-page)' }
             : { display: 'flex', flexDirection: 'column', height: '100%' }
           }>
@@ -1300,7 +1307,7 @@ export default function NotesPage({ notes, domains, noteFolders = [], onAddFolde
                 {confirmDelNote ? (
                   <div style={{ display: 'flex', gap: 6 }}>
                     <button className="btn-press" onClick={() => setConfirmDelNote(false)} style={{ padding: '5px 10px', borderRadius: 7, border: '1px solid var(--border-strong)', background: 'transparent', color: 'var(--text-muted)', fontSize: 12, cursor: 'pointer', fontFamily: 'inherit' }}>Cancel</button>
-                    <button className="btn-press" onClick={() => { clearTimeout(autoSaveTimerRef.current); onDeleteNote(openNote.id); setOpenNoteId(null); setConfirmDelNote(false) }} style={{ display: 'flex', alignItems: 'center', gap: 5, padding: '5px 10px', borderRadius: 7, border: '1px solid rgba(251,113,133,0.4)', background: 'rgba(251,113,133,0.14)', color: '#fb7185', fontSize: 12, fontWeight: 600, cursor: 'pointer', fontFamily: 'inherit' }}>Delete</button>
+                    <button className="btn-press" onClick={() => { clearTimeout(autoSaveTimerRef.current); pendingSaveIdRef.current = null; onDeleteNote(openNote.id); setOpenNoteId(null); setConfirmDelNote(false) }} style={{ display: 'flex', alignItems: 'center', gap: 5, padding: '5px 10px', borderRadius: 7, border: '1px solid rgba(251,113,133,0.4)', background: 'rgba(251,113,133,0.14)', color: '#fb7185', fontSize: 12, fontWeight: 600, cursor: 'pointer', fontFamily: 'inherit' }}>Delete</button>
                   </div>
                 ) : (
                   <button className="btn-press" onClick={() => setConfirmDelNote(true)} style={{ display: 'flex', alignItems: 'center', gap: 5, padding: '5px 10px', borderRadius: 7, border: '1px solid var(--border)', background: 'none', color: 'var(--accent-red)', cursor: 'pointer', fontSize: 12 }}>

@@ -4,7 +4,7 @@ import { getStroke } from 'perfect-freehand'
 import { useIsMobile } from '../utils/useIsMobile'
 import {
   Undo2, Redo2, Trash2, PenLine, Highlighter, Shapes, MousePointer2, Eraser,
-  Square, Circle, Minus, Triangle, SlidersHorizontal, Plus, Maximize2, Minimize2,
+  Square, Circle, Minus, Triangle, SlidersHorizontal, Plus, Maximize2, Minimize2, ClipboardPaste,
 } from 'lucide-react'
 
 // ─── Constants ─────────────────────────────────────────────────────────────────
@@ -26,6 +26,19 @@ const ERASER_MODES = [['standard', 'Standard'], ['stroke', 'Stroke']]
 const TEMPLATES    = ['blank', 'lined', 'dotted', 'grid']
 const BG_COLORS    = ['#ffffff', '#f5f0e8', '#fef9c3', '#e8f0fe', '#1c1c24', '#0b0c13']
 const SPACINGS     = [[32, 'Compact'], [48, 'Normal'], [64, 'Wide']]
+
+// Palm rejection / finger gestures (iPad). A finger that lands while the pencil is down,
+// or within PALM_GRACE_MS of it lifting, is a resting palm and never triggers a gesture.
+const PALM_GRACE_MS   = 500
+const TAP_MAX_MS      = 350
+const TAP_TOGETHER_MS = 150 // fingers of a deliberate 2/3-finger tap land almost together
+const TAP_SLOP_PX     = 15
+const PINCH_START_PX  = 24
+
+// iPad Safari reports the pencil as both touch events (touchType 'stylus') and pen pointer
+// events. Once a stylus touch is seen the touch path owns the pencil and pen pointer events
+// are duplicates; elsewhere (Windows pens) only pointer events exist.
+let stylusTouchSeen = false
 
 // ─── Drawing utils ─────────────────────────────────────────────────────────────
 function strokeOpts(size, last, smoothing = 0.5) {
@@ -232,6 +245,9 @@ function applyStrokeErase(strokes, cx, cy, radius) {
 // ─── Shape rendering ───────────────────────────────────────────────────────────
 function renderShape(s) {
   const { shape, x1, y1, x2, y2, color, size, opacity = 1 } = s
+  if (shape === 'image') {
+    return <image href={s.href} x={Math.min(x1, x2)} y={Math.min(y1, y2)} width={Math.abs(x2 - x1)} height={Math.abs(y2 - y1)} preserveAspectRatio="none" />
+  }
   const ec   = color
   const minX = Math.min(x1, x2), minY = Math.min(y1, y2)
   const w = Math.abs(x2 - x1), h = Math.abs(y2 - y1)
@@ -333,6 +349,59 @@ function detectShape(points) {
   return null
 }
 
+// ─── Images ────────────────────────────────────────────────────────────────────
+// Pasted images are strokes ({ shape: 'image', href, x1..y2 }) so selection, move, copy,
+// undo, page transfer and export treat them like any shape. The href is an inline data
+// URL, downscaled so it stays a reasonable size inside the page's strokes JSON.
+const IMAGE_MAX_PX = 1600
+
+function loadImage(src) {
+  return new Promise((resolve, reject) => {
+    const img = new Image()
+    img.onload = () => resolve(img)
+    img.onerror = reject
+    img.src = src
+  })
+}
+
+async function blobToImageHref(blob) {
+  const url = URL.createObjectURL(blob)
+  try {
+    const img = await loadImage(url)
+    const k = Math.min(1, IMAGE_MAX_PX / Math.max(img.naturalWidth, img.naturalHeight))
+    const w = Math.max(1, Math.round(img.naturalWidth * k)), h = Math.max(1, Math.round(img.naturalHeight * k))
+    const canvas = document.createElement('canvas')
+    canvas.width = w; canvas.height = h
+    const ctx = canvas.getContext('2d')
+    ctx.fillStyle = '#ffffff'
+    ctx.fillRect(0, 0, w, h)
+    ctx.drawImage(img, 0, 0, w, h)
+    return { href: canvas.toDataURL('image/jpeg', 0.9), w, h }
+  } finally {
+    URL.revokeObjectURL(url)
+  }
+}
+
+// Fit within 80% of the page, centred on (cx, cy), kept inside the page
+function placeImage({ href, w, h }, cx, cy, pageW, pageH) {
+  const k  = Math.min(1, (pageW * 0.8) / w, (pageH * 0.8) / h)
+  const iw = w * k, ih = h * k
+  const x1 = Math.max(0, Math.min(pageW - iw, cx - iw / 2))
+  const y1 = Math.max(0, Math.min(pageH - ih, cy - ih / 2))
+  return { shape: 'image', href, x1, y1, x2: x1 + iw, y2: y1 + ih }
+}
+
+async function readClipboardImage() {
+  if (!navigator.clipboard?.read) return null
+  try {
+    for (const item of await navigator.clipboard.read()) {
+      const type = item.types.find(t => t.startsWith('image/'))
+      if (type) return await item.getType(type)
+    }
+  } catch { /* permission denied or empty clipboard */ }
+  return null
+}
+
 // ─── Selection utils ───────────────────────────────────────────────────────────
 function shiftStroke(s, dx, dy) {
   if (s.shape) return { ...s, x1: s.x1 + dx, y1: s.y1 + dy, x2: s.x2 + dx, y2: s.y2 + dy }
@@ -354,7 +423,7 @@ function rectsIntersect(a, b) {
 }
 
 // ─── Page template ─────────────────────────────────────────────────────────────
-function PageTemplate({ pageId, template, bgColor, lineSpacing }) {
+function PageTemplate({ pageId, template, bgColor, lineSpacing, width, height }) {
   const bgLum = hexLuminance(bgColor)
   const lc    = bgLum > 0.5 ? 'rgba(0,0,0,0.18)' : 'rgba(255,255,255,0.13)'
   const pid   = t => `p-${pageId}-${t}`
@@ -377,10 +446,10 @@ function PageTemplate({ pageId, template, bgColor, lineSpacing }) {
           </pattern>
         )}
       </defs>
-      <rect width="100%" height="100%" fill={bgColor} />
-      {template !== 'blank' && <rect width="100%" height="100%" fill={`url(#${pid(template)})`} />}
+      <rect width={width} height={height} fill={bgColor} />
+      {template !== 'blank' && <rect width={width} height={height} fill={`url(#${pid(template)})`} />}
       {template === 'lined' && (
-        <line x1="65" y1="0" x2="65" y2="100%" stroke={bgLum > 0.5 ? 'rgba(200,50,50,0.35)' : 'rgba(255,110,110,0.45)'} strokeWidth="1" />
+        <line x1="65" y1="0" x2="65" y2={height} stroke={bgLum > 0.5 ? 'rgba(200,50,50,0.35)' : 'rgba(255,110,110,0.45)'} strokeWidth="1" />
       )}
     </>
   )
@@ -428,6 +497,7 @@ function PageCanvas({ page, pageH, maxW, pageIdx, totalPages, onStrokesChange, o
   const [eraserPos,       setEraserPos]       = useState(null)
   const [erasingStrokes,  setErasingStrokes]  = useState(null)
   const [pasteMenu,       setPasteMenu]       = useState(null) // { x, y } or null
+  const [region,          setRegion]          = useState(null) // last select-drag rect, copyable as an image
   const [actionToast,     setActionToast]     = useState(null)
   const [actionToastKey,  setActionToastKey]  = useState(0)
   const actionToastTimer = useRef(null)
@@ -436,7 +506,7 @@ function PageCanvas({ page, pageH, maxW, pageIdx, totalPages, onStrokesChange, o
     setSelectedIndices(new Set()); setSelRect(null)
     setIsMoving(false); setMoveStart(null); setMoveOff({ dx: 0, dy: 0 })
     setEraserPos(null); setErasingStrokes(null)
-    setPasteMenu(null); clearTimeout(holdTimer.current)
+    setPasteMenu(null); setRegion(null); clearTimeout(holdTimer.current)
     isErasingRef.current = false; erasingRef.current = null
   }, [tool])
 
@@ -446,8 +516,16 @@ function PageCanvas({ page, pageH, maxW, pageIdx, totalPages, onStrokesChange, o
     if (!svg) return
 
     let t2 = null       // 2-finger tap/pinch tracker
-    let t3 = null       // 3-finger tap tracker: { t, moved }
+    let t3 = null       // 3-finger tap tracker
     let stylusId = null // active Apple Pencil touch identifier
+    let firstFingerAt = 0
+    let lastStylusAt  = 0
+    const palmIds = new Set()
+
+    function endGesture() {
+      if (t2?.pinching) stateRef.current.onPinchEnd?.()
+      t2 = null; t3 = null
+    }
 
     function svgPt(touch) {
       const r  = svg.getBoundingClientRect()
@@ -489,7 +567,7 @@ function PageCanvas({ page, pageH, maxW, pageIdx, totalPages, onStrokesChange, o
         } else if (sr) {
           const hits = new Set()
           strokes.forEach((s, i) => { if (rectsIntersect(sr, strokeBounds(s))) hits.add(i) })
-          setSelectedIndices(hits); setSelRect(null)
+          setSelectedIndices(hits); setSelRect(null); setRegion(toRegion(sr))
         }
       } else {
         if (!activeStroke.current) return
@@ -514,20 +592,24 @@ function PageCanvas({ page, pageH, maxW, pageIdx, totalPages, onStrokesChange, o
 
       if (stylus) {
         e.preventDefault()
+        stylusTouchSeen = true
+        lastStylusAt = Date.now()
+        for (const t of touches) if (t.touchType !== 'stylus') palmIds.add(t.identifier)
+        endGesture()
         if (stylusActiveRef.current) {
           if (stylus.identifier === stylusId) return
           // Stale state — old touch was lost without touchend/touchcancel; reset
           stylusActiveRef.current = false
           stylusId = null
-          livePathRef.current?.remove(); livePathRef.current = null
-          activeStroke.current = null
           liveShapeRef.current?.el?.remove(); liveShapeRef.current = null
           shapeModeRef.current = false; shapeStartRef.current = null; setShapeHeld(false)
           clearTimeout(holdTimer.current)
         }
+        // A pen pointerdown may have fired first and started its own stroke; this path owns it now
+        livePathRef.current?.remove(); livePathRef.current = null
+        activeStroke.current = null
         stylusActiveRef.current = true
         stylusId = stylus.identifier
-        t2 = null
         const { tool, drawColor, penSize, opacity, strokes, eraserMode, eraserRadius } = stateRef.current
         const pt = svgPt(stylus)
         lastPtRef.current = pt
@@ -545,11 +627,11 @@ function PageCanvas({ page, pageH, maxW, pageIdx, totalPages, onStrokesChange, o
             const bounds = [...si].map(idx => strokeBounds(st[idx]))
             const sb = { x1: Math.min(...bounds.map(b => b.x1)) - 8, y1: Math.min(...bounds.map(b => b.y1)) - 8, x2: Math.max(...bounds.map(b => b.x2)) + 8, y2: Math.max(...bounds.map(b => b.y2)) + 8 }
             if (pt[0] >= sb.x1 && pt[0] <= sb.x2 && pt[1] >= sb.y1 && pt[1] <= sb.y2) {
-              setIsMoving(true); setMoveStart({ x: pt[0], y: pt[1] }); setMoveOff({ dx: 0, dy: 0 }); return
+              setIsMoving(true); setMoveStart({ x: pt[0], y: pt[1] }); setMoveOff({ dx: 0, dy: 0 }); setRegion(null); return
             }
           }
-          setSelectedIndices(new Set()); setSelRect({ x1: pt[0], y1: pt[1], x2: pt[0], y2: pt[1] }); setIsMoving(false)
-          if (stateRef.current.clipboard?.length > 0) {
+          setSelectedIndices(new Set()); setSelRect({ x1: pt[0], y1: pt[1], x2: pt[0], y2: pt[1] }); setIsMoving(false); setRegion(null)
+          if (stateRef.current.clipboard?.length > 0 || navigator.clipboard?.read) {
             pasteHoldStartRef.current = pt
             holdTimer.current = setTimeout(() => {
               const cur = lastPtRef.current
@@ -566,19 +648,30 @@ function PageCanvas({ page, pageH, maxW, pageIdx, totalPages, onStrokesChange, o
         return
       }
 
-      // Fingers: detect 2-finger tap (undo) and pinch-to-zoom
-      if (stylusActiveRef.current) return
+      // Fingers: 2-finger tap (undo), 3-finger tap (redo), pinch-to-zoom — never from a palm
+      const now = Date.now()
+      if (now - lastStylusAt < PALM_GRACE_MS) {
+        for (const t of e.changedTouches) palmIds.add(t.identifier)
+      }
+      if (touches.some(t => palmIds.has(t.identifier))) {
+        // Also stops a resting palm from scrolling the page or starting a text selection
+        e.preventDefault()
+        endGesture()
+        return
+      }
+      if (touches.length === 1) firstFingerAt = now
+      const together = now - firstFingerAt < TAP_TOGETHER_MS
       if (touches.length === 3) {
         e.preventDefault()
-        t3 = { t: Date.now(), moved: false, x1: touches[0].clientX, y1: touches[0].clientY, x2: touches[1].clientX, y2: touches[1].clientY, x3: touches[2].clientX, y3: touches[2].clientY }
-        t2 = null
+        endGesture()
+        t3 = { t: now, tap: together, x1: touches[0].clientX, y1: touches[0].clientY, x2: touches[1].clientX, y2: touches[1].clientY, x3: touches[2].clientX, y3: touches[2].clientY }
       } else if (touches.length === 2) {
         e.preventDefault()
         const dist = Math.hypot(touches[1].clientX - touches[0].clientX, touches[1].clientY - touches[0].clientY)
-        t2 = { t: Date.now(), x1: touches[0].clientX, y1: touches[0].clientY, x2: touches[1].clientX, y2: touches[1].clientY, dist, pinching: false }
+        t2 = { t: now, tap: together, x1: touches[0].clientX, y1: touches[0].clientY, x2: touches[1].clientX, y2: touches[1].clientY, dist, startDist: dist, pinching: false }
         t3 = null
       } else {
-        t2 = null; t3 = null
+        endGesture()
       }
     }
 
@@ -589,26 +682,26 @@ function PageCanvas({ page, pageH, maxW, pageIdx, totalPages, onStrokesChange, o
           Math.abs(e.touches[1].clientX - t3.x2), Math.abs(e.touches[1].clientY - t3.y2),
           Math.abs(e.touches[2].clientX - t3.x3), Math.abs(e.touches[2].clientY - t3.y3),
         )
-        if (moved > 20) t3 = null
+        if (moved > TAP_SLOP_PX) t3.tap = false
       }
       if (t2 && e.touches.length === 2) {
         const newDist = Math.hypot(e.touches[1].clientX - e.touches[0].clientX, e.touches[1].clientY - e.touches[0].clientY)
-        if (Math.abs(newDist - t2.dist) > 1) {
+        const moved = Math.max(
+          Math.abs(e.touches[0].clientX - t2.x1), Math.abs(e.touches[0].clientY - t2.y1),
+          Math.abs(e.touches[1].clientX - t2.x2), Math.abs(e.touches[1].clientY - t2.y2),
+        )
+        if (moved > TAP_SLOP_PX) t2.tap = false
+        // Ignore small spreads so two fingers resting or tapping never nudge the zoom
+        if (!t2.pinching && Math.abs(newDist - t2.startDist) > PINCH_START_PX) {
           t2.pinching = true
+          t2.dist = newDist
+        } else if (t2.pinching && Math.abs(newDist - t2.dist) > 1) {
           stateRef.current.onPinch?.(
             newDist / t2.dist,
             (e.touches[0].clientX + e.touches[1].clientX) / 2,
             (e.touches[0].clientY + e.touches[1].clientY) / 2,
           )
           t2.dist = newDist
-          t2.x1 = e.touches[0].clientX; t2.y1 = e.touches[0].clientY
-          t2.x2 = e.touches[1].clientX; t2.y2 = e.touches[1].clientY
-        } else {
-          const moved = Math.max(
-            Math.abs(e.touches[0].clientX - t2.x1), Math.abs(e.touches[0].clientY - t2.y1),
-            Math.abs(e.touches[1].clientX - t2.x2), Math.abs(e.touches[1].clientY - t2.y2),
-          )
-          if (moved > 30) t2 = null
         }
       }
 
@@ -726,23 +819,28 @@ function PageCanvas({ page, pageH, maxW, pageIdx, totalPages, onStrokesChange, o
     }
 
     function onTouchEnd(e) {
-      if (t3 && Date.now() - t3.t < 600 && e.touches.length <= 2) {
-        e.preventDefault()
-        stateRef.current.onRedo?.()
+      const now = Date.now()
+      for (const t of e.changedTouches) {
+        if (t.touchType === 'stylus') lastStylusAt = now
+        palmIds.delete(t.identifier)
+      }
+      if (t3 && e.touches.length <= 2) {
+        const isTap = t3.tap && now - t3.t < TAP_MAX_MS
         t3 = null; t2 = null
-        return
+        if (isTap) {
+          e.preventDefault()
+          stateRef.current.onRedo?.()
+          return
+        }
       }
       if (t2) {
-        if (!t2.pinching && Date.now() - t2.t < 600 && e.touches.length <= 1) {
+        if (t2.tap && !t2.pinching && now - t2.t < TAP_MAX_MS && e.touches.length <= 1) {
           e.preventDefault()
           stateRef.current.onUndo?.()
           t2 = null
           return
         }
-        if (e.touches.length === 0) {
-          if (t2.pinching) stateRef.current.onPinchEnd?.()
-          t2 = null
-        }
+        if (e.touches.length === 0) endGesture()
       }
       if (!stylusActiveRef.current) return
       // Safety fallback: if no stylus touches remain, finish regardless of identifier match
@@ -758,9 +856,10 @@ function PageCanvas({ page, pageH, maxW, pageIdx, totalPages, onStrokesChange, o
       finishStylusStroke()
     }
 
-    function onTouchCancel() {
-      t2 = null
-      if (stylusActiveRef.current) finishStylusStroke()
+    function onTouchCancel(e) {
+      for (const t of e.changedTouches) palmIds.delete(t.identifier)
+      endGesture()
+      if (stylusActiveRef.current) { lastStylusAt = Date.now(); finishStylusStroke() }
     }
 
     svg.addEventListener('touchstart', onTouchStart, { passive: false })
@@ -830,6 +929,10 @@ function PageCanvas({ page, pageH, maxW, pageIdx, totalPages, onStrokesChange, o
     tool, drawColor, penSize, opacity, smoothness, shapeType, eraserMode, eraserRadius, strokes, onStrokesChange, onUndo, onRedo, onPinch, onPinchEnd, onCopy, clipboard,
     selectedIndices, selRect, isMoving, moveStart, moveOff,
     commitMove, pageIdx, totalPages, onTransferStrokes, pageH,
+  }
+
+  function ignorePointer(e) {
+    return e.pointerType === 'touch' || (e.pointerType === 'pen' && stylusTouchSeen) || stylusActiveRef.current
   }
 
   function getPoint(e) {
@@ -924,6 +1027,40 @@ function PageCanvas({ page, pageH, maxW, pageIdx, totalPages, onStrokesChange, o
     setPasteMenu(null)
   }
 
+  function toRegion(r) {
+    const x = Math.max(0, Math.min(r.x1, r.x2)), y = Math.max(0, Math.min(r.y1, r.y2))
+    const w = Math.min(maxW, Math.max(r.x1, r.x2)) - x, h = Math.min(pageH, Math.max(r.y1, r.y2)) - y
+    return w > 12 && h > 12 ? { x, y, w, h } : null
+  }
+
+  // Copies the dragged area — PDF page, template, ink and images — as one image: into the
+  // in-app clipboard (paste anywhere in any note) and the system clipboard (other apps).
+  async function handleCopyRegion() {
+    const r = region
+    if (!r) return
+    const png = rasterizeSvg(svgRef.current, bgColor, { region: r })
+    // Safari only allows a clipboard write started synchronously inside the tap, with the blob as a promise
+    try {
+      navigator.clipboard?.write?.([new ClipboardItem({ 'image/png': png.then(b => b ?? Promise.reject()) })]).catch(() => {})
+    } catch { /* ClipboardItem unsupported — in-app clipboard still works */ }
+    const blob = await png
+    if (!blob) return
+    const { href } = await blobToImageHref(blob)
+    onCopy?.([{ shape: 'image', href, x1: r.x, y1: r.y, x2: r.x + r.w, y2: r.y + r.h }])
+    setRegion(null); setSelectedIndices(new Set())
+    showActionToast('Copied as image')
+  }
+
+  async function handleSystemPaste(px, py) {
+    setPasteMenu(null)
+    const blob = await readClipboardImage()
+    if (!blob) { showActionToast('No image on the clipboard'); return }
+    const stroke = placeImage(await blobToImageHref(blob), px, py, maxW, pageH)
+    const current = stateRef.current.strokes
+    stateRef.current.onStrokesChange([...current, stroke])
+    setSelectedIndices(new Set([current.length]))
+  }
+
   function doErase(cx, cy) {
     const fn = eraserMode === 'stroke' ? applyStrokeErase : applyStandardErase
     erasingRef.current = fn(erasingRef.current, cx, cy, eraserRadius)
@@ -936,8 +1073,7 @@ function PageCanvas({ page, pageH, maxW, pageIdx, totalPages, onStrokesChange, o
   }
 
   function onPointerDown(e) {
-    if (e.pointerType === 'touch') return
-    if (stylusActiveRef.current) return
+    if (ignorePointer(e)) return
     if (e.pointerType === 'mouse' && e.button !== 0) return
     if (pasteMenu) { setPasteMenu(null); return }
     e.currentTarget.setPointerCapture(e.pointerId)
@@ -956,13 +1092,14 @@ function PageCanvas({ page, pageH, maxW, pageIdx, totalPages, onStrokesChange, o
       if (selectedIndices.size > 0) {
         const sb = getSelBounds()
         if (sb && pt[0] >= sb.x1 && pt[0] <= sb.x2 && pt[1] >= sb.y1 && pt[1] <= sb.y2) {
-          setIsMoving(true); setMoveStart({ x: pt[0], y: pt[1] }); setMoveOff({ dx: 0, dy: 0 }); return
+          setIsMoving(true); setMoveStart({ x: pt[0], y: pt[1] }); setMoveOff({ dx: 0, dy: 0 }); setRegion(null); return
         }
       }
       setSelectedIndices(new Set())
       setSelRect({ x1: pt[0], y1: pt[1], x2: pt[0], y2: pt[1] })
       setIsMoving(false)
-      if (clipboard?.length > 0) {
+      setRegion(null)
+      if (clipboard?.length > 0 || navigator.clipboard?.read) {
         pasteHoldStartRef.current = pt
         holdTimer.current = setTimeout(() => {
           const cur = lastPtRef.current
@@ -987,8 +1124,7 @@ function PageCanvas({ page, pageH, maxW, pageIdx, totalPages, onStrokesChange, o
   }
 
   function onPointerMove(e) {
-    if (e.pointerType === 'touch') return
-    if (stylusActiveRef.current) return
+    if (ignorePointer(e)) return
     const pt = getPoint(e)
     lastPtRef.current = pt
 
@@ -1072,8 +1208,7 @@ function PageCanvas({ page, pageH, maxW, pageIdx, totalPages, onStrokesChange, o
   }
 
   function onPointerUp(e) {
-    if (e?.pointerType === 'touch') return
-    if (stylusActiveRef.current) return
+    if (ignorePointer(e)) return
     clearTimeout(holdTimer.current)
 
     if (tool === 'eraser') {
@@ -1097,7 +1232,7 @@ function PageCanvas({ page, pageH, maxW, pageIdx, totalPages, onStrokesChange, o
       } else if (selRect) {
         const hits = new Set()
         strokes.forEach((s, i) => { if (rectsIntersect(selRect, strokeBounds(s))) hits.add(i) })
-        setSelectedIndices(hits); setSelRect(null)
+        setSelectedIndices(hits); setSelRect(null); setRegion(toRegion(selRect))
       }
       return
     }
@@ -1130,8 +1265,7 @@ function PageCanvas({ page, pageH, maxW, pageIdx, totalPages, onStrokesChange, o
   }
 
   function onPointerCancel(e) {
-    if (e?.pointerType === 'touch') return
-    if (stylusActiveRef.current) return
+    if (ignorePointer(e)) return
     if (eraserRAFRef.current) { cancelAnimationFrame(eraserRAFRef.current); eraserRAFRef.current = null }
     if (drawRAFRef.current) { cancelAnimationFrame(drawRAFRef.current); drawRAFRef.current = null }
     clearTimeout(holdTimer.current)
@@ -1190,9 +1324,13 @@ function PageCanvas({ page, pageH, maxW, pageIdx, totalPages, onStrokesChange, o
 
       {/* Selection context menu — SVG coords × zoom = CSS pixel position */}
       {(() => {
-        const smb = (tool === 'select' && selectedIndices.size > 0 && !isMoving && !selRect) ? getSelBounds() : null
+        if (tool !== 'select' || isMoving || selRect) return null
+        const hasSel = selectedIndices.size > 0
+        const rb  = region && { x1: region.x, y1: region.y, x2: region.x + region.w, y2: region.y + region.h }
+        const smb = (hasSel ? getSelBounds() : null) ?? rb
         if (!smb) return null
         const cmBtn = { background: 'none', border: 'none', cursor: 'pointer', fontSize: 12, fontWeight: 500, padding: '4px 8px', borderRadius: 6 }
+        const divider = <div style={{ width: 1, height: 16, background: 'rgba(255,255,255,0.1)', margin: '0 2px' }} />
         return (
           <div style={{
             position: 'absolute',
@@ -1204,12 +1342,18 @@ function PageCanvas({ page, pageH, maxW, pageIdx, totalPages, onStrokesChange, o
             border: '1px solid rgba(255,255,255,0.12)', borderRadius: 12,
             padding: '4px 6px', boxShadow: '0 4px 20px rgba(0,0,0,0.55)',
           }}>
-            <button className="btn-press" onClick={handleDuplicate} style={{ ...cmBtn, color: 'rgba(255,255,255,0.82)' }}>Duplicate</button>
-            <div style={{ width: 1, height: 16, background: 'rgba(255,255,255,0.1)', margin: '0 2px' }} />
-            <button className="btn-press" onClick={handleCopySelected} style={{ ...cmBtn, color: 'rgba(255,255,255,0.82)' }}>Copy</button>
-            <div style={{ width: 1, height: 16, background: 'rgba(255,255,255,0.1)', margin: '0 2px' }} />
-            <button className="btn-press" onClick={() => { onStrokesChange(strokes.filter((_, i) => !selectedIndices.has(i))); setSelectedIndices(new Set()); showActionToast('Deleted') }}
-              style={{ ...cmBtn, color: '#fb7185' }}>Delete</button>
+            {hasSel && (
+              <>
+                <button className="btn-press" onClick={handleDuplicate} style={{ ...cmBtn, color: 'rgba(255,255,255,0.82)' }}>Duplicate</button>
+                {divider}
+                <button className="btn-press" onClick={handleCopySelected} style={{ ...cmBtn, color: 'rgba(255,255,255,0.82)' }}>Copy</button>
+                {divider}
+                <button className="btn-press" onClick={() => { onStrokesChange(strokes.filter((_, i) => !selectedIndices.has(i))); setSelectedIndices(new Set()); setRegion(null); showActionToast('Deleted') }}
+                  style={{ ...cmBtn, color: '#fb7185' }}>Delete</button>
+              </>
+            )}
+            {hasSel && region && divider}
+            {region && <button className="btn-press" onClick={handleCopyRegion} style={{ ...cmBtn, color: 'rgba(255,255,255,0.82)' }}>Copy as image</button>}
           </div>
         )
       })()}
@@ -1243,8 +1387,14 @@ function PageCanvas({ page, pageH, maxW, pageIdx, totalPages, onStrokesChange, o
             border: '1px solid rgba(255,255,255,0.12)', borderRadius: 12,
             padding: '4px 6px', boxShadow: '0 4px 20px rgba(0,0,0,0.55)',
           }}>
-            <button className="btn-press" onClick={() => handlePaste(pasteMenu.x, pasteMenu.y)}
-              style={{ background: 'none', border: 'none', cursor: 'pointer', fontSize: 12, fontWeight: 500, padding: '4px 8px', borderRadius: 6, color: 'rgba(255,255,255,0.82)' }}>Paste</button>
+            {clipboard?.length > 0 && (
+              <button className="btn-press" onClick={() => handlePaste(pasteMenu.x, pasteMenu.y)}
+                style={{ background: 'none', border: 'none', cursor: 'pointer', fontSize: 12, fontWeight: 500, padding: '4px 8px', borderRadius: 6, color: 'rgba(255,255,255,0.82)' }}>Paste</button>
+            )}
+            {navigator.clipboard?.read && (
+              <button className="btn-press" onClick={() => handleSystemPaste(pasteMenu.x, pasteMenu.y)}
+                style={{ background: 'none', border: 'none', cursor: 'pointer', fontSize: 12, fontWeight: 500, padding: '4px 8px', borderRadius: 6, color: 'rgba(255,255,255,0.82)' }}>Paste image</button>
+            )}
           </div>
         </>
       )}
@@ -1256,7 +1406,7 @@ function PageCanvas({ page, pageH, maxW, pageIdx, totalPages, onStrokesChange, o
         height={pageH}
         viewBox={`0 0 ${maxW} ${pageH}`}
         tabIndex={tool === 'select' && !readonly ? 0 : undefined}
-        style={{ display: 'block', touchAction: 'pan-y', cursor, outline: 'none', transform: `scale(${zoom})`, transformOrigin: 'top left' }}
+        style={{ display: 'block', touchAction: 'pan-x pan-y', cursor, outline: 'none', transform: `scale(${zoom})`, transformOrigin: 'top left' }}
         onPointerDown={readonly ? undefined : onPointerDown}
         onPointerMove={readonly ? undefined : onPointerMove}
         onPointerUp={readonly ? undefined : onPointerUp}
@@ -1264,24 +1414,25 @@ function PageCanvas({ page, pageH, maxW, pageIdx, totalPages, onStrokesChange, o
         onPointerLeave={readonly ? undefined : (e) => { onPointerUp(e); setEraserPos(null) }}
         onKeyDown={readonly ? undefined : onKeyDown}
       >
-        <PageTemplate pageId={page.id} template={pageBackground ? 'blank' : template} bgColor={bgColor} lineSpacing={lineSpacing} />
+        <PageTemplate pageId={page.id} template={pageBackground ? 'blank' : template} bgColor={bgColor} lineSpacing={lineSpacing} width={maxW} height={pageH} />
         {pageBackground && (
           <image
             href={pageBackground}
             x="0"
             y="0"
-            width="100%"
-            height="100%"
+            width={maxW}
+            height={pageH}
             preserveAspectRatio="xMidYMin meet"
           />
         )}
 
         {(() => {
           const indexed = displayStrokes.map((s, i) => ({ s, i }))
-          // Render highlighters first (behind), then all other strokes on top
+          // Images at the back, then highlighters, then all other strokes on top
           const sorted = [
+            ...indexed.filter(({ s }) => s.shape === 'image'),
             ...indexed.filter(({ s }) => !s.shape && (s.opacity ?? 1) < 1),
-            ...indexed.filter(({ s }) =>  s.shape || (s.opacity ?? 1) >= 1),
+            ...indexed.filter(({ s }) => s.shape ? s.shape !== 'image' : (s.opacity ?? 1) >= 1),
           ]
           return sorted.map(({ s, i }) => {
             const sel = selectedIndices.has(i)
@@ -1302,21 +1453,21 @@ function PageCanvas({ page, pageH, maxW, pageIdx, totalPages, onStrokesChange, o
           <rect
             x={Math.min(selRect.x1, selRect.x2)} y={Math.min(selRect.y1, selRect.y2)}
             width={Math.abs(selRect.x2 - selRect.x1)} height={Math.abs(selRect.y2 - selRect.y1)}
-            fill="rgba(91,140,255,0.08)" stroke="#5b8cff" strokeWidth={1.5} strokeDasharray="6 4"
+            fill="rgba(91,140,255,0.08)" stroke="#5b8cff" strokeWidth={1.5} strokeDasharray="6 4" data-export-skip
           />
         )}
         {selBounds && !selRect && (
           <rect
             x={selBounds.x1} y={selBounds.y1}
             width={selBounds.x2 - selBounds.x1} height={selBounds.y2 - selBounds.y1}
-            fill="rgba(91,140,255,0.06)" stroke="#5b8cff" strokeWidth={1.5} strokeDasharray="6 4"
+            fill="rgba(91,140,255,0.06)" stroke="#5b8cff" strokeWidth={1.5} strokeDasharray="6 4" data-export-skip
           />
         )}
         {tool === 'eraser' && eraserPos && (
           <circle
             cx={eraserPos.x} cy={eraserPos.y} r={eraserRadius}
             fill="none" stroke="rgba(128,128,128,0.55)" strokeWidth={1.5} strokeDasharray="4 3"
-            pointerEvents="none"
+            pointerEvents="none" data-export-skip
           />
         )}
       </svg>
@@ -1324,33 +1475,35 @@ function PageCanvas({ page, pageH, maxW, pageIdx, totalPages, onStrokesChange, o
   )
 }
 
-// ─── SVG → PNG helper for export ──────────────────────────────────────────────
-async function svgToPngBlob(svgEl, bgColor) {
+// ─── SVG → raster (export, copy region as image) ───────────────────────────────
+// Renders the whole page, or just `region` of it, at `scale`× for crisp text.
+async function rasterizeSvg(svgEl, bgColor, { region, scale = 2, type = 'image/png', quality } = {}) {
   const vb = svgEl.viewBox.baseVal
-  const w  = vb.width  || 900
-  const h  = vb.height || 1200
+  const { x, y, w, h } = region ?? { x: 0, y: 0, w: vb.width || 900, h: vb.height || 1200 }
   const clone = svgEl.cloneNode(true)
-  clone.setAttribute('width', w)
-  clone.setAttribute('height', h)
+  clone.querySelectorAll('[data-export-skip]').forEach(n => n.remove())
+  clone.style.transform = ''
+  clone.setAttribute('viewBox', `${x} ${y} ${w} ${h}`)
+  clone.setAttribute('width', w * scale)
+  clone.setAttribute('height', h * scale)
   let svgStr = new XMLSerializer().serializeToString(clone)
   if (!svgStr.includes('xmlns='))
     svgStr = svgStr.replace('<svg', '<svg xmlns="http://www.w3.org/2000/svg"')
   const url = URL.createObjectURL(new Blob([svgStr], { type: 'image/svg+xml' }))
-  return new Promise(resolve => {
-    const img = new Image()
-    img.onload = () => {
-      const canvas = document.createElement('canvas')
-      canvas.width = w; canvas.height = h
-      const ctx = canvas.getContext('2d')
-      ctx.fillStyle = bgColor || '#f8f7f2'
-      ctx.fillRect(0, 0, w, h)
-      ctx.drawImage(img, 0, 0, w, h)
-      URL.revokeObjectURL(url)
-      canvas.toBlob(resolve, 'image/png')
-    }
-    img.onerror = () => { URL.revokeObjectURL(url); resolve(null) }
-    img.src = url
-  })
+  try {
+    const img = await loadImage(url)
+    const canvas = document.createElement('canvas')
+    canvas.width = Math.round(w * scale); canvas.height = Math.round(h * scale)
+    const ctx = canvas.getContext('2d')
+    ctx.fillStyle = bgColor || '#f8f7f2'
+    ctx.fillRect(0, 0, canvas.width, canvas.height)
+    ctx.drawImage(img, 0, 0, canvas.width, canvas.height)
+    return await new Promise(resolve => canvas.toBlob(resolve, type, quality))
+  } catch {
+    return null
+  } finally {
+    URL.revokeObjectURL(url)
+  }
 }
 
 // ─── Main multi-page canvas ────────────────────────────────────────────────────
@@ -1424,6 +1577,7 @@ const NoteCanvas = forwardRef(function NoteCanvas({
   const pagesWrapperRef     = useRef(null)
   const gestureAnchorRef    = useRef(null) // { midInScrollX, midInScrollY, wrapperX, wrapperY }
   const userZoomedRef       = useRef(false) // true once the user manually zooms; stops auto fit-to-width
+  const settleFromRef       = useRef(null)  // { idx, left, top }: a page's on-screen spot as the pinch ended
 
   useEffect(() => { zoomRef.current = zoom; committedZoomRef.current = zoom }, [zoom])
   useEffect(() => { pagesRef.current = pages }, [pages])
@@ -1431,7 +1585,8 @@ const NoteCanvas = forwardRef(function NoteCanvas({
   // After React re-renders with new zoom: clear CSS gesture transform, then snap scroll to anchor.
   // useLayoutEffect fires before paint — no visible frame with wrong scroll position.
   useLayoutEffect(() => {
-    if (pagesWrapperRef.current) pagesWrapperRef.current.style.transform = ''
+    const wrapper = pagesWrapperRef.current
+    if (wrapper) wrapper.style.transform = ''
     const el = scrollRef.current
     if (!el) return
     if (pendingScrollTopRef.current !== null) {
@@ -1442,6 +1597,22 @@ const NoteCanvas = forwardRef(function NoteCanvas({
       el.scrollLeft = pendingScrollLeftRef.current
       pendingScrollLeftRef.current = null
     }
+    // Scroll clamping and centring can land the content away from where the pinch left it.
+    // Rather than jumping, start it where it was and slide it into its resting place.
+    const from = settleFromRef.current
+    settleFromRef.current = null
+    const page = from && wrapper?.children[from.idx]
+    if (!page) return
+    const to = page.getBoundingClientRect()
+    const dx = from.left - to.left, dy = from.top - to.top
+    if (Math.abs(dx) < 1 && Math.abs(dy) < 1) return
+    wrapper.style.transition = 'none'
+    wrapper.style.transformOrigin = '0 0'
+    wrapper.style.transform = `translate(${dx}px, ${dy}px)`
+    void wrapper.offsetWidth // commit the offset before animating away from it
+    wrapper.style.transition = 'transform 240ms cubic-bezier(0.22, 1, 0.36, 1)'
+    wrapper.style.transform = ''
+    wrapper.addEventListener('transitionend', () => { wrapper.style.transition = '' }, { once: true })
   }, [zoom])
 
   useEffect(() => {
@@ -1491,6 +1662,7 @@ const NoteCanvas = forwardRef(function NoteCanvas({
     // Lock the pinch anchor on the very first event of this gesture.
     // wrapperX/Y = pinch midpoint in pagesWrapper-local coords (accounts for current scroll).
     if (!gestureAnchorRef.current && midScreenY != null) {
+      if (pagesWrapperRef.current) pagesWrapperRef.current.style.transition = 'none' // cut short any settle slide
       const rect         = scrollEl.getBoundingClientRect()
       const midInScrollX = midScreenX - rect.left
       const midInScrollY = midScreenY - rect.top
@@ -1538,6 +1710,20 @@ const NoteCanvas = forwardRef(function NoteCanvas({
       const pageLeft_new = (maxW * newZoom + 48 >= W) ? 24 : (W - maxW * newZoom) / 2
       const contentX = pageLeft_new + (wrapperX - pageLeft_old) * gestureScale
       pendingScrollLeftRef.current = Math.max(0, contentX - midInScrollX)
+    }
+
+    // Remember the page under the pinch (pages, not the wrapper: per-page gap rounding
+    // makes far-away pages drift) so the zoom effect can slide it into place
+    const wrapper = pagesWrapperRef.current
+    if (zoomRef.current === committedZoomRef.current) {
+      // No net zoom: there is no re-render to settle into, so just drop the gesture transform
+      if (wrapper) wrapper.style.transform = ''
+    } else if (wrapper && anchor) {
+      const midY = scrollRef.current.getBoundingClientRect().top + anchor.midInScrollY
+      const kids = Array.from(wrapper.children)
+      const idx  = Math.max(0, kids.findIndex(k => k.getBoundingClientRect().bottom >= midY))
+      const r    = kids[idx]?.getBoundingClientRect()
+      if (r) settleFromRef.current = { idx, left: r.left, top: r.top }
     }
 
     gestureAnchorRef.current = null
@@ -1637,7 +1823,63 @@ const NoteCanvas = forwardRef(function NoteCanvas({
     }))
   }
 
-  function onScroll() {}
+  function commitPageStrokes(pageIdx, newStrokes) {
+    undoStackRef.current.push({ pageIdx, strokes: pages[pageIdx].strokes })
+    redoStackRef.current = []
+    onPagesChange(pages.map((p, i) => i === pageIdx ? { ...p, strokes: newStrokes } : p))
+  }
+
+  // The page under the middle of the viewport, and that point in its own coordinates
+  function viewportCenterTarget() {
+    const el = scrollRef.current
+    if (!el) return null
+    const box = el.getBoundingClientRect()
+    const cx = box.left + box.width / 2, cy = box.top + box.height / 2
+    let best = null
+    el.querySelectorAll('svg[data-page]').forEach(svg => {
+      const r = svg.getBoundingClientRect()
+      const dist = cy < r.top ? r.top - cy : cy > r.bottom ? cy - r.bottom : 0
+      if (!best || dist < best.dist) best = { svg, r, dist }
+    })
+    if (!best) return null
+    const pageIdx = pages.findIndex(p => p.id === best.svg.getAttribute('data-page'))
+    const vb = best.svg.viewBox.baseVal
+    const x = (Math.min(Math.max(cx, best.r.left), best.r.right) - best.r.left) * vb.width / best.r.width
+    const y = (Math.min(Math.max(cy, best.r.top), best.r.bottom) - best.r.top) * vb.height / best.r.height
+    return pageIdx < 0 ? null : { pageIdx, x, y, w: vb.width, h: vb.height }
+  }
+
+  async function pasteImageBlob(blob) {
+    const target = viewportCenterTarget()
+    if (!target) return
+    const stroke = placeImage(await blobToImageHref(blob), target.x, target.y, target.w, target.h)
+    const latest = pagesRef.current
+    undoStackRef.current.push({ pageIdx: target.pageIdx, strokes: latest[target.pageIdx].strokes })
+    redoStackRef.current = []
+    onPagesChange(latest.map((p, i) => i === target.pageIdx ? { ...p, strokes: [...p.strokes, stroke] } : p))
+  }
+
+  async function handlePasteButton() {
+    const blob = await readClipboardImage()
+    if (blob) pasteImageBlob(blob)
+  }
+
+  // Cmd/Ctrl+V with a keyboard (desktop, Electron, iPad with keyboard)
+  const pasteImageRef = useRef(pasteImageBlob)
+  pasteImageRef.current = pasteImageBlob
+  useEffect(() => {
+    if (readonly) return
+    function onPaste(e) {
+      const t = e.target
+      if (t?.closest?.('input, textarea, [contenteditable="true"]')) return
+      const file = Array.from(e.clipboardData?.files ?? []).find(f => f.type.startsWith('image/'))
+      if (!file) return
+      e.preventDefault()
+      pasteImageRef.current(file)
+    }
+    document.addEventListener('paste', onPaste)
+    return () => document.removeEventListener('paste', onPaste)
+  }, [readonly])
 
   function tbtn(active) {
     return {
@@ -1653,38 +1895,36 @@ const NoteCanvas = forwardRef(function NoteCanvas({
   const sep = <div style={{ width: 1, height: 20, background: 'rgba(255,255,255,0.14)', flexShrink: 0 }} />
 
   useImperativeHandle(ref, () => ({
+    // Exports exactly what is on screen: PDF pages with their annotations, added pages
+    // with their template, and pasted images — each page at its own size.
     async exportAsPdf() {
       const lastIdx = pages.length - 1
-      const exportPages = pages.filter((p, i) => i < lastIdx || p.strokes.length > 0)
-      if (exportPages.length === 0) return null
-      const exportIds = new Set(exportPages.map(p => p.id))
-      const svgs = Array.from(scrollRef.current?.querySelectorAll('svg[data-page]') ?? [])
-        .filter(s => exportIds.has(s.getAttribute('data-page')))
-      const pngBlobs = []
-      for (const svg of svgs) {
-        const blob = await svgToPngBlob(svg, bgColor)
-        if (blob) pngBlobs.push(blob)
-      }
-      if (pngBlobs.length === 0) return null
+      // A trailing empty page is the "next page" placeholder, not content — unless it is a PDF page
+      const exportIdx = pages.map((_, i) => i).filter(i => i < lastIdx || pages[i].strokes.length > 0 || pageBackgrounds?.[i])
+      const svgById = new Map(Array.from(scrollRef.current?.querySelectorAll('svg[data-page]') ?? []).map(s => [s.getAttribute('data-page'), s]))
       const { jsPDF } = await import('jspdf')
-      const pw = maxW; const ph = pageH
-      const orient = ph >= pw ? 'portrait' : 'landscape'
-      const doc = new jsPDF({ orientation: orient, unit: 'px', format: [pw, ph], hotfixes: ['px_scaling'] })
-      for (let i = 0; i < pngBlobs.length; i++) {
-        if (i > 0) doc.addPage([pw, ph], orient)
-        const dataUrl = await new Promise(res => { const r = new FileReader(); r.onload = () => res(r.result); r.readAsDataURL(pngBlobs[i]) })
-        doc.addImage(dataUrl, 'PNG', 0, 0, pw, ph)
+      let doc = null
+      for (const i of exportIdx) {
+        const svg = svgById.get(pages[i].id)
+        const blob = svg && await rasterizeSvg(svg, bgColor, { type: 'image/jpeg', quality: 0.9 })
+        if (!blob) continue
+        const { pageH: ph, maxW: pw } = getPageDims(i)
+        const orient = ph >= pw ? 'portrait' : 'landscape'
+        if (!doc) doc = new jsPDF({ orientation: orient, unit: 'px', format: [pw, ph], hotfixes: ['px_scaling'] })
+        else doc.addPage([pw, ph], orient)
+        const dataUrl = await new Promise(res => { const r = new FileReader(); r.onload = () => res(r.result); r.readAsDataURL(blob) })
+        doc.addImage(dataUrl, 'JPEG', 0, 0, pw, ph)
       }
-      return doc.output('blob')
+      return doc ? doc.output('blob') : null
     },
-  }), [pages, bgColor, maxW, pageH])
+  }), [pages, bgColor, pageBackgrounds, pageDimensions, orientation]) // eslint-disable-line react-hooks/exhaustive-deps
 
   const outerStyle = isFullscreen
-    ? { position: 'fixed', inset: 0, zIndex: 1000, display: 'flex', flexDirection: 'column', userSelect: 'none', background: 'var(--bg-elevated)' }
-    : { display: 'flex', flexDirection: 'column', height: '100%', userSelect: 'none' }
+    ? { position: 'fixed', inset: 0, zIndex: 1000, display: 'flex', flexDirection: 'column', background: 'var(--bg-elevated)' }
+    : { display: 'flex', flexDirection: 'column', height: '100%' }
 
   return (
-    <div style={outerStyle}>
+    <div className="no-text-select" style={outerStyle}>
       {!readonly && (
         <>
           {/* ── Minimal top bar ── */}
@@ -1709,7 +1949,13 @@ const NoteCanvas = forwardRef(function NoteCanvas({
             }}>
               <Redo2 size={12} /> Redo
             </button>
-            <button className="btn-press" onClick={() => totalStrokes > 0 && onPagesChange(pages.map(p => ({ ...p, strokes: [] })))} style={{
+            <button className="btn-press" onClick={() => {
+              if (totalStrokes === 0) return
+              // One undo entry covering every page, so a mis-tapped Clear is recoverable
+              undoStackRef.current.push(pages.map((p, pageIdx) => ({ pageIdx, strokes: p.strokes })))
+              redoStackRef.current = []
+              onPagesChange(pages.map(p => ({ ...p, strokes: [] })))
+            }} style={{
               display: 'flex', alignItems: 'center', gap: 5, padding: '5px 11px',
               borderRadius: 7, border: '1px solid var(--border)', background: 'none',
               color: totalStrokes === 0 ? 'var(--text-muted)' : 'var(--accent-red)',
@@ -1717,6 +1963,15 @@ const NoteCanvas = forwardRef(function NoteCanvas({
             }}>
               <Trash2 size={12} /> Clear
             </button>
+            {navigator.clipboard?.read && (
+              <button className="btn-press" onClick={handlePasteButton} title="Paste an image or screenshot from the clipboard" style={{
+                display: 'flex', alignItems: 'center', gap: 5, padding: '5px 11px',
+                borderRadius: 7, border: '1px solid var(--border)', background: 'none',
+                color: 'var(--text-secondary)', cursor: 'pointer', fontSize: 12,
+              }}>
+                <ClipboardPaste size={12} /> Paste image
+              </button>
+            )}
             <div style={{ flex: 1 }} />
             {zoom !== 1 && (
               <button className="btn-press" onClick={() => { userZoomedRef.current = true; setZoom(1) }} title="Reset zoom" style={{
@@ -2125,7 +2380,8 @@ const NoteCanvas = forwardRef(function NoteCanvas({
         )}
 
         {/* Scroll container */}
-        <div ref={scrollRef} onScroll={onScroll} style={{ height: '100%', overflowY: 'auto', overflowX: 'auto', background: 'var(--canvas-outer, #14141e)' }}>
+        {/* touch-action blocks the browser's own pinch/double-tap zoom, which a palm in the gaps between pages would trigger */}
+        <div ref={scrollRef} style={{ height: '100%', overflowY: 'auto', overflowX: 'auto', touchAction: 'pan-x pan-y', background: 'var(--canvas-outer, #14141e)' }}>
           <div ref={pagesWrapperRef} style={{ padding: readonly ? 24 : '108px 24px 24px', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: Math.round(24 * zoom), width: 'max-content', minWidth: '100%' }}>
             {pages.map((page, pageIdx) => {
               const { pageH: pgH, maxW: pgW } = getPageDims(pageIdx)
@@ -2139,11 +2395,7 @@ const NoteCanvas = forwardRef(function NoteCanvas({
                   page={page}
                   pageH={pgH}
                   maxW={pgW}
-                  onStrokesChange={newStrokes => {
-                    undoStackRef.current.push({ pageIdx, strokes: pages[pageIdx].strokes })
-                    redoStackRef.current = []
-                    onPagesChange(pages.map((p, i) => i === pageIdx ? { ...p, strokes: newStrokes } : p))
-                  }}
+                  onStrokesChange={newStrokes => commitPageStrokes(pageIdx, newStrokes)}
                   penColor={penColor}
                   penSize={penSize}
                   tool={tool}

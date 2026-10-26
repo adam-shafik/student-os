@@ -714,6 +714,18 @@ body {
    so the page can only ever scroll vertically. */
 .page-scroll { overflow-x: hidden; }
 
+/* Writing surfaces: a resting palm must not start a text selection or the iOS callout.
+   Safari ignores unprefixed user-select, and inherited none can make fields uneditable. */
+.no-text-select, .no-text-select * {
+  -webkit-user-select: none;
+  user-select: none;
+  -webkit-touch-callout: none;
+}
+.no-text-select input, .no-text-select textarea, .no-text-select [contenteditable="true"] {
+  -webkit-user-select: text;
+  user-select: text;
+}
+
 /* iOS Safari zooms the page when a focused field's text is below 16px. Bump form
    controls to 16px on touch devices only — desktop keeps its tighter sizing. */
 @media (pointer: coarse) {

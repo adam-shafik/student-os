@@ -49,12 +49,28 @@ const mapCustomEventRow = (r) => ({
     duration: r.duration_minutes ?? null,
     location: r.location || null,
     description: r.description || null,
+    customTypeName: r.custom_type_name || undefined,
   },
 })
 
 const mapTrackerColumnRow = (r) => ({
   id: r.id, domainId: r.domain_id, label: r.label, position: r.position,
 })
+
+// Editable columns of a user calendar event, shared by create and edit
+const customEventFields = (event) => {
+  const d = event.date
+  const fields = {
+    type: event.type, title: event.title,
+    date: `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`,
+    domain_id: event.domainId || null,
+    start_time: event.details?.time || null,
+    duration_minutes: event.details?.time ? (event.details?.duration ?? null) : null,
+  }
+  // Only sent when used, so other events still save if migrations/2026_calendar_event_custom_type.sql is not applied yet
+  if (event.type === 'other') fields.custom_type_name = event.details?.customTypeName || null
+  return fields
+}
 
 const mapTodoRow = (r) => ({
   id: r.id, title: r.title, domainId: r.domain_id, dueDate: r.due_date,
@@ -442,7 +458,8 @@ export default function App() {
 
     supabase.from('notes').select('*, note_pages(id, page_order, strokes)').eq('user_id', userId).order('updated_at', { ascending: false })
       .then(({ data }) => {
-        if (data) setNotes(data.map(n => ({
+        if (!data) return
+        const loaded = data.map(n => ({
           id: n.id, title: n.title, domainId: n.domain_id, academicWeek: n.academic_week,
           folderId: n.folder_id || null,
           eventId: n.event_id, studySessionId: n.study_session_id,
@@ -461,7 +478,11 @@ export default function App() {
               .sort((a, b) => a.page_order - b.page_order)
               .map(p => ({ id: p.id, strokes: p.strokes || [] }))
           })(),
-        })))
+        }))
+        // Baseline for handleSaveNote's dirty-page diff — without it, pages deleted in a
+        // later session are never removed from note_pages and reappear on reload
+        for (const n of loaded) lastSavedStrokesRef.current[n.id] = n.pages.map(p => p.strokes)
+        setNotes(loaded)
       })
 
     supabase.from('note_folders').select('*').eq('user_id', userId).order('position')
@@ -810,6 +831,8 @@ export default function App() {
       id: domain.id, user_id: userId, name: domain.name, code: domain.code || null,
       category: domain.category, color: domain.color, icon: domain.icon || 'BookOpen',
       professor: domain.professor || null, credits: domain.credits || null,
+      description: domain.description || null, semester_label: domain.semester || null,
+      role: domain.role || null,
       semester_number: domain.semesterNumber ?? null,
       term_id: termId,
       progress: 0, created_at: now, updated_at: now,
@@ -934,19 +957,36 @@ export default function App() {
     ).then(({ error }) => { if (error) console.error('event type color save failed:', error.message) })
   }
 
-  const handleAddCalendarEvent = async (event) => {
+  const handleAddCalendarEvent = async ({ notes, ...event }) => {
     const id = crypto.randomUUID()
     setCustomCalendarEvents(prev => [...prev, { ...event, id }])
-    const d = event.date
-    const dateStr = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`
     const { error } = await supabase.from('custom_calendar_events').insert({
-      id, user_id: userId, type: event.type, title: event.title,
-      date: dateStr, domain_id: event.domainId || null, academic_week: event.academicWeek || null,
+      id, user_id: userId, ...customEventFields(event),
+      academic_week: event.academicWeek || null,
       reminder_days: event.reminderDays ?? [],
     })
     if (error) {
       console.error('add calendar event failed:', error.message)
       setCustomCalendarEvents(prev => prev.filter(ev => ev.id !== id))
+      return
+    }
+    if (notes?.trim()) handleUpdateNote(id, notes.trim())
+  }
+
+  const handleUpdateCalendarEvent = async (id, { notes: _notes, ...event }) => {
+    const before = customCalendarEvents.find(ev => ev.id === id)
+    if (!before) return
+    const updated = { ...before, ...event, locallyEdited: before.googleEventId ? true : before.locallyEdited }
+    setCustomCalendarEvents(prev => prev.map(ev => ev.id === id ? updated : ev))
+    const { error } = await supabase.from('custom_calendar_events').update({
+      ...customEventFields(event),
+      reminder_days: event.reminderDays ?? [],
+      // Imported classes: keep the next Google sync from overwriting the user's edit
+      ...(before.googleEventId ? { locally_edited: true } : {}),
+    }).eq('id', id).eq('user_id', userId)
+    if (error) {
+      console.error('update calendar event failed:', error.message)
+      setCustomCalendarEvents(prev => prev.map(ev => ev.id === id ? before : ev))
     }
   }
 
@@ -979,7 +1019,8 @@ export default function App() {
   // tap target, so waiting on a round trip per tick would feel broken.
 
   const handleAddTrackerColumns = async (domainId, labels) => {
-    const basePos = trackerColumns.filter(c => c.domainId === domainId).length
+    // max+1, not count: after a delete, count can collide with a surviving column's position
+    const basePos = trackerColumns.filter(c => c.domainId === domainId).reduce((m, c) => Math.max(m, c.position + 1), 0)
     const rows = labels.map((label, i) => ({
       id: crypto.randomUUID(), user_id: userId, domain_id: domainId,
       label, position: basePos + i,
@@ -1004,6 +1045,23 @@ export default function App() {
     if (error) {
       console.error('rename tracker column failed:', error.message)
       if (snapshot) setTrackerColumns(prev => prev.map(c => c.id === columnId ? snapshot : c))
+    }
+  }
+
+  const handleReorderTrackerColumns = async (domainId, orderedIds) => {
+    const snapshot = trackerColumns
+    const byId = Object.fromEntries(trackerColumns.map(c => [c.id, c]))
+    const reordered = orderedIds.map((id, position) => ({ ...byId[id], position }))
+    setTrackerColumns(prev => [...prev.filter(c => c.domainId !== domainId), ...reordered])
+
+    // One round trip: upsert needs every not-null column, so send the whole row
+    const { error } = await supabase.from('domain_tracker_columns').upsert(
+      reordered.map(c => ({ id: c.id, user_id: userId, domain_id: domainId, label: c.label, position: c.position })),
+      { onConflict: 'id' },
+    )
+    if (error) {
+      console.error('reorder tracker columns failed:', error.message)
+      setTrackerColumns(snapshot)
     }
   }
 
@@ -1297,14 +1355,13 @@ export default function App() {
   }
 
   const handleDeleteNote = async (id) => {
+    const snapshot = notes.find(n => n.id === id)
     setNotes(prev => prev.filter(n => n.id !== id))
     const { error } = await supabase.from('notes').delete().eq('id', id).eq('user_id', userId)
     if (error) {
       console.error('note delete failed:', error.message)
-      // restore the note in local state if delete failed
-      supabase.from('notes').select('*').eq('id', id).maybeSingle().then(({ data }) => {
-        if (data) setNotes(prev => [data, ...prev])
-      })
+      // Restore the in-memory note (with its pages), not a raw snake_case DB row
+      if (snapshot) setNotes(prev => [snapshot, ...prev])
     }
   }
 
@@ -1433,11 +1490,10 @@ export default function App() {
       }).eq('id', noteId).eq('user_id', userId)
       if (error) { console.error('notes update failed:', error); throw error }
     } else {
-      const extra = note.type === 'pdf'
-        ? {}
-        : { template: note.template, bg_color: note.bgColor, line_spacing: note.lineSpacing, orientation: note.orientation }
+      // PDF notes too: their template/background apply to pages added after the PDF
       const { error: updateErr } = await supabase.from('notes').update({
-        ...metaFields, ...extra, updated_at: now,
+        ...metaFields, template: note.template, bg_color: note.bgColor,
+        line_spacing: note.lineSpacing, orientation: note.orientation, updated_at: now,
       }).eq('id', noteId).eq('user_id', userId)
       if (updateErr) { console.error('notes update failed:', updateErr); throw updateErr }
 
@@ -1887,11 +1943,12 @@ export default function App() {
           notes={notes}
           weekConfidence={weekConfidence}
           onSetWeekConfidence={handleSetWeekConfidence}
-          trackerColumns={trackerColumns.filter(c => c.domainId === selectedDomain.id)}
+          trackerColumns={trackerColumns.filter(c => c.domainId === selectedDomain.id).sort((a, b) => a.position - b.position)}
           trackerTicks={trackerTicks}
           onAddTrackerColumns={handleAddTrackerColumns}
           onRenameTrackerColumn={handleRenameTrackerColumn}
           onDeleteTrackerColumn={handleDeleteTrackerColumn}
+          onReorderTrackerColumns={handleReorderTrackerColumns}
           onToggleTrackerTick={handleToggleTrackerTick}
           onOpenNote={handleOpenNoteFromSession}
           assessments={assessments.filter(a => a.domainId === selectedDomain.id)}
@@ -1907,6 +1964,7 @@ export default function App() {
           customEvents={customCalendarEvents}
           onViewDomain={handleViewDomainById}
           onAddCalendarEvent={handleAddCalendarEvent}
+          onUpdateCalendarEvent={handleUpdateCalendarEvent}
           onDeleteCalendarEvent={handleDeleteCalendarEvent}
           onCancelScheduleEvent={handleCancelScheduleEvent}
           onUpdateEventReminder={handleUpdateEventReminder}

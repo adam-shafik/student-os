@@ -44,6 +44,31 @@ export function getTypeColor(type, customColors = {}) {
   return customColors[type] || EVENT_TYPES[type]?.color || '#9ca3af'
 }
 
+// ─── Time formatting ('HH:MM' start + duration in minutes) ────────────────────
+export function fmtTime(t) {
+  if (!t) return null
+  const [h, m] = t.split(':').map(Number)
+  return `${h % 12 || 12}${m ? ':' + String(m).padStart(2, '0') : ''}${h >= 12 ? 'pm' : 'am'}`
+}
+
+export function fmtDuration(mins) {
+  if (!mins) return null
+  const h = Math.floor(mins / 60), m = mins % 60
+  return h && m ? `${h}h ${m}m` : h ? `${h}h` : `${m}m`
+}
+
+export function addMinutesToTime(t, mins) {
+  const [h, m] = t.split(':').map(Number)
+  const total = (((h * 60 + m + mins) % 1440) + 1440) % 1440
+  return `${String(Math.floor(total / 60)).padStart(2, '0')}:${String(total % 60).padStart(2, '0')}`
+}
+
+// "9am–10:30am", or just "9am" when there is no duration
+export function fmtTimeRange(t, mins) {
+  if (!t) return null
+  return mins ? `${fmtTime(t)}–${fmtTime(addMinutesToTime(t, mins))}` : fmtTime(t)
+}
+
 // ─── Build schedule events from user's weekly slots + semester config ─────────
 // Generates a lecture/lab event for every teaching week based on slots set in onboarding.
 // Google Calendar events are NOT built here: they are imported into
