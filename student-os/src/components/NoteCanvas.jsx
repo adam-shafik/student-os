@@ -29,10 +29,10 @@ const SPACINGS     = [[32, 'Compact'], [48, 'Normal'], [64, 'Wide']]
 
 // Palm rejection / finger gestures (iPad). A finger that lands while the pencil is down,
 // or within PALM_GRACE_MS of it lifting, is a resting palm and never triggers a gesture.
-const PALM_GRACE_MS   = 500
-const TAP_MAX_MS      = 350
-const TAP_TOGETHER_MS = 150 // fingers of a deliberate 2/3-finger tap land almost together
-const TAP_SLOP_PX     = 15
+const PALM_GRACE_MS   = 250
+const TAP_MAX_MS      = 500
+const TAP_TOGETHER_MS = 250 // fingers of a deliberate 2/3-finger tap land close together
+const TAP_SLOP_PX     = 25
 const PINCH_START_PX  = 24
 
 // iPad Safari reports the pencil as both touch events (touchType 'stylus') and pen pointer
@@ -446,11 +446,13 @@ function PageTemplate({ pageId, template, bgColor, lineSpacing, width, height })
           </pattern>
         )}
       </defs>
-      <rect width={width} height={height} fill={bgColor} />
-      {template !== 'blank' && <rect width={width} height={height} fill={`url(#${pid(template)})`} />}
-      {template === 'lined' && (
-        <line x1="65" y1="0" x2="65" y2={height} stroke={bgLum > 0.5 ? 'rgba(200,50,50,0.35)' : 'rgba(255,110,110,0.45)'} strokeWidth="1" />
-      )}
+      <g data-layer="template">
+        <rect width={width} height={height} fill={bgColor} />
+        {template !== 'blank' && <rect width={width} height={height} fill={`url(#${pid(template)})`} />}
+        {template === 'lined' && (
+          <line x1="65" y1="0" x2="65" y2={height} stroke={bgLum > 0.5 ? 'rgba(200,50,50,0.35)' : 'rgba(255,110,110,0.45)'} strokeWidth="1" />
+        )}
+      </g>
     </>
   )
 }
@@ -659,7 +661,9 @@ function PageCanvas({ page, pageH, maxW, pageIdx, totalPages, onStrokesChange, o
         endGesture()
         return
       }
-      if (touches.length === 1) firstFingerAt = now
+      // Every finger on the glass is new in this event: the gesture starts now. iOS often
+      // delivers both fingers of a two-finger tap in one touchstart, never reporting one first.
+      if (touches.length === e.changedTouches.length) firstFingerAt = now
       const together = now - firstFingerAt < TAP_TOGETHER_MS
       if (touches.length === 3) {
         e.preventDefault()
@@ -1477,32 +1481,54 @@ function PageCanvas({ page, pageH, maxW, pageIdx, totalPages, onStrokesChange, o
 
 // ─── SVG → raster (export, copy region as image) ───────────────────────────────
 // Renders the whole page, or just `region` of it, at `scale`× for crisp text.
-async function rasterizeSvg(svgEl, bgColor, { region, scale = 2, type = 'image/png', quality } = {}) {
-  const vb = svgEl.viewBox.baseVal
-  const { x, y, w, h } = region ?? { x: 0, y: 0, w: vb.width || 900, h: vb.height || 1200 }
+// Drawn in layers — template, then every <image> directly, then the ink — because Safari
+// often paints an SVG's embedded images blank when the SVG itself is drawn to a canvas
+// (PDF pages exported empty while the strokes on them came through).
+async function drawSvgLayer(ctx, svgEl, keep, view) {
   const clone = svgEl.cloneNode(true)
   clone.querySelectorAll('[data-export-skip]').forEach(n => n.remove())
+  for (const el of Array.from(clone.querySelectorAll('*'))) {
+    if (clone.contains(el) && !keep(el)) el.remove() // skip nodes whose ancestor already went
+  }
   clone.style.transform = ''
-  clone.setAttribute('viewBox', `${x} ${y} ${w} ${h}`)
-  clone.setAttribute('width', w * scale)
-  clone.setAttribute('height', h * scale)
+  clone.setAttribute('viewBox', `${view.x} ${view.y} ${view.w} ${view.h}`)
+  clone.setAttribute('width', view.w * view.scale)
+  clone.setAttribute('height', view.h * view.scale)
   let svgStr = new XMLSerializer().serializeToString(clone)
   if (!svgStr.includes('xmlns='))
     svgStr = svgStr.replace('<svg', '<svg xmlns="http://www.w3.org/2000/svg"')
   const url = URL.createObjectURL(new Blob([svgStr], { type: 'image/svg+xml' }))
   try {
-    const img = await loadImage(url)
-    const canvas = document.createElement('canvas')
-    canvas.width = Math.round(w * scale); canvas.height = Math.round(h * scale)
-    const ctx = canvas.getContext('2d')
+    ctx.drawImage(await loadImage(url), 0, 0, ctx.canvas.width, ctx.canvas.height)
+  } finally {
+    URL.revokeObjectURL(url)
+  }
+}
+
+async function rasterizeSvg(svgEl, bgColor, { region, scale = 2, type = 'image/png', quality } = {}) {
+  const vb = svgEl.viewBox.baseVal
+  const { x, y, w, h } = region ?? { x: 0, y: 0, w: vb.width || 900, h: vb.height || 1200 }
+  const view = { x, y, w, h, scale }
+  const canvas = document.createElement('canvas')
+  canvas.width = Math.round(w * scale); canvas.height = Math.round(h * scale)
+  const ctx = canvas.getContext('2d')
+  try {
     ctx.fillStyle = bgColor || '#f8f7f2'
     ctx.fillRect(0, 0, canvas.width, canvas.height)
-    ctx.drawImage(img, 0, 0, canvas.width, canvas.height)
+    const inTemplate = el => el.closest('defs, [data-layer="template"]') || el.querySelector('[data-layer="template"]')
+    await drawSvgLayer(ctx, svgEl, inTemplate, view)
+    // Images (PDF page, pasted pictures) render behind all ink, in document order
+    for (const im of svgEl.querySelectorAll('image')) {
+      const attr = n => parseFloat(im.getAttribute(n)) || 0
+      const img = await loadImage(im.getAttribute('href'))
+      ctx.drawImage(img, (attr('x') - x) * scale, (attr('y') - y) * scale, attr('width') * scale, attr('height') * scale)
+    }
+    await drawSvgLayer(ctx, svgEl, el => !el.closest('[data-layer="template"], image'), view)
     return await new Promise(resolve => canvas.toBlob(resolve, type, quality))
   } catch {
     return null
   } finally {
-    URL.revokeObjectURL(url)
+    canvas.width = canvas.height = 0 // iOS caps total canvas memory; release it per page
   }
 }
 
@@ -1919,12 +1945,25 @@ const NoteCanvas = forwardRef(function NoteCanvas({
     },
   }), [pages, bgColor, pageBackgrounds, pageDimensions, orientation]) // eslint-disable-line react-hooks/exhaustive-deps
 
+  // CSS alone has let iOS select stray text while writing; refuse to start a selection at all
+  const rootRef = useRef(null)
+  useEffect(() => {
+    const root = rootRef.current
+    if (!root) return
+    function onSelectStart(e) {
+      const el = e.target.nodeType === 1 ? e.target : e.target.parentElement
+      if (!el?.closest('input, textarea, [contenteditable="true"]')) e.preventDefault()
+    }
+    root.addEventListener('selectstart', onSelectStart)
+    return () => root.removeEventListener('selectstart', onSelectStart)
+  }, [])
+
   const outerStyle = isFullscreen
     ? { position: 'fixed', inset: 0, zIndex: 1000, display: 'flex', flexDirection: 'column', background: 'var(--bg-elevated)' }
     : { display: 'flex', flexDirection: 'column', height: '100%' }
 
   return (
-    <div className="no-text-select" style={outerStyle}>
+    <div ref={rootRef} className="no-text-select" style={outerStyle}>
       {!readonly && (
         <>
           {/* ── Minimal top bar ── */}
@@ -2187,7 +2226,8 @@ const NoteCanvas = forwardRef(function NoteCanvas({
                             position: 'absolute', top: 'calc(100% + 12px)', left: '50%',
                             transform: `translateX(-50%) translateY(${sliderOpen ? 0 : -6}px) scale(${sliderOpen ? 1 : 0.92})`,
                             opacity: sliderOpen ? 1 : 0, pointerEvents: sliderOpen ? 'auto' : 'none',
-                            transition: 'opacity 0.18s cubic-bezier(0.16,1,0.3,1), transform 0.18s cubic-bezier(0.16,1,0.3,1)',
+                            visibility: sliderOpen ? 'visible' : 'hidden',
+                            transition: 'opacity 0.18s cubic-bezier(0.16,1,0.3,1), transform 0.18s cubic-bezier(0.16,1,0.3,1), visibility 0.18s',
                             zIndex: 200, display: 'flex', alignItems: 'center', gap: 8,
                             background: 'rgba(13,14,22,0.97)', backdropFilter: sliderOpen ? 'blur(16px)' : 'none',
                             border: '1px solid rgba(255,255,255,0.1)', borderRadius: 20, padding: '7px 12px',
@@ -2305,7 +2345,8 @@ const NoteCanvas = forwardRef(function NoteCanvas({
                             position: 'absolute', top: 'calc(100% + 12px)', left: '50%',
                             transform: `translateX(-50%) translateY(${sliderOpen ? 0 : -6}px) scale(${sliderOpen ? 1 : 0.92})`,
                             opacity: sliderOpen ? 1 : 0, pointerEvents: sliderOpen ? 'auto' : 'none',
-                            transition: 'opacity 0.18s cubic-bezier(0.16,1,0.3,1), transform 0.18s cubic-bezier(0.16,1,0.3,1)',
+                            visibility: sliderOpen ? 'visible' : 'hidden',
+                            transition: 'opacity 0.18s cubic-bezier(0.16,1,0.3,1), transform 0.18s cubic-bezier(0.16,1,0.3,1), visibility 0.18s',
                             zIndex: 200, display: 'flex', alignItems: 'center', gap: 8,
                             background: 'rgba(13,14,22,0.97)', backdropFilter: sliderOpen ? 'blur(16px)' : 'none',
                             border: '1px solid rgba(255,255,255,0.1)', borderRadius: 20, padding: '7px 12px',

@@ -40,6 +40,9 @@ Also check:
 - Finger gestures on a writing surface must ignore palms: any touch that starts while the Pencil is down, or within the grace window after it lifts. Require near-simultaneous landing for multi-finger taps, and a dead zone before pinching.
 - `navigator.clipboard.read/write` and `navigator.share` need a live user gesture. Start the call synchronously in the tap handler (pass a Promise to `ClipboardItem`). After slow async work, fall back to a download if share throws `NotAllowedError`.
 - SVG-as-image rasterising only renders inline `data:` URLs, so keep note images inline. Use explicit pixel sizes, not `100%`, for anything rasterised with a custom viewBox.
+- Safari often paints an SVG's embedded `<image>` blank when the whole SVG is drawn to a canvas. Rasterise in layers instead (template, then each image drawn directly, then ink). See `rasterizeSvg` in NoteCanvas. Free each canvas after use (`width = 0`), because iOS caps total canvas memory.
+- iOS frequently delivers simultaneous fingers in one `touchstart`, so never assume one finger is reported before the second. Multi-finger tap timing must start when `touches.length === changedTouches.length`.
+- An `opacity: 0` popup can still be long-press selected. Use `visibility: hidden` for hidden UI over the page.
 
 ## 5. Verify
 - No test runner exists. Run the lint diff against HEAD (the repo already has lint errors) and `npx vite build`.
