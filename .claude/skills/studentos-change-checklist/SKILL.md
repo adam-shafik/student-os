@@ -44,7 +44,17 @@ Also check:
 - iOS frequently delivers simultaneous fingers in one `touchstart`, so never assume one finger is reported before the second. Multi-finger tap timing must start when `touches.length === changedTouches.length`.
 - An `opacity: 0` popup can still be long-press selected. Use `visibility: hidden` for hidden UI over the page.
 
-## 5. Verify
+## 5. Interaction design
+- A new action that resembles an existing one goes through the same gesture or menu. For example, image paste lives in the Select-tool hold menu beside stroke paste. Don't add a new toolbar button for it.
+- Anything a user can insert must be selectable, movable, resizable and deletable in the same change. After an insert, leave it selected (Select tool active) so those actions are one touch away.
+- In NoteCanvas, select-tool behaviour lives in one place (`beginSelectPress` / `moveSelectPress` / `endSelectPress`), shared by the Pencil touch path and the pointer path. Don't fork it again.
+
+## 6. Verify
 - No test runner exists. Run the lint diff against HEAD (the repo already has lint errors) and `npx vite build`.
 - Pure helpers can be checked with `node --no-warnings --input-type=module -e "import ... from './src/...'"`.
-- UI flows need a logged-in Supabase session. Say so when you couldn't exercise them.
+- Components can be driven without Supabase. Bundle a small harness that mounts the component with local state:
+  `NODE_PATH=student-os/node_modules npx esbuild entry.jsx --bundle --jsx=automatic --outfile=bundle.js`
+  Then run it in `"/Applications/Google Chrome.app/Contents/MacOS/Google Chrome" --headless=new --virtual-time-budget=15000 --dump-dom file://.../index.html`.
+  Dispatch `PointerEvent`s on the element and write the results into a DOM node. Stub `Element.prototype.setPointerCapture`.
+  Wait for async UI (menus, probes) by polling; don't use fixed sleeps.
+- Full app flows still need a logged-in Supabase session. Say so when you couldn't exercise them.
