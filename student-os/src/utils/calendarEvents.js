@@ -111,6 +111,9 @@ export function buildScheduleEvents(domains, scheduleSlots, config, weekStartSun
         for (const slot of scheduleSlots) {
           const domain = domainMap[slot.domainId]
           if (!domain) continue
+          // An archived module from before terms existed has no term to repeat in; without
+          // this it fell through to the current term and kept generating classes there.
+          if (domain.isPast && !domain.termId) continue
           if (sem.termId) {
             // Term model: a domain repeats only inside its own term. Legacy domains
             // (no term yet) fall through to the current term so they still show.
