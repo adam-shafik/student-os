@@ -12,6 +12,8 @@ Adam works from more than one machine. Local `main` has been found behind `origi
 - Run `git fetch origin && git log --oneline main..origin/main` before editing.
 - If you are behind and `main` has not diverged, fast-forward first. If you already have edits: `git stash -u`, then `git merge --ff-only origin/main`, then `git stash pop`.
 - If something the user describes isn't in the code, check the remote before concluding it doesn't exist.
+- Run `git status` before starting. If a file shows as modified that you didn't touch in this task, stop and tell the user before doing anything else. Compare it with `git diff HEAD -- <file>`. An old copy left in the working tree once got committed alongside an unrelated 3-line fix (`cc1a228`) and silently reverted a whole feature.
+- When handing over a change, say exactly which files it touches, so the user's commit doesn't sweep in unrelated edits.
 
 ## 2. Trace every field end to end (the "it's gone after refresh" bug)
 State is optimistic, so a field that never reaches Supabase looks fine until a reload. For each field a form collects, confirm all four links:

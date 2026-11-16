@@ -4,7 +4,7 @@ import { getStroke } from 'perfect-freehand'
 import { useIsMobile } from '../utils/useIsMobile'
 import {
   Undo2, Redo2, Trash2, PenLine, Highlighter, Shapes, MousePointer2, Eraser,
-  Square, Circle, Minus, Triangle, SlidersHorizontal, Plus, Maximize2, Minimize2, ClipboardPaste,
+  Square, Circle, Minus, Triangle, SlidersHorizontal, Plus, Maximize2, Minimize2,
 } from 'lucide-react'
 
 // ─── Constants ─────────────────────────────────────────────────────────────────
@@ -39,6 +39,9 @@ const PINCH_START_PX  = 24
 // events. Once a stylus touch is seen the touch path owns the pencil and pen pointer events
 // are duplicates; elsewhere (Windows pens) only pointer events exist.
 let stylusTouchSeen = false
+
+// Copied strokes/images outlive the open note, so they can be pasted into another note
+let sessionClipboard = null
 
 // ─── Drawing utils ─────────────────────────────────────────────────────────────
 function strokeOpts(size, last, smoothing = 0.5) {
@@ -391,6 +394,23 @@ function placeImage({ href, w, h }, cx, cy, pageW, pageH) {
   return { shape: 'image', href, x1, y1, x2: x1 + iw, y2: y1 + ih }
 }
 
+// true / false when the clipboard can be inspected without prompting (desktop, Electron);
+// null when it can't — iPad Safari only reveals the clipboard after the user taps Paste
+async function probeClipboardImage() {
+  const probe = (async () => {
+    try {
+      const perm = await navigator.permissions?.query({ name: 'clipboard-read' })
+      if (perm?.state !== 'granted') return null
+      const items = await navigator.clipboard.read()
+      return items.some(i => i.types.some(t => t.startsWith('image/')))
+    } catch {
+      return null
+    }
+  })()
+  // read() can stall (e.g. page not focused); never let it hold the paste menu back
+  return Promise.race([probe, new Promise(r => setTimeout(() => r(null), 300))])
+}
+
 async function readClipboardImage() {
   if (!navigator.clipboard?.read) return null
   try {
@@ -412,6 +432,12 @@ function strokeBounds(s) {
   if (s.shape) return { x1: Math.min(s.x1, s.x2), y1: Math.min(s.y1, s.y2), x2: Math.max(s.x1, s.x2), y2: Math.max(s.y1, s.y2) }
   const xs = s.points.map(p => p[0]), ys = s.points.map(p => p[1])
   return { x1: Math.min(...xs), y1: Math.min(...ys), x2: Math.max(...xs), y2: Math.max(...ys) }
+}
+
+function scaleStroke(s, ax, ay, k) {
+  const sx = x => ax + (x - ax) * k, sy = y => ay + (y - ay) * k
+  if (s.shape) return { ...s, x1: sx(s.x1), y1: sy(s.y1), x2: sx(s.x2), y2: sy(s.y2), ...(s.size ? { size: s.size * k } : {}) }
+  return { ...s, size: s.size * k, points: s.points.map(p => [Math.round(sx(p[0])), Math.round(sy(p[1])), p[2]]) }
 }
 
 function rectsIntersect(a, b) {
@@ -458,7 +484,7 @@ function PageTemplate({ pageId, template, bgColor, lineSpacing, width, height })
 }
 
 // ─── Single page canvas ────────────────────────────────────────────────────────
-function PageCanvas({ page, pageH, maxW, pageIdx, totalPages, onStrokesChange, onTransferStrokes, penColor, penSize, tool, shapeType, opacity, smoothness, template, bgColor, lineSpacing, eraserMode, eraserRadius, readonly, onUndo, onRedo, onPinch, onPinchEnd, zoom = 1, clipboard, onCopy, pageBackground }) {
+function PageCanvas({ page, pageH, maxW, pageIdx, totalPages, onStrokesChange, onTransferStrokes, penColor, penSize, tool, shapeType, opacity, smoothness, template, bgColor, lineSpacing, eraserMode, eraserRadius, readonly, onUndo, onRedo, onPinch, onPinchEnd, zoom = 1, clipboard, onCopy, pageBackground, autoSelect }) {
   const svgRef        = useRef()
   const livePathRef   = useRef(null)
   const liveShapeRef  = useRef(null)
@@ -500,6 +526,7 @@ function PageCanvas({ page, pageH, maxW, pageIdx, totalPages, onStrokesChange, o
   const [erasingStrokes,  setErasingStrokes]  = useState(null)
   const [pasteMenu,       setPasteMenu]       = useState(null) // { x, y } or null
   const [region,          setRegion]          = useState(null) // last select-drag rect, copyable as an image
+  const [resize,          setResize]          = useState(null) // { ax, ay, w0, h0, k }: corner-drag scale about the opposite corner
   const [actionToast,     setActionToast]     = useState(null)
   const [actionToastKey,  setActionToastKey]  = useState(0)
   const actionToastTimer = useRef(null)
@@ -508,9 +535,14 @@ function PageCanvas({ page, pageH, maxW, pageIdx, totalPages, onStrokesChange, o
     setSelectedIndices(new Set()); setSelRect(null)
     setIsMoving(false); setMoveStart(null); setMoveOff({ dx: 0, dy: 0 })
     setEraserPos(null); setErasingStrokes(null)
-    setPasteMenu(null); setRegion(null); clearTimeout(holdTimer.current)
+    setPasteMenu(null); setRegion(null); setResize(null); clearTimeout(holdTimer.current)
     isErasingRef.current = false; erasingRef.current = null
   }, [tool])
+
+  // Declared after the tool reset above so a paste that also switches tool keeps its selection
+  useEffect(() => {
+    if (autoSelect) setSelectedIndices(new Set([autoSelect.index]))
+  }, [autoSelect?.nonce]) // eslint-disable-line react-hooks/exhaustive-deps
 
   useEffect(() => {
     if (readonly) return
@@ -564,13 +596,7 @@ function PageCanvas({ page, pageH, maxW, pageIdx, totalPages, onStrokesChange, o
         } else { liveShapeRef.current?.el?.remove(); liveShapeRef.current = null }
         shapeModeRef.current = false; shapeStartRef.current = null; setShapeHeld(false)
       } else if (tool === 'select') {
-        if (im) {
-          stateRef.current.commitMove(mo.dx, mo.dy)
-        } else if (sr) {
-          const hits = new Set()
-          strokes.forEach((s, i) => { if (rectsIntersect(sr, strokeBounds(s))) hits.add(i) })
-          setSelectedIndices(hits); setSelRect(null); setRegion(toRegion(sr))
-        }
+        stateRef.current.endSelectPress()
       } else {
         if (!activeStroke.current) return
         if (drawRAFRef.current) { cancelAnimationFrame(drawRAFRef.current); drawRAFRef.current = null }
@@ -624,23 +650,7 @@ function PageCanvas({ page, pageH, maxW, pageIdx, totalPages, onStrokesChange, o
         } else if (tool === 'shape') {
           shapeStartRef.current = pt; shapeModeRef.current = true; setShapeHeld(true)
         } else if (tool === 'select') {
-          const { selectedIndices: si, strokes: st } = stateRef.current
-          if (si.size > 0) {
-            const bounds = [...si].map(idx => strokeBounds(st[idx]))
-            const sb = { x1: Math.min(...bounds.map(b => b.x1)) - 8, y1: Math.min(...bounds.map(b => b.y1)) - 8, x2: Math.max(...bounds.map(b => b.x2)) + 8, y2: Math.max(...bounds.map(b => b.y2)) + 8 }
-            if (pt[0] >= sb.x1 && pt[0] <= sb.x2 && pt[1] >= sb.y1 && pt[1] <= sb.y2) {
-              setIsMoving(true); setMoveStart({ x: pt[0], y: pt[1] }); setMoveOff({ dx: 0, dy: 0 }); setRegion(null); return
-            }
-          }
-          setSelectedIndices(new Set()); setSelRect({ x1: pt[0], y1: pt[1], x2: pt[0], y2: pt[1] }); setIsMoving(false); setRegion(null)
-          if (stateRef.current.clipboard?.length > 0 || navigator.clipboard?.read) {
-            pasteHoldStartRef.current = pt
-            holdTimer.current = setTimeout(() => {
-              const cur = lastPtRef.current
-              if (cur && Math.hypot(cur[0] - pt[0], cur[1] - pt[1]) < 12) setPasteMenu({ x: pt[0], y: pt[1] })
-              pasteHoldStartRef.current = null
-            }, 1200)
-          }
+          stateRef.current.beginSelectPress(pt)
         } else {
           activeStroke.current = { points: [roundPt(pt)], color: drawColor, size: penSize, opacity, smoothing: stateRef.current.smoothness }
           const path = document.createElementNS('http://www.w3.org/2000/svg', 'path')
@@ -755,10 +765,7 @@ function PageCanvas({ page, pageH, maxW, pageIdx, totalPages, onStrokesChange, o
           setLiveShapeAttrs(liveShapeRef.current.el, type, x1, y1, sx2, sy2)
         }
       } else if (tool === 'select') {
-        clearTimeout(holdTimer.current); holdTimer.current = null; pasteHoldStartRef.current = null
-        const { isMoving: im, moveStart: ms, selRect: sr } = stateRef.current
-        if (im && ms) setMoveOff({ dx: pt[0] - ms.x, dy: pt[1] - ms.y })
-        else if (sr) setSelRect(prev => ({ ...prev, x2: pt[0], y2: pt[1] }))
+        stateRef.current.moveSelectPress(pt)
       } else {
         if (!activeStroke.current || !livePathRef.current) return
 
@@ -929,10 +936,83 @@ function PageCanvas({ page, pageH, maxW, pageIdx, totalPages, onStrokesChange, o
     setIsMoving(false); setMoveStart(null); setMoveOff({ dx: 0, dy: 0 })
   }
 
+  // ── Select tool: one press = resize (corner handle), move (inside the selection),
+  // or a new selection drag; holding still on empty space opens the paste menu.
+  // Shared by the Pencil (touch events) and mouse/pen (pointer events) paths.
+  const HANDLE_HIT = 22 / zoom // screen px, whatever the zoom
+
+  function beginSelectPress(pt) {
+    const sb = getSelBounds()
+    if (sb) {
+      const cb = getSelBounds(0, 0, 0)
+      for (const [hx, hy, ax, ay] of [[sb.x1, sb.y1, cb.x2, cb.y2], [sb.x2, sb.y1, cb.x1, cb.y2], [sb.x1, sb.y2, cb.x2, cb.y1], [sb.x2, sb.y2, cb.x1, cb.y1]]) {
+        if (Math.hypot(pt[0] - hx, pt[1] - hy) <= HANDLE_HIT) {
+          setResize({ ax, ay, w0: Math.max(1, cb.x2 - cb.x1), h0: Math.max(1, cb.y2 - cb.y1), k: 1 }); setRegion(null)
+          return
+        }
+      }
+      if (pt[0] >= sb.x1 && pt[0] <= sb.x2 && pt[1] >= sb.y1 && pt[1] <= sb.y2) {
+        setIsMoving(true); setMoveStart({ x: pt[0], y: pt[1] }); setMoveOff({ dx: 0, dy: 0 }); setRegion(null)
+        return
+      }
+    }
+    setSelectedIndices(new Set()); setSelRect({ x1: pt[0], y1: pt[1], x2: pt[0], y2: pt[1] }); setIsMoving(false); setRegion(null)
+    pasteHoldStartRef.current = pt
+    clearTimeout(holdTimer.current)
+    holdTimer.current = setTimeout(() => {
+      const cur = lastPtRef.current
+      if (cur && Math.hypot(cur[0] - pt[0], cur[1] - pt[1]) < 12) openPasteMenu(pt[0], pt[1])
+      pasteHoldStartRef.current = null
+    }, 1200)
+  }
+
+  function moveSelectPress(pt) {
+    // A Pencil held still still reports tiny moves; only real movement cancels the hold
+    const hold = pasteHoldStartRef.current
+    if (hold && Math.hypot(pt[0] - hold[0], pt[1] - hold[1]) >= 12) {
+      clearTimeout(holdTimer.current); holdTimer.current = null; pasteHoldStartRef.current = null
+    }
+    if (resize) {
+      const k = Math.hypot(pt[0] - resize.ax, pt[1] - resize.ay) / Math.hypot(resize.w0, resize.h0)
+      setResize({ ...resize, k: Math.max(16 / Math.max(resize.w0, resize.h0), k) })
+    } else if (isMoving && moveStart) {
+      setMoveOff({ dx: pt[0] - moveStart.x, dy: pt[1] - moveStart.y })
+    } else if (selRect) {
+      setSelRect(prev => ({ ...prev, x2: pt[0], y2: pt[1] }))
+    }
+  }
+
+  function endSelectPress() {
+    clearTimeout(holdTimer.current); pasteHoldStartRef.current = null
+    if (resize) {
+      if (Math.abs(resize.k - 1) > 0.01)
+        onStrokesChange(strokes.map((s, i) => selectedIndices.has(i) ? scaleStroke(s, resize.ax, resize.ay, resize.k) : s))
+      setResize(null)
+    } else if (isMoving) {
+      commitMove(moveOff.dx, moveOff.dy)
+    } else if (selRect) {
+      const hits = new Set()
+      strokes.forEach((s, i) => { if (rectsIntersect(selRect, strokeBounds(s))) hits.add(i) })
+      setSelectedIndices(hits); setSelRect(null); setRegion(toRegion(selRect))
+    }
+  }
+
+  // Paste menu: "Paste" for copied strokes, "Paste image" for a copied picture — in-app
+  // first (last thing copied inside a note wins), else the system clipboard when it holds
+  // (or, on iPad, might hold) an image
+  function openPasteMenu(x, y) {
+    probeClipboardImage().then(systemImage => {
+      const systemMaybe = !!navigator.clipboard?.read && systemImage !== false
+      if (!systemMaybe && !stateRef.current.clipboard?.length) return // nothing to paste
+      setPasteMenu({ x, y, systemImage })
+    })
+  }
+
   stateRef.current = {
     tool, drawColor, penSize, opacity, smoothness, shapeType, eraserMode, eraserRadius, strokes, onStrokesChange, onUndo, onRedo, onPinch, onPinchEnd, onCopy, clipboard,
     selectedIndices, selRect, isMoving, moveStart, moveOff,
     commitMove, pageIdx, totalPages, onTransferStrokes, pageH,
+    beginSelectPress, moveSelectPress, endSelectPress,
   }
 
   function ignorePointer(e) {
@@ -972,16 +1052,19 @@ function PageCanvas({ page, pageH, maxW, pageIdx, totalPages, onStrokesChange, o
     setLiveShapeAttrs(liveShapeRef.current.el, type, x1, y1, sx2, sy2)
   }
 
-  function getSelBounds(dx = 0, dy = 0) {
+  // Selection bounds (padded for the dashed box), following a live resize
+  function getSelBounds(dx = 0, dy = 0, pad = 8) {
     const validIdx = [...selectedIndices].filter(i => i < strokes.length)
     if (validIdx.length === 0) return null
     const bounds = validIdx.map(i => strokeBounds(strokes[i]))
-    return {
-      x1: Math.min(...bounds.map(b => b.x1)) - 8 + dx,
-      y1: Math.min(...bounds.map(b => b.y1)) - 8 + dy,
-      x2: Math.max(...bounds.map(b => b.x2)) + 8 + dx,
-      y2: Math.max(...bounds.map(b => b.y2)) + 8 + dy,
+    let x1 = Math.min(...bounds.map(b => b.x1)), y1 = Math.min(...bounds.map(b => b.y1))
+    let x2 = Math.max(...bounds.map(b => b.x2)), y2 = Math.max(...bounds.map(b => b.y2))
+    if (resize) {
+      const { ax, ay, k } = resize
+      ;[x1, x2] = [ax + (x1 - ax) * k, ax + (x2 - ax) * k].sort((a, b) => a - b)
+      ;[y1, y2] = [ay + (y1 - ay) * k, ay + (y2 - ay) * k].sort((a, b) => a - b)
     }
+    return { x1: x1 - pad + dx, y1: y1 - pad + dy, x2: x2 + pad + dx, y2: y2 + pad + dy }
   }
 
   function showActionToast(msg) {
@@ -1093,24 +1176,7 @@ function PageCanvas({ page, pageH, maxW, pageIdx, totalPages, onStrokesChange, o
     }
 
     if (tool === 'select') {
-      if (selectedIndices.size > 0) {
-        const sb = getSelBounds()
-        if (sb && pt[0] >= sb.x1 && pt[0] <= sb.x2 && pt[1] >= sb.y1 && pt[1] <= sb.y2) {
-          setIsMoving(true); setMoveStart({ x: pt[0], y: pt[1] }); setMoveOff({ dx: 0, dy: 0 }); setRegion(null); return
-        }
-      }
-      setSelectedIndices(new Set())
-      setSelRect({ x1: pt[0], y1: pt[1], x2: pt[0], y2: pt[1] })
-      setIsMoving(false)
-      setRegion(null)
-      if (clipboard?.length > 0 || navigator.clipboard?.read) {
-        pasteHoldStartRef.current = pt
-        holdTimer.current = setTimeout(() => {
-          const cur = lastPtRef.current
-          if (cur && Math.hypot(cur[0] - pt[0], cur[1] - pt[1]) < 12) setPasteMenu({ x: pt[0], y: pt[1] })
-          pasteHoldStartRef.current = null
-        }, 1200)
-      }
+      beginSelectPress(pt)
       return
     }
 
@@ -1139,9 +1205,7 @@ function PageCanvas({ page, pageH, maxW, pageIdx, totalPages, onStrokesChange, o
     }
 
     if (tool === 'select') {
-      clearTimeout(holdTimer.current); holdTimer.current = null; pasteHoldStartRef.current = null
-      if (isMoving && moveStart) setMoveOff({ dx: pt[0] - moveStart.x, dy: pt[1] - moveStart.y })
-      else if (selRect) setSelRect(prev => ({ ...prev, x2: pt[0], y2: pt[1] }))
+      moveSelectPress(pt)
       return
     }
 
@@ -1231,13 +1295,7 @@ function PageCanvas({ page, pageH, maxW, pageIdx, totalPages, onStrokesChange, o
     }
 
     if (tool === 'select') {
-      if (isMoving) {
-        commitMove(moveOff.dx, moveOff.dy)
-      } else if (selRect) {
-        const hits = new Set()
-        strokes.forEach((s, i) => { if (rectsIntersect(selRect, strokeBounds(s))) hits.add(i) })
-        setSelectedIndices(hits); setSelRect(null); setRegion(toRegion(selRect))
-      }
+      endSelectPress()
       return
     }
 
@@ -1310,7 +1368,7 @@ function PageCanvas({ page, pageH, maxW, pageIdx, totalPages, onStrokesChange, o
   }
 
   const selBounds = tool === 'select' ? getSelBounds(isMoving ? moveOff.dx : 0, isMoving ? moveOff.dy : 0) : null
-  const cursor    = readonly ? 'default' : tool === 'eraser' ? 'none' : isMoving ? 'grabbing' : 'crosshair'
+  const cursor    = readonly ? 'default' : tool === 'eraser' ? 'none' : isMoving ? 'grabbing' : resize ? 'nwse-resize' : 'crosshair'
 
   return (
     // Height matches the CSS-scaled SVG visual height so overlays position correctly
@@ -1328,7 +1386,7 @@ function PageCanvas({ page, pageH, maxW, pageIdx, totalPages, onStrokesChange, o
 
       {/* Selection context menu — SVG coords × zoom = CSS pixel position */}
       {(() => {
-        if (tool !== 'select' || isMoving || selRect) return null
+        if (tool !== 'select' || isMoving || selRect || resize) return null
         const hasSel = selectedIndices.size > 0
         const rb  = region && { x1: region.x, y1: region.y, x2: region.x + region.w, y2: region.y + region.h }
         const smb = (hasSel ? getSelBounds() : null) ?? rb
@@ -1378,30 +1436,40 @@ function PageCanvas({ page, pageH, maxW, pageIdx, totalPages, onStrokesChange, o
         </div>
       )}
 
-      {/* Paste context menu */}
-      {pasteMenu && (
-        <>
-          <div onClick={() => setPasteMenu(null)} style={{ position: 'absolute', inset: 0, zIndex: 48 }} />
-          <div style={{
-            position: 'absolute',
-            left: pasteMenu.x * zoom + 'px',
-            top: (pasteMenu.y * zoom > 60 ? pasteMenu.y * zoom - 50 : pasteMenu.y * zoom + 10) + 'px',
-            transform: 'translateX(-50%)', zIndex: 50,
-            background: 'rgba(18,19,30,0.96)', backdropFilter: 'blur(14px)',
-            border: '1px solid rgba(255,255,255,0.12)', borderRadius: 12,
-            padding: '4px 6px', boxShadow: '0 4px 20px rgba(0,0,0,0.55)',
-          }}>
-            {clipboard?.length > 0 && (
-              <button className="btn-press" onClick={() => handlePaste(pasteMenu.x, pasteMenu.y)}
-                style={{ background: 'none', border: 'none', cursor: 'pointer', fontSize: 12, fontWeight: 500, padding: '4px 8px', borderRadius: 6, color: 'rgba(255,255,255,0.82)' }}>Paste</button>
-            )}
-            {navigator.clipboard?.read && (
-              <button className="btn-press" onClick={() => handleSystemPaste(pasteMenu.x, pasteMenu.y)}
-                style={{ background: 'none', border: 'none', cursor: 'pointer', fontSize: 12, fontWeight: 500, padding: '4px 8px', borderRadius: 6, color: 'rgba(255,255,255,0.82)' }}>Paste image</button>
-            )}
-          </div>
-        </>
-      )}
+      {/* Paste context menu (hold still on empty space with the Select tool) */}
+      {pasteMenu && (() => {
+        const btn = { background: 'none', border: 'none', cursor: 'pointer', fontSize: 12, fontWeight: 500, padding: '4px 8px', borderRadius: 6, color: 'rgba(255,255,255,0.82)' }
+        const inApp      = clipboard?.length > 0
+        const inAppImage = inApp && clipboard.every(c => c.shape === 'image')
+        // systemImage: true/false when it could be checked; null when it can't (iPad Safari)
+        const showSystem = !inAppImage && !!navigator.clipboard?.read && pasteMenu.systemImage !== false
+        if (!inApp && !showSystem) return null
+        return (
+          <>
+            <div onClick={() => setPasteMenu(null)} style={{ position: 'absolute', inset: 0, zIndex: 48 }} />
+            <div style={{
+              position: 'absolute',
+              left: pasteMenu.x * zoom + 'px',
+              top: (pasteMenu.y * zoom > 60 ? pasteMenu.y * zoom - 50 : pasteMenu.y * zoom + 10) + 'px',
+              transform: 'translateX(-50%)', zIndex: 50,
+              display: 'flex', alignItems: 'center', gap: 1,
+              background: 'rgba(18,19,30,0.96)', backdropFilter: 'blur(14px)',
+              border: '1px solid rgba(255,255,255,0.12)', borderRadius: 12,
+              padding: '4px 6px', boxShadow: '0 4px 20px rgba(0,0,0,0.55)',
+            }}>
+              {inApp && (
+                <button className="btn-press" onClick={() => handlePaste(pasteMenu.x, pasteMenu.y)} style={btn}>
+                  {inAppImage ? 'Paste image' : 'Paste'}
+                </button>
+              )}
+              {inApp && showSystem && <div style={{ width: 1, height: 16, background: 'rgba(255,255,255,0.1)', margin: '0 2px' }} />}
+              {showSystem && (
+                <button className="btn-press" onClick={() => handleSystemPaste(pasteMenu.x, pasteMenu.y)} style={btn}>Paste image</button>
+              )}
+            </div>
+          </>
+        )
+      })()}
 
       <svg
         ref={svgRef}
@@ -1442,7 +1510,8 @@ function PageCanvas({ page, pageH, maxW, pageIdx, totalPages, onStrokesChange, o
             const sel = selectedIndices.has(i)
             const dx  = sel && isMoving ? moveOff.dx : 0
             const dy  = sel && isMoving ? moveOff.dy : 0
-            const tf  = (dx || dy) ? `translate(${dx},${dy})` : undefined
+            const rs  = sel && resize ? `translate(${resize.ax},${resize.ay}) scale(${resize.k}) translate(${-resize.ax},${-resize.ay})` : ''
+            const tf  = (dx || dy) ? `translate(${dx},${dy}) ${rs}` : (rs || undefined)
             const rc  = adaptColor(s.color, bgColor)
             if (s.shape) return <g key={i} transform={tf}>{renderShape({ ...s, color: rc })}</g>
             return (
@@ -1467,6 +1536,11 @@ function PageCanvas({ page, pageH, maxW, pageIdx, totalPages, onStrokesChange, o
             fill="rgba(91,140,255,0.06)" stroke="#5b8cff" strokeWidth={1.5} strokeDasharray="6 4" data-export-skip
           />
         )}
+        {/* Corner handles: drag to resize (aspect kept, anchored at the opposite corner) */}
+        {selBounds && !selRect && !isMoving && [[selBounds.x1, selBounds.y1], [selBounds.x2, selBounds.y1], [selBounds.x1, selBounds.y2], [selBounds.x2, selBounds.y2]].map(([hx, hy], i) => (
+          <circle key={i} cx={hx} cy={hy} r={7 / zoom}
+            fill="#ffffff" stroke="#5b8cff" strokeWidth={2 / zoom} data-export-skip />
+        ))}
         {tool === 'eraser' && eraserPos && (
           <circle
             cx={eraserPos.x} cy={eraserPos.y} r={eraserRadius}
@@ -1578,7 +1652,10 @@ const NoteCanvas = forwardRef(function NoteCanvas({
   const [undoToastKey, setUndoToastKey] = useState(0)
   const [redoToast,    setRedoToast]    = useState(false)
   const [redoToastKey, setRedoToastKey] = useState(0)
-  const [clipboard,    setClipboard]    = useState(null)
+  const [clipboard,    setClipboardState] = useState(() => sessionClipboard)
+  function setClipboard(items) { sessionClipboard = items; setClipboardState(items) }
+  // Selection to apply after a paste from outside the page (Cmd+V): { pageId, index, nonce }
+  const [autoSelect,   setAutoSelect]   = useState(null)
   const toolbarRef          = useRef(null)
   const toolBtnRefs         = useRef({})
   const [toolPill, setToolPill] = useState({ left: 0, width: 0, ready: false })
@@ -1880,14 +1957,13 @@ const NoteCanvas = forwardRef(function NoteCanvas({
     if (!target) return
     const stroke = placeImage(await blobToImageHref(blob), target.x, target.y, target.w, target.h)
     const latest = pagesRef.current
-    undoStackRef.current.push({ pageIdx: target.pageIdx, strokes: latest[target.pageIdx].strokes })
+    const page = latest[target.pageIdx]
+    undoStackRef.current.push({ pageIdx: target.pageIdx, strokes: page.strokes })
     redoStackRef.current = []
     onPagesChange(latest.map((p, i) => i === target.pageIdx ? { ...p, strokes: [...p.strokes, stroke] } : p))
-  }
-
-  async function handlePasteButton() {
-    const blob = await readClipboardImage()
-    if (blob) pasteImageBlob(blob)
+    // Land it selected, ready to move, resize or delete
+    handleSetTool('select')
+    setAutoSelect({ pageId: page.id, index: page.strokes.length, nonce: Date.now() })
   }
 
   // Cmd/Ctrl+V with a keyboard (desktop, Electron, iPad with keyboard)
@@ -2002,15 +2078,6 @@ const NoteCanvas = forwardRef(function NoteCanvas({
             }}>
               <Trash2 size={12} /> Clear
             </button>
-            {navigator.clipboard?.read && (
-              <button className="btn-press" onClick={handlePasteButton} title="Paste an image or screenshot from the clipboard" style={{
-                display: 'flex', alignItems: 'center', gap: 5, padding: '5px 11px',
-                borderRadius: 7, border: '1px solid var(--border)', background: 'none',
-                color: 'var(--text-secondary)', cursor: 'pointer', fontSize: 12,
-              }}>
-                <ClipboardPaste size={12} /> Paste image
-              </button>
-            )}
             <div style={{ flex: 1 }} />
             {zoom !== 1 && (
               <button className="btn-press" onClick={() => { userZoomedRef.current = true; setZoom(1) }} title="Reset zoom" style={{
@@ -2460,6 +2527,7 @@ const NoteCanvas = forwardRef(function NoteCanvas({
                   clipboard={clipboard}
                   onCopy={strokes => setClipboard(strokes)}
                   pageBackground={pageBackgrounds?.[pageIdx]}
+                  autoSelect={autoSelect?.pageId === page.id ? autoSelect : null}
                 />
                 {/* Controls float in the gap between pages; zero layout height so they don't shift the column */}
                 {/* Outer div spans page width, centers content; inner div holds the content and scales */}
